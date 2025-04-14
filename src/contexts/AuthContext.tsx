@@ -80,15 +80,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
-  // Login function using Supabase
+  // Login function - handles both demo login and regular login
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     
     try {
+      // First try to sign in
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
+      
+      // If it's a demo login and failed, try to create the user first
+      if (error && 
+         (email === 'student@example.com' || email === 'admin@example.com') && 
+         password === 'password') {
+        
+        // Create the demo user
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              name: email === 'admin@example.com' ? 'Admin User' : 'Student User',
+            }
+          }
+        });
+        
+        if (signUpError) {
+          throw signUpError;
+        }
+        
+        toast({
+          title: "Demo account created",
+          description: "Successfully created demo account and logged you in",
+        });
+        
+        return;
+      }
       
       if (error) throw error;
       
