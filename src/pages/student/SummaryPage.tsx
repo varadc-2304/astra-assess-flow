@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { CheckCircle, FileCog } from 'lucide-react';
+import { CheckCircle, FileCog, Loader2 } from 'lucide-react';
 
 const SummaryPage = () => {
   const { assessment, assessmentEnded } = useAssessment();
@@ -16,7 +16,15 @@ const SummaryPage = () => {
   useEffect(() => {
     if (!assessment || !assessmentEnded) {
       navigate('/student');
+      return;
     }
+    
+    // Auto-redirect to the detailed report page after 3 seconds
+    const timer = setTimeout(() => {
+      navigate('/report');
+    }, 3000);
+    
+    return () => clearTimeout(timer);
   }, [assessment, assessmentEnded, navigate]);
   
   if (!assessment) {
@@ -34,14 +42,6 @@ const SummaryPage = () => {
     .length;
   
   const score = Math.floor(Math.random() * 51) + 50; // Random score between 50 and 100 for demo
-  
-  const handleDownloadReport = () => {
-    alert('Report download functionality would be implemented here.');
-  };
-  
-  const handleReturnToDashboard = () => {
-    navigate('/student');
-  };
   
   return (
     <div className="min-h-screen bg-gray-50 py-12">
@@ -108,24 +108,16 @@ const SummaryPage = () => {
             <Separator />
             
             <div className="text-center">
-              <p className="text-sm text-gray-500 mb-4">
-                A detailed report of your performance has been generated. 
-                You can download it for future reference or return to the dashboard.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Button 
-                  variant="outline" 
-                  onClick={handleDownloadReport}
-                >
-                  Download Report
-                </Button>
-                <Button 
-                  onClick={handleReturnToDashboard}
-                  className="bg-astra-red hover:bg-red-600 text-white"
-                >
-                  Return to Dashboard
-                </Button>
+              <div className="flex items-center justify-center gap-2 text-gray-600 mb-4">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span>Redirecting to detailed report...</span>
               </div>
+              <Button 
+                onClick={() => navigate('/report')}
+                className="bg-astra-red hover:bg-red-600 text-white"
+              >
+                View Detailed Report
+              </Button>
             </div>
           </CardContent>
         </Card>

@@ -15,7 +15,8 @@ import { Timer } from '@/components/Timer';
 import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2 } from 'lucide-react';
 
 const AssessmentPage = () => {
   const { 
@@ -29,8 +30,11 @@ const AssessmentPage = () => {
   } = useAssessment();
 
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [isEndingAssessment, setIsEndingAssessment] = useState(false);
   const navigate = useNavigate();
   const { enterFullscreen, isFullscreen } = useFullscreen();
+  const { toast } = useToast();
   
   // Ensure we have an assessment
   useEffect(() => {
@@ -79,8 +83,17 @@ const AssessmentPage = () => {
   };
   
   const confirmEndAssessment = () => {
-    endAssessment();
-    navigate('/summary');
+    setIsEndingAssessment(true);
+    
+    // Simulate API submission
+    setTimeout(() => {
+      endAssessment();
+      toast({
+        title: "Assessment Submitted",
+        description: "Your answers have been submitted successfully!",
+      });
+      navigate('/report');
+    }, 1500);
   };
   
   return (
@@ -158,7 +171,7 @@ const AssessmentPage = () => {
         <Timer variant="assessment" />
       </header>
       
-      {/* Main Content - NOW SCROLLABLE */}
+      {/* Main Content - SCROLLABLE */}
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-6xl mx-auto">
           {currentQuestion.type === 'mcq' ? (
@@ -232,7 +245,7 @@ const AssessmentPage = () => {
         <Button
           variant="outline"
           onClick={handlePrevQuestion}
-          disabled={currentQuestionIndex === 0}
+          disabled={currentQuestionIndex === 0 || isNavigating || isEndingAssessment}
         >
           <ChevronLeft className="h-5 w-5 mr-1" /> Previous
         </Button>
@@ -253,13 +266,19 @@ const AssessmentPage = () => {
             <Button
               className="bg-astra-red hover:bg-red-600 text-white"
               onClick={handleEndAssessment}
+              disabled={isNavigating || isEndingAssessment}
             >
-              End Assessment
+              {isEndingAssessment ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <>End Assessment</>
+              )}
             </Button>
           ) : (
             <Button
               variant="outline"
               onClick={handleNextQuestion}
+              disabled={isNavigating || isEndingAssessment}
             >
               Next <ChevronRight className="h-5 w-5 ml-1" />
             </Button>
@@ -277,12 +296,29 @@ const AssessmentPage = () => {
             </AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to end the assessment? This action cannot be undone, and all your answers will be submitted.
+              {questionStatus.some(status => !status) && (
+                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md text-amber-700 text-sm">
+                  <HelpCircle className="h-4 w-4 inline mr-1" />
+                  You have {questionStatus.filter(status => !status).length} unanswered question(s).
+                </div>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmEndAssessment} className="bg-astra-red hover:bg-red-600 text-white">
-              End Assessment
+            <AlertDialogCancel disabled={isEndingAssessment}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmEndAssessment} 
+              className="bg-astra-red hover:bg-red-600 text-white"
+              disabled={isEndingAssessment}
+            >
+              {isEndingAssessment ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                "End Assessment"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
