@@ -13,6 +13,7 @@ import InstructionsPage from "./pages/student/InstructionsPage";
 import AssessmentPage from "./pages/student/AssessmentPage";
 import SummaryPage from "./pages/student/SummaryPage";
 import NotFound from "./pages/NotFound";
+import ResultsPage from "./pages/admin/ResultsPage";
 
 const queryClient = new QueryClient();
 
@@ -54,6 +55,7 @@ const AppRoutes = () => (
     
     {/* Admin Routes */}
     <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
+    <Route path="/admin/results" element={<ProtectedRoute requiredRole="admin"><ResultsPage /></ProtectedRoute>} />
     
     {/* 404 Route */}
     <Route path="*" element={<NotFound />} />

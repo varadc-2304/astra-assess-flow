@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { PlusCircle, FileSpreadsheet, Clock, Users } from 'lucide-react';
+import { PlusCircle, FileSpreadsheet, Clock, Users, BarChart } from 'lucide-react';
 import AssessmentForm from '@/components/admin/AssessmentForm';
 import AssessmentList from '@/components/admin/AssessmentList';
 
@@ -67,6 +67,7 @@ const AdminDashboard = () => {
                 <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
                 <TabsTrigger value="assessments">Assessments</TabsTrigger>
                 <TabsTrigger value="create">Create New</TabsTrigger>
+                <TabsTrigger value="results" onClick={() => navigate('/admin/results')}>Results</TabsTrigger>
               </TabsList>
               
               {activeTab === 'assessments' && (
@@ -146,6 +147,15 @@ const AdminDashboard = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              <div className="flex justify-end">
+                <Button 
+                  onClick={() => navigate('/admin/results')}
+                  className="bg-astra-red hover:bg-red-600 text-white"
+                >
+                  <BarChart className="h-4 w-4 mr-2" /> View All Results
+                </Button>
+              </div>
             </TabsContent>
 
             {/* Assessments Tab */}
