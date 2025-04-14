@@ -45,7 +45,7 @@ interface Student {
   completedAt: string;
   isFlagged: boolean;
   division: string;
-  batch: string;
+  batch: string; // This is the fixed type - changed from string[] to string
   year: string;
 }
 
@@ -95,7 +95,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           completedAt: new Date(2025, 3, Math.floor(Math.random() * 14) + 1).toISOString(),
           isFlagged: i % 7 === 0, // Flag every 7th student
           division: ['A', 'B', 'C'][i % 3],
-          batch: [`B${(i % 3) + 1}`],
+          batch: `B${(i % 3) + 1}`, // Fixed: Now returning a string instead of an array
           year: '2025'
         }));
         
