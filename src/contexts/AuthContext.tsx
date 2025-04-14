@@ -85,39 +85,62 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     
     try {
-      // First try to sign in
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-      
-      // If it's a demo login and failed, try to create the user first
-      if (error && 
-         (email === 'student@example.com' || email === 'admin@example.com') && 
-         password === 'password') {
-        
-        // Create the demo user
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      // Handle demo credentials specifically
+      if ((email === 'student@example.com' || email === 'admin@example.com') && password === 'password') {
+        // First try to sign in
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
-          password,
-          options: {
-            data: {
-              name: email === 'admin@example.com' ? 'Admin User' : 'Student User',
-            }
-          }
+          password
         });
         
-        if (signUpError) {
-          throw signUpError;
+        // If login fails for demo user, create the account first
+        if (error) {
+          // Create the demo user
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                name: email === 'admin@example.com' ? 'Admin User' : 'Student User',
+              }
+            }
+          });
+          
+          if (signUpError) {
+            throw signUpError;
+          }
+          
+          // Try to login again after account creation
+          const { error: loginError } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+          
+          if (loginError) {
+            throw loginError;
+          }
+          
+          toast({
+            title: "Demo account created",
+            description: "Successfully created demo account and logged you in",
+          });
+          
+          return;
         }
         
         toast({
-          title: "Demo account created",
-          description: "Successfully created demo account and logged you in",
+          title: "Demo login successful",
+          description: `Welcome to AstraAssessments, ${email === 'admin@example.com' ? 'Admin' : 'Student'}!`,
         });
         
         return;
       }
+      
+      // Regular login for non-demo accounts
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
       
       if (error) throw error;
       
