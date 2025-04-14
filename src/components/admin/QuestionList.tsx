@@ -37,7 +37,13 @@ const QuestionList: React.FC<QuestionListProps> = ({ assessmentId }) => {
         .order('order_index', { ascending: true });
 
       if (error) throw error;
-      setQuestions(data || []);
+      
+      // Validate and filter the data to ensure it conforms to our Question type
+      const validQuestions = (data || []).filter(
+        question => question.type === 'mcq' || question.type === 'code'
+      ) as Question[];
+      
+      setQuestions(validQuestions);
     } catch (error: any) {
       toast({
         title: "Error fetching questions",
