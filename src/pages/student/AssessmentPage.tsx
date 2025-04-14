@@ -86,7 +86,7 @@ const AssessmentPage = () => {
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Top Bar */}
-      <header className="bg-white border-b border-gray-200 py-2 px-4 flex items-center justify-between">
+      <header className="bg-white border-b border-gray-200 py-2 px-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center">
           <Sheet>
             <SheetTrigger asChild>
@@ -94,7 +94,7 @@ const AssessmentPage = () => {
                 <MenuIcon className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72">
+            <SheetContent side="left" className="w-72 overflow-y-auto">
               <SheetHeader>
                 <SheetTitle>Questions</SheetTitle>
               </SheetHeader>
@@ -158,20 +158,20 @@ const AssessmentPage = () => {
         <Timer variant="assessment" />
       </header>
       
-      {/* Main Content */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full p-4">
+      {/* Main Content - NOW SCROLLABLE */}
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="max-w-6xl mx-auto">
           {currentQuestion.type === 'mcq' ? (
-            <div className="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow">
+            <div className="bg-white p-6 rounded-lg shadow">
               <MCQQuestion 
                 question={currentQuestion} 
                 onAnswerSelect={answerMCQ}
               />
             </div>
           ) : (
-            <div className="h-full flex flex-col md:flex-row gap-4">
-              {/* Problem Description */}
-              <div className="md:w-1/2 bg-white p-6 rounded-lg shadow overflow-auto">
+            <div className="flex flex-col md:flex-row gap-4 h-full">
+              {/* Problem Description - SCROLLABLE */}
+              <div className="md:w-1/2 bg-white p-6 rounded-lg shadow overflow-y-auto max-h-[calc(100vh-180px)]">
                 <h3 className="text-lg font-medium mb-3">{currentQuestion.title}</h3>
                 <p className="text-gray-700 whitespace-pre-line mb-4">{currentQuestion.description}</p>
                 
@@ -213,20 +213,22 @@ const AssessmentPage = () => {
                 )}
               </div>
               
-              {/* Code Editor */}
-              <div className="md:w-1/2 bg-white p-4 rounded-lg shadow flex flex-col">
-                <CodeEditor 
-                  question={currentQuestion}
-                  onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
-                />
+              {/* Code Editor - SCROLLABLE CONTAINER */}
+              <div className="md:w-1/2 bg-white rounded-lg shadow flex flex-col overflow-hidden">
+                <div className="p-4 flex-1 overflow-hidden">
+                  <CodeEditor 
+                    question={currentQuestion}
+                    onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
+                  />
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
       
-      {/* Bottom Navigation */}
-      <div className="bg-white border-t border-gray-200 p-4 flex items-center justify-between">
+      {/* Bottom Navigation - STICKY */}
+      <div className="bg-white border-t border-gray-200 py-3 px-6 flex items-center justify-between sticky bottom-0 z-10">
         <Button
           variant="outline"
           onClick={handlePrevQuestion}

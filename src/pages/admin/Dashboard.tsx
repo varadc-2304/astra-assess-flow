@@ -1,94 +1,163 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { PlusCircle, FileSpreadsheet, Clock, Users } from 'lucide-react';
+import AssessmentForm from '@/components/admin/AssessmentForm';
+import AssessmentList from '@/components/admin/AssessmentList';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [stats, setStats] = useState({
+    activeAssessments: 0,
+    students: 0,
+    completedAssessments: 0
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch dashboard stats
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        // In a real app, these would be actual database queries
+        // For demo purposes, we'll use fake stats
+        setStats({
+          activeAssessments: 3,
+          students: 42,
+          completedAssessments: 15
+        });
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-7xl mx-auto px-4">
-        <header className="flex justify-between items-center mb-8">
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 py-4 px-6 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-astra-red">AstraAssessments</h1>
-            <p className="text-gray-600">Admin Panel</p>
+            <h1 className="text-2xl font-bold text-astra-red">AstraAssessments</h1>
+            <p className="text-sm text-gray-600">Admin Dashboard</p>
           </div>
           <div className="flex items-center gap-4">
-            <span>Welcome, {user?.name}</span>
+            <span className="text-sm">Welcome, {user?.name}</span>
             <Button variant="outline" onClick={logout}>Log out</Button>
           </div>
-        </header>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Active Assessments</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">1</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Students</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">24</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Completed Assessments</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">12</p>
-            </CardContent>
-          </Card>
         </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            <h2 className="text-xl font-bold mb-4">Recent Activity</h2>
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="p-4">
-                <div className="flex justify-between items-center py-2 border-b">
-                  <div>
+      </header>
+
+      {/* Main Content */}
+      <div className="flex-1 p-6">
+        <div className="max-w-7xl mx-auto">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <div className="flex justify-between items-center mb-4">
+              <TabsList>
+                <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+                <TabsTrigger value="assessments">Assessments</TabsTrigger>
+                <TabsTrigger value="create">Create New</TabsTrigger>
+              </TabsList>
+              
+              {activeTab === 'assessments' && (
+                <Button 
+                  onClick={() => setActiveTab('create')}
+                  className="bg-astra-red hover:bg-red-600 text-white"
+                >
+                  <PlusCircle className="h-4 w-4 mr-2" /> Create Assessment
+                </Button>
+              )}
+            </div>
+
+            {/* Dashboard Tab */}
+            <TabsContent value="dashboard" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                    <CardTitle className="text-lg font-medium">Active Assessments</CardTitle>
+                    <FileSpreadsheet className="h-5 w-5 text-astra-red" />
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">{stats.activeAssessments}</p>
+                    <p className="text-xs text-gray-500">Currently active tests</p>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                    <CardTitle className="text-lg font-medium">Students</CardTitle>
+                    <Users className="h-5 w-5 text-astra-red" />
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">{stats.students}</p>
+                    <p className="text-xs text-gray-500">Total registered students</p>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                    <CardTitle className="text-lg font-medium">Completed Assessments</CardTitle>
+                    <Clock className="h-5 w-5 text-astra-red" />
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-3xl font-bold">{stats.completedAssessments}</p>
+                    <p className="text-xs text-gray-500">Tests completed by students</p>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Activity</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="border-b pb-2">
                     <p className="font-medium">Programming Fundamentals Assessment</p>
-                    <p className="text-sm text-gray-500">TEST123 • Active</p>
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>Started by 12 students</span>
+                      <span>2 hours ago</span>
+                    </div>
                   </div>
-                  <Button variant="outline" size="sm">View</Button>
-                </div>
-                
-                <div className="flex justify-between items-center py-2 border-b">
-                  <div>
+                  
+                  <div className="border-b pb-2">
                     <p className="font-medium">Data Structures Quiz</p>
-                    <p className="text-sm text-gray-500">DATA456 • Scheduled for Apr 15</p>
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>Created and scheduled</span>
+                      <span>Yesterday</span>
+                    </div>
                   </div>
-                  <Button variant="outline" size="sm">View</Button>
-                </div>
-                
-                <div className="flex justify-between items-center py-2">
+                  
                   <div>
                     <p className="font-medium">Algorithm Design Test</p>
-                    <p className="text-sm text-gray-500">ALGO789 • Completed</p>
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>All submissions graded</span>
+                      <span>2 days ago</span>
+                    </div>
                   </div>
-                  <Button variant="outline" size="sm">View Results</Button>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div>
-            <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
-            <div className="bg-white rounded-lg shadow p-4 space-y-3">
-              <Button className="w-full" variant="outline">Create New Assessment</Button>
-              <Button className="w-full" variant="outline">View All Assessments</Button>
-              <Button className="w-full" variant="outline">Manage Students</Button>
-              <Button className="w-full bg-astra-red text-white hover:bg-red-600">Generate Reports</Button>
-            </div>
-          </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Assessments Tab */}
+            <TabsContent value="assessments">
+              <AssessmentList />
+            </TabsContent>
+
+            {/* Create New Tab */}
+            <TabsContent value="create">
+              <AssessmentForm />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>
