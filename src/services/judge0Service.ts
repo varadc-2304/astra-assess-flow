@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // Judge0 API configuration
 const JUDGE0_API_URL = 'https://judge0-ce.p.rapidapi.com';
-const JUDGE0_API_KEY = process.env.JUDGE0_API_KEY || 'demo-key'; // Replace with actual key in production
+const JUDGE0_API_KEY = import.meta.env.VITE_JUDGE0_API_KEY || 'demo-key'; // Replace with actual key in production
 
 // Language IDs in Judge0
 export const LANGUAGE_IDS = {
