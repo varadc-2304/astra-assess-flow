@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,12 +25,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submissionToken, setSubmissionToken] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<{passed: boolean, actualOutput?: string}[]>([]);
   const { toast } = useToast();
 
-  // Get the current code for the selected language
   const currentCode = question.userSolution[selectedLanguage] || question.solutionTemplate[selectedLanguage] || '';
 
-  // Check submission status periodically when we have a token
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
     
@@ -40,18 +38,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
         try {
           const result = await getSubmissionResult(submissionToken);
           
-          // If the submission is still processing, continue waiting
           if (result.status.id <= 2) {
             return;
           }
           
-          // Clear the interval once we get a final result
           clearInterval(intervalId);
           
-          // Format the output based on the result
           let formattedOutput = '';
           if (result.status.id === 3) {
-            // Accepted
             if (isSubmitting) {
               formattedOutput = `Running all test cases...\n\n`;
               question.testCases.forEach((_, index) => {
@@ -66,7 +60,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
               formattedOutput += `Result: Passed\n\nAll test cases passed!`;
             }
           } else {
-            // Error or other status
             formattedOutput = `Status: ${result.status.description}\n\n`;
             if (result.compile_output) {
               formattedOutput += `Compilation Error:\n${result.compile_output}\n\n`;
@@ -85,7 +78,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
           setIsSubmitting(false);
           setSubmissionToken(null);
           
-          // Show toast based on result
           toast({
             title: result.status.id === 3 ? "Success" : "Code Execution Complete",
             description: result.status.id === 3 ? "Your code executed successfully!" : result.status.description,
@@ -120,7 +112,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
     setOutput('Running code...');
     
     try {
-      // Use the first example input to test the code
       const input = question.examples[0]?.input || '';
       const token = await createSubmission(currentCode, selectedLanguage, input);
       setSubmissionToken(token);
@@ -142,20 +133,91 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
     setOutput('Submitting solution...');
     
     try {
-      // For submission, we use the first test case
-      const input = question.testCases[0]?.input || '';
-      const token = await createSubmission(currentCode, selectedLanguage, input);
-      setSubmissionToken(token);
+      const results = [];
+      for (const testCase of question.testCases) {
+        const token = await createSubmission(currentCode, selectedLanguage, testCase.input);
+        const result = await getSubmissionResult(token);
+        
+        const expectedOutput = testCase.output.trim();
+        const actualOutput = result.stdout?.trim() || '';
+        const passed = expectedOutput === actualOutput;
+        
+        results.push({
+          passed,
+          actualOutput,
+          expectedOutput,
+          status: result.status
+        });
+
+        if (!passed) {
+          break;
+        }
+      }
+
+      let formattedOutput = 'Running test cases...\n\n';
+      let allPassed = true;
+      
+      results.forEach((result, index) => {
+        formattedOutput += `Test case ${index + 1}: ${result.passed ? 'Passed' : 'Failed'}\n`;
+        if (!result.passed) {
+          formattedOutput += `Expected: "${result.expectedOutput}"\n`;
+          formattedOutput += `Got: "${result.actualOutput}"\n\n`;
+          allPassed = false;
+        }
+      });
+
+      formattedOutput += `\n${allPassed ? 'All test cases passed!' : 'Some test cases failed.'}`;
+      setOutput(formattedOutput);
+
+      try {
+        const { data: submissionData, error: submissionError } = await supabase
+          .from('submissions')
+          .insert({
+            assessment_id: question.assessmentId,
+            user_id: auth.user?.id,
+            started_at: new Date().toISOString(),
+            completed_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (submissionError) throw submissionError;
+
+        const { error: answerError } = await supabase
+          .from('answers')
+          .insert({
+            submission_id: submissionData.id,
+            question_id: question.id,
+            code_solution: currentCode,
+            language: selectedLanguage,
+            is_correct: allPassed,
+            test_results: results
+          });
+
+        if (answerError) throw answerError;
+
+        toast({
+          title: allPassed ? "Success!" : "Test Cases Failed",
+          description: allPassed 
+            ? "Your solution passed all test cases!" 
+            : "Some test cases failed. Check the output for details.",
+          variant: allPassed ? "default" : "destructive",
+        });
+      } catch (dbError) {
+        console.error('Error storing results:', dbError);
+      }
     } catch (error) {
       console.error('Error submitting code:', error);
       setOutput(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
-      setIsSubmitting(false);
       
       toast({
         title: "Error",
         description: "Failed to submit solution. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
+      setSubmissionToken(null);
     }
   };
 

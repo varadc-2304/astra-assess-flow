@@ -1,4 +1,3 @@
-
 import axios from 'axios';
 
 // Judge0 API configuration
@@ -93,15 +92,14 @@ export const getSubmissionResult = async (token: string): Promise<SubmissionResu
       `${JUDGE0_API_URL}/submissions/${token}?base64_encoded=true`,
       {
         headers: {
-          // Your custom Judge0 API might not need RapidAPI headers
-          // Adjust headers based on your API requirements
+          'Content-Type': 'application/json',
         }
       }
     );
 
     const result = response.data;
     
-    // Decode base64 outputs if they exist
+    // Decode base64 outputs
     if (result.stdout) {
       result.stdout = atob(result.stdout);
     }
@@ -111,6 +109,11 @@ export const getSubmissionResult = async (token: string): Promise<SubmissionResu
     if (result.compile_output) {
       result.compile_output = atob(result.compile_output);
     }
+    
+    // Ensure we have clean string outputs
+    result.stdout = result.stdout?.trim() || '';
+    result.stderr = result.stderr?.trim() || '';
+    result.compile_output = result.compile_output?.trim() || '';
 
     return result;
   } catch (error) {
