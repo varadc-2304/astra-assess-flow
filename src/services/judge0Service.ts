@@ -63,7 +63,7 @@ export const createSubmission = async (code: string, language: string, input: st
     const encodedInput = btoa(input);
 
     const response = await axios.post(
-      `${JUDGE0_API_URL}/submissions?base64_encoded=true&wait=false`,
+      `${JUDGE0_API_URL}/submissions/`,
       {
         language_id: languageId,
         source_code: encodedCode,
@@ -87,7 +87,7 @@ export const createSubmission = async (code: string, language: string, input: st
 export const getSubmissionResult = async (token: string): Promise<SubmissionResult> => {
   try {
     const response = await axios.get(
-      `${JUDGE0_API_URL}/submissions/${token}?base64_encoded=true`,
+      `${JUDGE0_API_URL}/submissions/${token}`,
       {
         headers: {
           'Content-Type': 'application/json'
