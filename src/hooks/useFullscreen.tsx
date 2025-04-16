@@ -116,7 +116,7 @@ export const useFullscreen = () => {
           });
           endAssessment();
           clearInterval(timer);
-        } else if (secondsOut % 10 === 0) {
+        } else if (secondsOut % 10 === 0 && secondsOut > 0) {
           // Remind every 10 seconds
           toast({
             title: "Return to Fullscreen",
@@ -139,13 +139,16 @@ export const useFullscreen = () => {
     document.addEventListener('mozfullscreenchange', handleFullscreenChange);
     document.addEventListener('MSFullscreenChange', handleFullscreenChange);
     
+    // Check initial fullscreen state
+    setIsFullscreen(checkFullscreen());
+    
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
       document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
       document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
-  }, [handleFullscreenChange]);
+  }, [handleFullscreenChange, checkFullscreen]);
 
   return {
     isFullscreen,
