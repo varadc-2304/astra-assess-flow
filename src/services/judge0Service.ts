@@ -1,8 +1,8 @@
+
 import axios from 'axios';
 
 // Judge0 API configuration
 const JUDGE0_API_URL = 'https://judge0.arenahq-mitwpu.in';
-const JUDGE0_API_KEY = import.meta.env.VITE_JUDGE0_API_KEY || 'demo-key'; // Replace with actual key in production
 
 // Language IDs in Judge0
 export const LANGUAGE_IDS = {
@@ -71,9 +71,7 @@ export const createSubmission = async (code: string, language: string, input: st
       },
       {
         headers: {
-          'Content-Type': 'application/json',
-          // Your custom Judge0 API might not need RapidAPI headers
-          // Adjust headers based on your API requirements
+          'Content-Type': 'application/json'
         }
       }
     );
@@ -92,7 +90,7 @@ export const getSubmissionResult = async (token: string): Promise<SubmissionResu
       `${JUDGE0_API_URL}/submissions/${token}?base64_encoded=true`,
       {
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         }
       }
     );
@@ -110,10 +108,10 @@ export const getSubmissionResult = async (token: string): Promise<SubmissionResu
       result.compile_output = atob(result.compile_output);
     }
     
-    // Ensure we have clean string outputs
-    result.stdout = result.stdout?.trim() || '';
-    result.stderr = result.stderr?.trim() || '';
-    result.compile_output = result.compile_output?.trim() || '';
+    // Clean and normalize outputs
+    result.stdout = (result.stdout?.trim() || '').replace(/\r\n/g, '\n');
+    result.stderr = (result.stderr?.trim() || '').replace(/\r\n/g, '\n');
+    result.compile_output = (result.compile_output?.trim() || '').replace(/\r\n/g, '\n');
 
     return result;
   } catch (error) {

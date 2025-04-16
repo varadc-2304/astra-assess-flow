@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CodeQuestion } from '@/contexts/AssessmentContext';
 import { Terminal, Play, Check, Loader2 } from 'lucide-react';
-import { createSubmission, getSubmissionResult, SubmissionResult } from '@/services/judge0Service';
+import { createSubmission, getSubmissionResult } from '@/services/judge0Service';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -42,50 +42,119 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
           const result = await getSubmissionResult(submissionToken);
           
           if (result.status.id <= 2) {
-            return;
+            return; // Still processing
           }
           
           clearInterval(intervalId);
           
           let formattedOutput = '';
-          if (result.status.id === 3) {
-            if (isSubmitting) {
-              formattedOutput = `Running all test cases...\n\n`;
-              question.testCases.forEach((_, index) => {
-                formattedOutput += `Test case ${index + 1}: Passed\n`;
-              });
-              formattedOutput += `\nAll test cases passed!\nVerdict: ${result.status.description}`;
+          const actualOutput = result.stdout?.trim() || '';
+          
+          if (isSubmitting) {
+            formattedOutput = `Running all test cases...\n\n`;
+            const testCase = question.testCases[testResults.length];
+            const expectedOutput = testCase.output.trim().replace(/\r\n/g, '\n');
+            const passed = actualOutput === expectedOutput;
+            
+            setTestResults(prev => [...prev, { passed, actualOutput }]);
+            
+            const allPassed = testResults.every(r => r.passed);
+            formattedOutput += `Test case ${testResults.length + 1}: ${passed ? 'Passed' : 'Failed'}\n`;
+            if (!passed) {
+              formattedOutput += `Expected Output: "${expectedOutput}"\n`;
+              formattedOutput += `Your Output: "${actualOutput}"\n`;
+            }
+            
+            // If all test cases are done
+            if (testResults.length + 1 === question.testCases.length) {
+              formattedOutput += `\n${allPassed ? 'All test cases passed!' : 'Some test cases failed.'}\n`;
+              setIsSubmitting(false);
+              setSubmissionToken(null);
+              
+              try {
+                if (!user) {
+                  console.error('User not authenticated');
+                  toast({
+                    title: "Authentication Error",
+                    description: "You must be logged in to submit solutions.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+
+                const { data: submissionData, error: submissionError } = await supabase
+                  .from('submissions')
+                  .insert({
+                    assessment_id: question.assessmentId || '',
+                    user_id: user.id,
+                    started_at: new Date().toISOString(),
+                    completed_at: new Date().toISOString()
+                  })
+                  .select()
+                  .single();
+
+                if (submissionError) throw submissionError;
+
+                const { error: answerError } = await supabase
+                  .from('answers')
+                  .insert({
+                    submission_id: submissionData.id,
+                    question_id: question.id,
+                    code_solution: currentCode,
+                    language: selectedLanguage,
+                    is_correct: allPassed,
+                    test_results: testResults
+                  });
+
+                if (answerError) throw answerError;
+
+                toast({
+                  title: allPassed ? "Success!" : "Test Cases Failed",
+                  description: allPassed 
+                    ? "Your solution passed all test cases!" 
+                    : "Some test cases failed. Check the output for details.",
+                  variant: allPassed ? "default" : "destructive",
+                });
+              } catch (dbError) {
+                console.error('Error storing results:', dbError);
+                toast({
+                  title: "Error",
+                  description: "Failed to save your submission. Please try again.",
+                  variant: "destructive",
+                });
+              }
             } else {
-              formattedOutput = `Running test case...\n`;
-              formattedOutput += `Input: ${question.examples[0].input}\n`;
-              formattedOutput += `Expected Output: ${question.examples[0].output}\n`;
-              formattedOutput += `Your Output: ${result.stdout?.trim() || ''}\n`;
-              formattedOutput += `Result: Passed\n\nAll test cases passed!`;
+              // Run next test case
+              const nextTestCase = question.testCases[testResults.length];
+              const token = await createSubmission(currentCode, selectedLanguage, nextTestCase.input);
+              setSubmissionToken(token);
             }
           } else {
-            formattedOutput = `Status: ${result.status.description}\n\n`;
-            if (result.compile_output) {
-              formattedOutput += `Compilation Error:\n${result.compile_output}\n\n`;
-            }
-            if (result.stderr) {
-              formattedOutput += `Error:\n${result.stderr}\n\n`;
-            }
-            if (result.stdout) {
-              formattedOutput += `Output:\n${result.stdout}\n\n`;
-            }
-            formattedOutput += `Execution Time: ${result.time}s\nMemory Used: ${result.memory} KB`;
+            // Running single test case
+            formattedOutput = `Running test case...\n`;
+            const example = question.examples[0];
+            const expectedOutput = example.output.trim().replace(/\r\n/g, '\n');
+            const passed = actualOutput === expectedOutput;
+            
+            formattedOutput += `Input: ${example.input}\n`;
+            formattedOutput += `Expected Output: ${expectedOutput}\n`;
+            formattedOutput += `Your Output: ${actualOutput}\n`;
+            formattedOutput += `Result: ${passed ? 'Passed' : 'Failed'}\n`;
+            
+            setIsRunning(false);
+            setSubmissionToken(null);
+            
+            toast({
+              title: passed ? "Success!" : "Test Case Failed",
+              description: passed 
+                ? "Your code produced the expected output!" 
+                : "Your code's output doesn't match the expected output.",
+              variant: passed ? "default" : "destructive",
+            });
           }
           
           setOutput(formattedOutput);
-          setIsRunning(false);
-          setIsSubmitting(false);
-          setSubmissionToken(null);
           
-          toast({
-            title: result.status.id === 3 ? "Success" : "Code Execution Complete",
-            description: result.status.id === 3 ? "Your code executed successfully!" : result.status.description,
-            variant: result.status.id === 3 ? "default" : "destructive",
-          });
         } catch (error) {
           console.error('Error checking submission status:', error);
           clearInterval(intervalId);
@@ -100,7 +169,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [submissionToken, isRunning, isSubmitting, question.examples, question.testCases, toast]);
+  }, [submissionToken, isRunning, isSubmitting, question.examples, question.testCases, testResults, toast, currentCode, selectedLanguage, question.id, question.assessmentId, user]);
 
   const handleLanguageChange = (language: string) => {
     setSelectedLanguage(language);
@@ -134,103 +203,23 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
   const handleSubmitCode = async () => {
     setIsSubmitting(true);
     setOutput('Submitting solution...');
+    setTestResults([]);
     
     try {
-      const results = [];
-      for (const testCase of question.testCases) {
-        const token = await createSubmission(currentCode, selectedLanguage, testCase.input);
-        const result = await getSubmissionResult(token);
-        
-        const expectedOutput = testCase.output.trim();
-        const actualOutput = result.stdout?.trim() || '';
-        const passed = expectedOutput === actualOutput;
-        
-        results.push({
-          passed,
-          actualOutput,
-          expectedOutput,
-          status: result.status
-        });
-
-        if (!passed) {
-          break;
-        }
-      }
-
-      let formattedOutput = 'Running test cases...\n\n';
-      let allPassed = true;
-      
-      results.forEach((result, index) => {
-        formattedOutput += `Test case ${index + 1}: ${result.passed ? 'Passed' : 'Failed'}\n`;
-        if (!result.passed) {
-          formattedOutput += `Expected: "${result.expectedOutput}"\n`;
-          formattedOutput += `Got: "${result.actualOutput}"\n\n`;
-          allPassed = false;
-        }
-      });
-
-      formattedOutput += `\n${allPassed ? 'All test cases passed!' : 'Some test cases failed.'}`;
-      setOutput(formattedOutput);
-
-      try {
-        if (!user) {
-          console.error('User not authenticated');
-          toast({
-            title: "Authentication Error",
-            description: "You must be logged in to submit solutions.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        const { data: submissionData, error: submissionError } = await supabase
-          .from('submissions')
-          .insert({
-            assessment_id: question.assessmentId || '',
-            user_id: user.id,
-            started_at: new Date().toISOString(),
-            completed_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-
-        if (submissionError) throw submissionError;
-
-        const { error: answerError } = await supabase
-          .from('answers')
-          .insert({
-            submission_id: submissionData.id,
-            question_id: question.id,
-            code_solution: currentCode,
-            language: selectedLanguage,
-            is_correct: allPassed,
-            test_results: results
-          });
-
-        if (answerError) throw answerError;
-
-        toast({
-          title: allPassed ? "Success!" : "Test Cases Failed",
-          description: allPassed 
-            ? "Your solution passed all test cases!" 
-            : "Some test cases failed. Check the output for details.",
-          variant: allPassed ? "default" : "destructive",
-        });
-      } catch (dbError) {
-        console.error('Error storing results:', dbError);
-      }
+      const firstTestCase = question.testCases[0];
+      const token = await createSubmission(currentCode, selectedLanguage, firstTestCase.input);
+      setSubmissionToken(token);
     } catch (error) {
       console.error('Error submitting code:', error);
       setOutput(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
+      setIsSubmitting(false);
+      setSubmissionToken(null);
       
       toast({
         title: "Error",
         description: "Failed to submit solution. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      setIsSubmitting(false);
-      setSubmissionToken(null);
     }
   };
 
