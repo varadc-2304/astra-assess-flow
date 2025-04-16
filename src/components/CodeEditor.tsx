@@ -13,6 +13,8 @@ import { CodeQuestion } from '@/contexts/AssessmentContext';
 import { Terminal, Play, Check, Loader2 } from 'lucide-react';
 import { createSubmission, getSubmissionResult, SubmissionResult } from '@/services/judge0Service';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface CodeEditorProps {
   question: CodeQuestion;
@@ -27,6 +29,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
   const [submissionToken, setSubmissionToken] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<{passed: boolean, actualOutput?: string}[]>([]);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const currentCode = question.userSolution[selectedLanguage] || question.solutionTemplate[selectedLanguage] || '';
 
@@ -170,11 +173,21 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
       setOutput(formattedOutput);
 
       try {
+        if (!user) {
+          console.error('User not authenticated');
+          toast({
+            title: "Authentication Error",
+            description: "You must be logged in to submit solutions.",
+            variant: "destructive",
+          });
+          return;
+        }
+
         const { data: submissionData, error: submissionError } = await supabase
           .from('submissions')
           .insert({
-            assessment_id: question.assessmentId,
-            user_id: auth.user?.id,
+            assessment_id: question.assessmentId || '',
+            user_id: user.id,
             started_at: new Date().toISOString(),
             completed_at: new Date().toISOString()
           })

@@ -20,6 +20,7 @@ export type MCQQuestion = {
 
 export type CodeQuestion = {
   id: string;
+  assessmentId?: string; // Added this property
   type: 'code';
   title: string;
   description: string;
