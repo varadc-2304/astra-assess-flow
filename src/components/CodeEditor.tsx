@@ -49,7 +49,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
           
           if (result.status.id >= 6) {
             const errorOutput = result.compile_output || result.stderr || 'An error occurred while running your code';
-            setOutput(Error: ${errorOutput});
+            setOutput(`Error: ${errorOutput}`);
             setIsRunning(false);
             setIsSubmitting(false);
             setSubmissionToken(null);
