@@ -27,7 +27,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submissionToken, setSubmissionToken] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<{passed: boolean, actualOutput?: string}[]>([]);
+  const [testResults, setTestResults] = useState<{ passed: boolean, actualOutput?: string }[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -35,18 +35,16 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
-    
+
     if (submissionToken && (isRunning || isSubmitting)) {
       intervalId = setInterval(async () => {
         try {
           const result = await getSubmissionResult(submissionToken);
-          
-          if (result.status.id <= 2) {
-            return; // Still processing
-          }
-          
+
+          if (result.status.id <= 2) return;
+
           clearInterval(intervalId);
-          
+
           if (result.status.id >= 6) {
             const errorOutput = result.compile_output || result.stderr || 'An error occurred while running your code';
             setOutput(`Error: ${errorOutput}`);
@@ -55,31 +53,32 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
             setSubmissionToken(null);
             return;
           }
-          
-          let formattedOutput = '';
+
           const actualOutput = result.stdout?.trim() || '';
-          
+          let formattedOutput = '';
+
           if (isSubmitting) {
-            formattedOutput = Running all test cases...\n\n;
             const testCase = question.testCases[testResults.length];
             const expectedOutput = testCase.output.trim().replace(/\r\n/g, '\n');
             const passed = actualOutput === expectedOutput;
-            
+
             const newTestResults = [...testResults, { passed, actualOutput }];
             setTestResults(newTestResults);
-            
-            formattedOutput += Test case ${testResults.length + 1}: ${passed ? 'Passed' : 'Failed'}\n;
+
+            formattedOutput += `Running all test cases...\n\n`;
+            formattedOutput += `Test case ${testResults.length + 1}: ${passed ? 'Passed' : 'Failed'}\n`;
+
             if (!passed) {
-              formattedOutput += Expected Output: "${expectedOutput}"\n;
-              formattedOutput += Your Output: "${actualOutput}"\n;
+              formattedOutput += `Expected Output: "${expectedOutput}"\n`;
+              formattedOutput += `Your Output: "${actualOutput}"\n`;
             }
-            
+
             if (testResults.length + 1 === question.testCases.length) {
-              const allPassed = newTestResults.every(r => r.passed);
-              formattedOutput += \n${allPassed ? 'All test cases passed!' : 'Some test cases failed.'}\n;
+              const allPassed = newTestResults.every((r) => r.passed);
+              formattedOutput += `\n${allPassed ? 'All test cases passed!' : 'Some test cases failed.'}\n`;
               setIsSubmitting(false);
               setSubmissionToken(null);
-              
+
               if (user) {
                 try {
                   const { data: submissionData, error: submissionError } = await supabase
@@ -88,46 +87,44 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
                       assessment_id: question.assessmentId || '',
                       user_id: user.id,
                       started_at: new Date().toISOString(),
-                      completed_at: new Date().toISOString()
+                      completed_at: new Date().toISOString(),
                     })
                     .select()
                     .single();
 
                   if (submissionError) throw submissionError;
 
-                  const { error: answerError } = await supabase
-                    .from('answers')
-                    .insert({
-                      submission_id: submissionData.id,
-                      question_id: question.id,
-                      code_solution: currentCode,
-                      language: selectedLanguage,
-                      is_correct: allPassed,
-                      test_results: newTestResults
-                    });
+                  const { error: answerError } = await supabase.from('answers').insert({
+                    submission_id: submissionData.id,
+                    question_id: question.id,
+                    code_solution: currentCode,
+                    language: selectedLanguage,
+                    is_correct: allPassed,
+                    test_results: newTestResults,
+                  });
 
                   if (answerError) throw answerError;
 
                   toast({
-                    title: allPassed ? "Success!" : "Test Cases Failed",
-                    description: allPassed 
-                      ? "Your solution passed all test cases!" 
-                      : "Some test cases failed. Check the output for details.",
-                    variant: allPassed ? "default" : "destructive",
+                    title: allPassed ? 'Success!' : 'Test Cases Failed',
+                    description: allPassed
+                      ? 'Your solution passed all test cases!'
+                      : 'Some test cases failed. Check the output for details.',
+                    variant: allPassed ? 'default' : 'destructive',
                   });
                 } catch (dbError) {
                   console.error('Error storing results:', dbError);
                   toast({
-                    title: "Error",
-                    description: "Failed to save your submission. Please try again.",
-                    variant: "destructive",
+                    title: 'Error',
+                    description: 'Failed to save your submission. Please try again.',
+                    variant: 'destructive',
                   });
                 }
               } else {
                 toast({
-                  title: "Authentication Error",
-                  description: "You must be logged in to submit solutions.",
-                  variant: "destructive",
+                  title: 'Authentication Error',
+                  description: 'You must be logged in to submit solutions.',
+                  variant: 'destructive',
                 });
               }
             } else {
@@ -136,30 +133,29 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
               setSubmissionToken(token);
             }
           } else {
-            formattedOutput = Running test case...\n;
             const example = question.examples[0];
             const expectedOutput = example.output.trim().replace(/\r\n/g, '\n');
             const passed = actualOutput === expectedOutput;
-            
-            formattedOutput += Input: ${example.input}\n;
-            formattedOutput += Expected Output: ${expectedOutput}\n;
-            formattedOutput += Your Output: ${actualOutput}\n;
-            formattedOutput += Result: ${passed ? 'Passed' : 'Failed'}\n;
-            
+
+            formattedOutput += `Running test case...\n`;
+            formattedOutput += `Input: ${example.input}\n`;
+            formattedOutput += `Expected Output: ${expectedOutput}\n`;
+            formattedOutput += `Your Output: ${actualOutput}\n`;
+            formattedOutput += `Result: ${passed ? 'Passed' : 'Failed'}\n`;
+
+            toast({
+              title: passed ? 'Success!' : 'Test Case Failed',
+              description: passed
+                ? 'Your code produced the expected output!'
+                : "Your code's output doesn't match the expected output.",
+              variant: passed ? 'default' : 'destructive',
+            });
+
             setIsRunning(false);
             setSubmissionToken(null);
-            
-            toast({
-              title: passed ? "Success!" : "Test Case Failed",
-              description: passed 
-                ? "Your code produced the expected output!" 
-                : "Your code's output doesn't match the expected output.",
-              variant: passed ? "default" : "destructive",
-            });
           }
-          
+
           setOutput(formattedOutput);
-          
         } catch (error) {
           console.error('Error checking submission status:', error);
           clearInterval(intervalId);
@@ -167,20 +163,33 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
           setIsRunning(false);
           setIsSubmitting(false);
           setSubmissionToken(null);
-          
+
           toast({
-            title: "Error",
-            description: "Failed to check submission status. Please try again.",
-            variant: "destructive",
+            title: 'Error',
+            description: 'Failed to check submission status. Please try again.',
+            variant: 'destructive',
           });
         }
       }, 2000);
     }
-    
+
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [submissionToken, isRunning, isSubmitting, question.examples, question.testCases, testResults, toast, currentCode, selectedLanguage, user, question.id, question.assessmentId]);
+  }, [
+    submissionToken,
+    isRunning,
+    isSubmitting,
+    question.examples,
+    question.testCases,
+    testResults,
+    toast,
+    currentCode,
+    selectedLanguage,
+    user,
+    question.id,
+    question.assessmentId,
+  ]);
 
   const handleLanguageChange = (language: string) => {
     setSelectedLanguage(language);
@@ -193,20 +202,19 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
   const handleRunCode = async () => {
     setIsRunning(true);
     setOutput('Running code...');
-    
     try {
       const input = question.examples[0]?.input || '';
       const token = await createSubmission(currentCode, selectedLanguage, input);
       setSubmissionToken(token);
     } catch (error) {
       console.error('Error running code:', error);
-      setOutput(Error: ${error instanceof Error ? error.message : 'Unknown error occurred'});
+      setOutput(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
       setIsRunning(false);
-      
+
       toast({
-        title: "Error",
-        description: "Failed to run code. Please try again.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to run code. Please try again.',
+        variant: 'destructive',
       });
     }
   };
@@ -215,21 +223,20 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
     setIsSubmitting(true);
     setOutput('Submitting solution...');
     setTestResults([]);
-    
     try {
       const firstTestCase = question.testCases[0];
       const token = await createSubmission(currentCode, selectedLanguage, firstTestCase.input);
       setSubmissionToken(token);
     } catch (error) {
       console.error('Error submitting code:', error);
-      setOutput(Error: ${error instanceof Error ? error.message : 'Unknown error occurred'});
+      setOutput(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
       setIsSubmitting(false);
       setSubmissionToken(null);
-      
+
       toast({
-        title: "Error",
-        description: "Failed to submit solution. Please try again.",
-        variant: "destructive",
+        title: 'Error',
+        description: 'Failed to submit solution. Please try again.',
+        variant: 'destructive',
       });
     }
   };
@@ -249,30 +256,22 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
           </SelectContent>
         </Select>
         <div className="flex gap-2">
-          <Button 
-            variant="secondary" 
+          <Button
+            variant="secondary"
             size="sm"
             onClick={handleRunCode}
             disabled={isRunning || isSubmitting}
           >
-            {isRunning ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <Play className="h-4 w-4 mr-1" />
-            )}
+            {isRunning ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
             Run
           </Button>
-          <Button 
+          <Button
             className="bg-astra-red hover:bg-red-600 text-white"
             size="sm"
             onClick={handleSubmitCode}
             disabled={isRunning || isSubmitting}
           >
-            {isSubmitting ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <Check className="h-4 w-4 mr-1" />
-            )}
+            {isSubmitting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
             Submit
           </Button>
         </div>
