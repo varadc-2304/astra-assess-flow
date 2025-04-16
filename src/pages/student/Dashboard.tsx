@@ -56,7 +56,7 @@ const StudentDashboard = () => {
       <div className="max-w-xl mx-auto px-4">
         <header className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-astra-red">Yudh</h1>
+            <h1 className="text-3xl font-bold text-astra-red">AstraAssessments</h1>
             <p className="text-gray-600">Welcome back, {user?.name}</p>
           </div>
           <Button variant="outline" onClick={logout}>Log out</Button>

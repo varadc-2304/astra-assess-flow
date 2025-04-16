@@ -59,12 +59,15 @@ export const createSubmission = async (code: string, language: string, input: st
       throw new Error(`Unsupported language: ${language}`);
     }
 
+    const encodedCode = btoa(code);
+    const encodedInput = btoa(input);
+
     const response = await axios.post(
-      `${JUDGE0_API_URL}/submissions/`,
+      `${JUDGE0_API_URL}/submissions?base64_encoded=true&wait=false`,
       {
         language_id: languageId,
-        source_code: code,
-        stdin: input
+        source_code: encodedCode,
+        stdin: encodedInput
       },
       {
         headers: {
@@ -84,7 +87,7 @@ export const createSubmission = async (code: string, language: string, input: st
 export const getSubmissionResult = async (token: string): Promise<SubmissionResult> => {
   try {
     const response = await axios.get(
-      `${JUDGE0_API_URL}/submissions/${token}`,
+      `${JUDGE0_API_URL}/submissions/${token}?base64_encoded=true`,
       {
         headers: {
           'Content-Type': 'application/json'
@@ -93,6 +96,22 @@ export const getSubmissionResult = async (token: string): Promise<SubmissionResu
     );
 
     const result = response.data;
+    
+    // Decode base64 outputs
+    if (result.stdout) {
+      result.stdout = atob(result.stdout);
+    }
+    if (result.stderr) {
+      result.stderr = atob(result.stderr);
+    }
+    if (result.compile_output) {
+      result.compile_output = atob(result.compile_output);
+    }
+    
+    // Clean and normalize outputs by removing whitespace and normalizing line endings
+    result.stdout = result.stdout?.trim().replace(/\r\n/g, '\n') || '';
+    result.stderr = result.stderr?.trim().replace(/\r\n/g, '\n') || '';
+    result.compile_output = result.compile_output?.trim().replace(/\r\n/g, '\n') || '';
 
     return result;
   } catch (error) {
