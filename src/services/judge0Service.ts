@@ -93,22 +93,6 @@ export const getSubmissionResult = async (token: string): Promise<SubmissionResu
     );
 
     const result = response.data;
-    
-    // Decode base64 outputs
-    if (result.stdout) {
-      result.stdout = atob(result.stdout);
-    }
-    if (result.stderr) {
-      result.stderr = atob(result.stderr);
-    }
-    if (result.compile_output) {
-      result.compile_output = atob(result.compile_output);
-    }
-    
-    // Clean and normalize outputs by removing whitespace and normalizing line endings
-    result.stdout = result.stdout?.trim().replace(/\r\n/g, '\n') || '';
-    result.stderr = result.stderr?.trim().replace(/\r\n/g, '\n') || '';
-    result.compile_output = result.compile_output?.trim().replace(/\r\n/g, '\n') || '';
 
     return result;
   } catch (error) {
