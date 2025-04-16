@@ -108,10 +108,10 @@ export const getSubmissionResult = async (token: string): Promise<SubmissionResu
       result.compile_output = atob(result.compile_output);
     }
     
-    // Clean and normalize outputs
-    result.stdout = (result.stdout?.trim() || '').replace(/\r\n/g, '\n');
-    result.stderr = (result.stderr?.trim() || '').replace(/\r\n/g, '\n');
-    result.compile_output = (result.compile_output?.trim() || '').replace(/\r\n/g, '\n');
+    // Clean and normalize outputs by removing whitespace and normalizing line endings
+    result.stdout = result.stdout?.trim().replace(/\r\n/g, '\n') || '';
+    result.stderr = result.stderr?.trim().replace(/\r\n/g, '\n') || '';
+    result.compile_output = result.compile_output?.trim().replace(/\r\n/g, '\n') || '';
 
     return result;
   } catch (error) {
