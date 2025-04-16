@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Judge0 API configuration
-const JUDGE0_API_URL = 'https://judge0-ce.p.rapidapi.com';
+const JUDGE0_API_URL = 'https://judge0.arenahq-mitwpu.in';
 const JUDGE0_API_KEY = import.meta.env.VITE_JUDGE0_API_KEY || 'demo-key'; // Replace with actual key in production
 
 // Language IDs in Judge0
@@ -73,8 +73,8 @@ export const createSubmission = async (code: string, language: string, input: st
       {
         headers: {
           'Content-Type': 'application/json',
-          'X-RapidAPI-Key': JUDGE0_API_KEY,
-          'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com'
+          // Your custom Judge0 API might not need RapidAPI headers
+          // Adjust headers based on your API requirements
         }
       }
     );
@@ -93,8 +93,8 @@ export const getSubmissionResult = async (token: string): Promise<SubmissionResu
       `${JUDGE0_API_URL}/submissions/${token}?base64_encoded=true`,
       {
         headers: {
-          'X-RapidAPI-Key': JUDGE0_API_KEY,
-          'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com'
+          // Your custom Judge0 API might not need RapidAPI headers
+          // Adjust headers based on your API requirements
         }
       }
     );

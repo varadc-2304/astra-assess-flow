@@ -85,16 +85,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     
     try {
+      console.log("Attempting login with:", email, password);
+      
       // Handle demo credentials specifically
       if ((email === 'student@example.com' || email === 'admin@example.com') && password === 'password') {
+        console.log("Demo credentials detected");
+        
         // First try to sign in
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password
         });
         
+        console.log("Sign in result:", { data, error });
+        
         // If login fails for demo user, create the account first
         if (error) {
+          console.log("Creating demo account");
           // Create the demo user
           const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             email,
@@ -106,15 +113,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
           });
           
+          console.log("Sign up result:", { signUpData, signUpError });
+          
           if (signUpError) {
             throw signUpError;
           }
           
           // Try to login again after account creation
-          const { error: loginError } = await supabase.auth.signInWithPassword({
+          const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
             email,
             password
           });
+          
+          console.log("Second sign in result:", { loginData, loginError });
           
           if (loginError) {
             throw loginError;
@@ -149,6 +160,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         description: `Welcome back, ${data.user?.email}!`,
       });
     } catch (error: any) {
+      console.error("Login error:", error);
       toast({
         title: "Login failed",
         description: error.message || "Invalid email or password",

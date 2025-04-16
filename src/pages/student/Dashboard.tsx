@@ -31,10 +31,16 @@ const StudentDashboard = () => {
     setLoading(true);
     
     try {
+      console.log("Setting assessment code:", code);
       setAssessmentCode(code);
+      
+      console.log("Loading assessment...");
       await loadAssessment(code);
+      
+      console.log("Navigating to instructions page");
       navigate('/instructions');
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error loading assessment:", error);
       toast({
         title: "Invalid Code",
         description: "The assessment code you entered is invalid. Please try again.",
