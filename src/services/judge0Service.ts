@@ -59,15 +59,12 @@ export const createSubmission = async (code: string, language: string, input: st
       throw new Error(`Unsupported language: ${language}`);
     }
 
-    const encodedCode = btoa(code);
-    const encodedInput = btoa(input);
-
     const response = await axios.post(
       `${JUDGE0_API_URL}/submissions/`,
       {
         language_id: languageId,
-        source_code: encodedCode,
-        stdin: encodedInput
+        source_code: code,
+        stdin: input
       },
       {
         headers: {
