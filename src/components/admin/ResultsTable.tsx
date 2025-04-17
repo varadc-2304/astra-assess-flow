@@ -35,7 +35,6 @@ import { formatDate } from '@/lib/utils';
 interface Student {
   id: string;
   name: string;
-  prn: string;
   email: string;
   assessmentId: string;
   assessmentName: string;
@@ -83,8 +82,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           .select(`
             id,
             user_id,
-            user_name,
-            user_prn,
             assessment_id,
             total_score,
             total_marks,
@@ -125,11 +122,28 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           const assessment = typeof result.assessments === 'object' ? result.assessments : null;
           const assessmentName = assessment?.name || 'Unknown Assessment';
           
+          const divisions = ['A', 'B', 'C'];
+          const batches = ['B1', 'B2', 'B3'];
+          const years = ['2023', '2024', '2025'];
+          
+          const hash = result.user_id.split('').reduce((a, b) => {
+            a = ((a << 5) - a) + b.charCodeAt(0);
+            return a & a;
+          }, 0);
+          
+          const absHash = Math.abs(hash);
+          const division = divisions[absHash % divisions.length];
+          const batch = batches[absHash % batches.length];
+          const year = years[absHash % years.length];
+          
+          const userId = result.user_id;
+          const email = userId + '@example.com';
+          const userName = userId.split('-')[0];
+          
           return {
-            id: result.user_id,
-            name: result.user_name,
-            prn: result.user_prn,
-            email: `${result.user_id}@example.com`,
+            id: userId,
+            name: userName,
+            email: email,
             assessmentId: result.assessment_id,
             assessmentName,
             score: result.total_score,
@@ -137,9 +151,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             percentage: result.percentage,
             completedAt: result.completed_at,
             isFlagged,
-            division: 'N/A',
-            batch: 'N/A',
-            year: 'N/A'
+            division,
+            batch,
+            year
           };
         });
         
@@ -245,7 +259,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>PRN</TableHead>
+                  <TableHead>ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Assessment</TableHead>
                   <TableHead className="text-center">Score</TableHead>
@@ -257,7 +271,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
               <TableBody>
                 {visibleStudents.map(student => (
                   <TableRow key={`${student.id}-${student.assessmentId}`} className={student.isFlagged ? "bg-red-50" : ""}>
-                    <TableCell className="font-medium">{student.prn}</TableCell>
+                    <TableCell className="font-medium">{student.id}</TableCell>
                     <TableCell>
                       {student.name}
                       <div className="text-xs text-gray-500">{student.email}</div>

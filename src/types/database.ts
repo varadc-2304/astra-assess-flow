@@ -58,12 +58,6 @@ export interface Assessment {
   end_time: string | null;
   created_by: string | null;
   created_at: string | null;
-  // Add properties needed by components
-  questions?: any[];
-  mcqCount?: number;
-  codingCount?: number;
-  durationMinutes?: number;
-  startTime?: string;
 }
 
 export interface Question {

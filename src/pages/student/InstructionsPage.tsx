@@ -40,8 +40,8 @@ const InstructionsPage = () => {
     return null; // Don't render anything while redirecting
   }
   
-  const handleStartAssessment = async () => {
-    await startAssessment(assessment.id);
+  const handleStartAssessment = () => {
+    startAssessment();
     navigate('/assessment');
   };
 
@@ -75,7 +75,7 @@ const InstructionsPage = () => {
                 <ClipboardList className="h-5 w-5 text-astra-red" />
                 <div>
                   <p className="text-sm text-gray-500">MCQ Questions</p>
-                  <p className="font-semibold">{assessment.mcqCount || 0}</p>
+                  <p className="font-semibold">{assessment.mcqCount}</p>
                 </div>
               </div>
               
@@ -83,7 +83,7 @@ const InstructionsPage = () => {
                 <Code className="h-5 w-5 text-astra-red" />
                 <div>
                   <p className="text-sm text-gray-500">Coding Questions</p>
-                  <p className="font-semibold">{assessment.codingCount || 0}</p>
+                  <p className="font-semibold">{assessment.codingCount}</p>
                 </div>
               </div>
               
@@ -91,7 +91,7 @@ const InstructionsPage = () => {
                 <Clock className="h-5 w-5 text-astra-red" />
                 <div>
                   <p className="text-sm text-gray-500">Duration</p>
-                  <p className="font-semibold">{assessment.duration_minutes} minutes</p>
+                  <p className="font-semibold">{assessment.durationMinutes} minutes</p>
                 </div>
               </div>
             </div>
@@ -120,7 +120,7 @@ const InstructionsPage = () => {
               <div className="flex justify-center my-4">
                 <Timer 
                   variant="countdown"
-                  targetTime={assessment.start_time}
+                  targetTime={assessment.startTime}
                   onCountdownEnd={handleCountdownEnd}
                 />
               </div>
