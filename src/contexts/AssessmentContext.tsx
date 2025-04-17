@@ -1,10 +1,9 @@
-
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Assessment, Question, Submission, Answer, TestCase } from '@/types/database';
-import { MCQQuestion, CodeQuestion } from '@/types/question';
+import { Assessment, Question as DBQuestion, Submission, Answer, TestCase } from '@/types/database';
+import { MCQQuestion, CodeQuestion, Question } from '@/types/question';
 import { useAuth } from './AuthContext';
 
 interface AssessmentContextType {
@@ -23,7 +22,6 @@ interface AssessmentContextType {
   submitAssessment: () => Promise<void>;
   resetAssessment: () => void;
   loadTestCases: (questionId: string) => Promise<void>;
-  // Add missing properties used in components
   timeRemaining: number;
   setTimeRemaining: React.Dispatch<React.SetStateAction<number>>;
   endAssessment: () => Promise<void>;
@@ -54,7 +52,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   const [testCases, setTestCases] = useState<{ [questionId: string]: TestCase[] }>({});
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(3600); // 1 hour default
+  const [timeRemaining, setTimeRemaining] = useState(3600);
   const [assessmentCode, setAssessmentCode] = useState('');
   const [assessmentStarted, setAssessmentStarted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -72,7 +70,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     setFullscreenWarnings(prev => prev + 1);
   };
 
-  // Load test cases for a given question
   const loadTestCases = async (questionId: string) => {
     setIsLoading(true);
     try {
@@ -99,17 +96,16 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Load assessment by code
   const loadAssessment = async (code: string): Promise<boolean> => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data: assessmentData, error: assessmentError } = await supabase
         .from('assessments')
         .select('*')
         .eq('code', code.toUpperCase())
         .single();
         
-      if (error) {
+      if (assessmentError) {
         toast({
           title: "Assessment not found",
           description: "The assessment code you entered is invalid.",
@@ -119,17 +115,16 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       }
       
       setAssessment({
-        ...data,
-        // Add computed properties needed by components
+        ...assessmentData,
         mcqCount: 0, 
         codingCount: 0,
         questions: [],
-        startTime: data.start_time,
-        durationMinutes: data.duration_minutes
+        startTime: assessmentData.start_time,
+        durationMinutes: assessmentData.duration_minutes
       });
       
-      await loadQuestions(data.id);
-      return true;
+      const success = await loadQuestions(assessmentData.id);
+      return success;
     } catch (error: any) {
       toast({
         title: "Error loading assessment",
@@ -142,94 +137,130 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Start assessment by fetching assessment details and initializing submission
-  const startAssessment = async (assessmentId: string) => {
+  const loadQuestions = async (assessmentId: string): Promise<boolean> => {
     setIsLoading(true);
     try {
-      // Update assessment time remaining based on duration
-      if (assessment) {
-        setTimeRemaining(assessment.duration_minutes * 60);
-      }
-      
-      // Initialize submission
-      if (user) {
-        const { data: submissionData, error: submissionError } = await supabase
-          .from('submissions')
-          .insert({
-            user_id: user.id,
-            assessment_id: assessmentId,
-            started_at: new Date().toISOString(),
-          })
-          .select()
-          .single();
-
-        if (submissionError) throw submissionError;
-        setSubmission(submissionData);
-      }
-      
-      setAssessmentStarted(true);
-      setCurrentQuestionIndex(0);
-      setAnswers({});
-    } catch (error: any) {
-      toast({
-        title: "Error starting assessment",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Load questions for the assessment
-  const loadQuestions = async (assessmentId: string) => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
+      const { data: questionData, error: questionError } = await supabase
         .from('questions')
         .select('*')
         .eq('assessment_id', assessmentId)
         .order('order_index');
 
-      if (error) throw error;
+      if (questionError) {
+        toast({
+          title: "Error loading questions",
+          description: questionError.message,
+          variant: "destructive",
+        });
+        return false;
+      }
 
-      // Force the type to be either 'mcq' or 'code' to match our Question union type
-      const typedQuestions = data.map(q => ({
-        ...q,
-        type: q.type === 'mcq' ? 'mcq' as const : 'code' as const
-      }));
+      const formattedQuestions: Question[] = [];
+
+      for (const question of questionData) {
+        if (question.type === 'mcq') {
+          const { data: optionsData, error: optionsError } = await supabase
+            .from('mcq_options')
+            .select('*')
+            .eq('question_id', question.id)
+            .order('order_index');
+
+          if (optionsError) {
+            console.error("Error fetching MCQ options:", optionsError);
+            continue;
+          }
+
+          const mcqQuestion: MCQQuestion = {
+            id: question.id,
+            type: 'mcq',
+            title: question.title,
+            description: question.description,
+            imageUrl: question.image_url || undefined,
+            options: optionsData.map(opt => ({
+              id: opt.id,
+              text: opt.text,
+              is_correct: opt.is_correct
+            })),
+            marks: question.marks,
+            assessmentId: question.assessment_id
+          };
+
+          formattedQuestions.push(mcqQuestion);
+        } else if (question.type === 'code') {
+          const { data: codingData, error: codingError } = await supabase
+            .from('coding_questions')
+            .select('*')
+            .eq('question_id', question.id)
+            .single();
+
+          if (codingError) {
+            console.error("Error fetching coding question details:", codingError);
+            continue;
+          }
+
+          const { data: examplesData, error: examplesError } = await supabase
+            .from('coding_examples')
+            .select('*')
+            .eq('question_id', question.id)
+            .order('order_index');
+
+          if (examplesError) {
+            console.error("Error fetching coding examples:", examplesError);
+            continue;
+          }
+
+          const codeQuestion: CodeQuestion = {
+            id: question.id,
+            type: 'code',
+            title: question.title,
+            description: question.description,
+            examples: examplesData.map(ex => ({
+              input: ex.input,
+              output: ex.output,
+              explanation: ex.explanation
+            })),
+            constraints: codingData.constraints || [],
+            solutionTemplate: codingData.solution_template || {},
+            userSolution: {},
+            marks: question.marks,
+            assessmentId: question.assessment_id
+          };
+
+          formattedQuestions.push(codeQuestion);
+        }
+      }
+
+      setQuestions(formattedQuestions);
       
-      // Count MCQ and coding questions
-      const mcq = typedQuestions.filter(q => q.type === 'mcq').length;
-      const coding = typedQuestions.filter(q => q.type === 'code').length;
+      const mcq = formattedQuestions.filter(q => q.type === 'mcq').length;
+      const coding = formattedQuestions.filter(q => q.type === 'code').length;
       
       setMcqCount(mcq);
       setCodingCount(coding);
-      setQuestions(typedQuestions);
       
-      // Update assessment with computed values
       if (assessment) {
         setAssessment({
           ...assessment,
-          questions: typedQuestions,
           mcqCount: mcq,
           codingCount: coding
         });
       }
       
       setCurrentQuestionIndex(0);
+      return true;
     } catch (error: any) {
+      console.error("Error in loadQuestions:", error);
       toast({
         title: "Error loading questions",
         description: error.message,
         variant: "destructive",
       });
+      return false;
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Navigation functions
   const goToNextQuestion = () => {
     if (questions && currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
@@ -242,7 +273,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Submit answer for MCQ questions
   const answerMCQ = (questionId: string, optionId: string) => {
     setAnswers(prevAnswers => ({
       ...prevAnswers,
@@ -257,7 +287,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
-  // Submit answer for code questions
   const updateCodeSolution = (questionId: string, language: string, code: string) => {
     setAnswers(prevAnswers => ({
       ...prevAnswers,
@@ -273,7 +302,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
-  // Update marks for a question
   const updateMarksObtained = (questionId: string, marks: number) => {
     setAnswers(prevAnswers => ({
       ...prevAnswers,
@@ -284,11 +312,9 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       }
     }));
     
-    // Update total marks obtained
     calculateTotalMarks();
   };
 
-  // Calculate total marks
   const calculateTotalMarks = () => {
     let obtained = 0;
     let possible = 0;
@@ -304,7 +330,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     setTotalPossibleMarks(possible);
   };
 
-  // Submit answer for the current question
   const submitAnswer = (questionId: string, answer: Answer) => {
     setAnswers(prevAnswers => ({
       ...prevAnswers,
@@ -312,19 +337,16 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
-  // Submit the entire assessment
   const submitAssessment = async () => {
     if (!assessment || !answers || !user) return;
     
     try {
       setIsLoading(true);
 
-      // Calculate total score and marks
       calculateTotalMarks();
 
       const percentage = totalPossibleMarks > 0 ? (totalMarksObtained / totalPossibleMarks) * 100 : 0;
 
-      // Insert result with user details
       await supabase.from('results').insert({
         user_id: user.id,
         user_name: user.name,
@@ -336,7 +358,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         completed_at: new Date().toISOString()
       });
 
-      // Update submission status
       if (submission) {
         await supabase
           .from('submissions')
@@ -360,7 +381,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // End the assessment (e.g. when time runs out or user exits fullscreen too many times)
   const endAssessment = async () => {
     try {
       await submitAssessment();
@@ -429,5 +449,4 @@ export const useAssessment = () => {
   return context;
 };
 
-// Export question types
-export type { MCQQuestion, CodeQuestion };
+export type { MCQQuestion, CodeQuestion, Question };

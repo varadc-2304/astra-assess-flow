@@ -75,7 +75,7 @@ const InstructionsPage = () => {
                 <ClipboardList className="h-5 w-5 text-astra-red" />
                 <div>
                   <p className="text-sm text-gray-500">MCQ Questions</p>
-                  <p className="font-semibold">{assessment.mcqCount}</p>
+                  <p className="font-semibold">{assessment.mcqCount || 0}</p>
                 </div>
               </div>
               
@@ -83,7 +83,7 @@ const InstructionsPage = () => {
                 <Code className="h-5 w-5 text-astra-red" />
                 <div>
                   <p className="text-sm text-gray-500">Coding Questions</p>
-                  <p className="font-semibold">{assessment.codingCount}</p>
+                  <p className="font-semibold">{assessment.codingCount || 0}</p>
                 </div>
               </div>
               
