@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -18,14 +19,14 @@ import { useToast } from '@/hooks/use-toast';
 import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
+import { Question, MCQQuestion as MCQQuestionType, CodeQuestion as CodeQuestionType } from '@/types/question';
 
-function isMCQQuestion(question: any): question is MCQQuestionType {
-  return question.type === 'mcq';
+function isMCQQuestion(question: Question | undefined): question is MCQQuestionType {
+  return question !== undefined && question.type === 'mcq';
 }
 
-function isCodeQuestion(question: any): question is CodeQuestion {
-  return question.type === 'code';
+function isCodeQuestion(question: Question | undefined): question is CodeQuestionType {
+  return question !== undefined && question.type === 'code';
 }
 
 const AssessmentPage = () => {
@@ -102,16 +103,23 @@ const AssessmentPage = () => {
     return null;
   }
   
-  const currentQuestion = assessment.questions[currentQuestionIndex];
+  // Safely get current question with null check
+  const currentQuestion = assessment.questions && assessment.questions.length > 0 && 
+    currentQuestionIndex < assessment.questions.length
+      ? assessment.questions[currentQuestionIndex]
+      : undefined;
   
-  const questionStatus = assessment.questions.map(q => {
-    if (isMCQQuestion(q)) {
-      return !!q.selectedOption;
-    } else if (isCodeQuestion(q)) {
-      return Object.values(q.userSolution).some(solution => solution && typeof solution === 'string' && solution.trim() !== '');
-    }
-    return false;
-  });
+  // Safely create question status with null check
+  const questionStatus = assessment.questions
+    ? assessment.questions.map(q => {
+        if (isMCQQuestion(q)) {
+          return !!q.selectedOption;
+        } else if (isCodeQuestion(q)) {
+          return Object.values(q.userSolution).some(solution => solution && typeof solution === 'string' && solution.trim() !== '');
+        }
+        return false;
+      })
+    : [];
   
   const handlePrevQuestion = () => {
     if (currentQuestionIndex > 0) {
@@ -120,7 +128,7 @@ const AssessmentPage = () => {
   };
   
   const handleNextQuestion = () => {
-    if (currentQuestionIndex < assessment.questions.length - 1) {
+    if (assessment.questions && currentQuestionIndex < assessment.questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     }
   };
@@ -178,6 +186,16 @@ const AssessmentPage = () => {
   const handleUpdateMarks = (questionId: string, marks: number) => {
     updateMarksObtained(questionId, marks);
   };
+  
+  // If questions are not loaded yet, show loading state
+  if (!assessment.questions || assessment.questions.length === 0) {
+    return (
+      <div className="flex flex-col h-screen items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-astra-red mb-4" />
+        <p className="text-lg">Loading assessment questions...</p>
+      </div>
+    );
+  }
   
   return (
     <div className="flex flex-col h-screen bg-gray-50">
@@ -248,20 +266,20 @@ const AssessmentPage = () => {
       
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-6xl mx-auto">
-          {isMCQQuestion(currentQuestion) ? (
+          {currentQuestion && isMCQQuestion(currentQuestion) ? (
             <div className="bg-white p-6 rounded-lg shadow">
               <MCQQuestion 
                 question={currentQuestion} 
                 onAnswerSelect={answerMCQ}
               />
             </div>
-          ) : (
+          ) : currentQuestion && isCodeQuestion(currentQuestion) ? (
             <div className="flex flex-col md:flex-row gap-4 h-full">
               <div className="md:w-1/2 bg-white p-6 rounded-lg shadow overflow-y-auto max-h-[calc(100vh-180px)]">
                 <h3 className="text-lg font-medium mb-3">{currentQuestion.title}</h3>
                 <p className="text-gray-700 whitespace-pre-line mb-4">{currentQuestion.description}</p>
                 
-                {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (
+                {currentQuestion.examples.length > 0 && (
                   <div className="mb-4">
                     <h4 className="font-medium text-sm mb-2">Examples:</h4>
                     <div className="space-y-3">
@@ -287,7 +305,7 @@ const AssessmentPage = () => {
                   </div>
                 )}
                 
-                {isCodeQuestion(currentQuestion) && currentQuestion.constraints.length > 0 && (
+                {currentQuestion.constraints.length > 0 && (
                   <div>
                     <h4 className="font-medium text-sm mb-2">Constraints:</h4>
                     <ul className="list-disc list-inside text-sm text-gray-700">
@@ -301,15 +319,17 @@ const AssessmentPage = () => {
               
               <div className="md:w-1/2 bg-white rounded-lg shadow flex flex-col overflow-hidden">
                 <div className="p-4 flex-1 overflow-hidden">
-                  {isCodeQuestion(currentQuestion) && (
-                    <CodeEditor 
-                      question={currentQuestion}
-                      onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
-                      onMarksUpdate={handleUpdateMarks}
-                    />
-                  )}
+                  <CodeEditor 
+                    question={currentQuestion}
+                    onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
+                    onMarksUpdate={handleUpdateMarks}
+                  />
                 </div>
               </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-[50vh]">
+              <p className="text-gray-500">No question data available</p>
             </div>
           )}
         </div>
@@ -325,7 +345,7 @@ const AssessmentPage = () => {
         </Button>
         
         <div className="flex items-center gap-1">
-          {assessment.questions.map((_, index) => (
+          {assessment.questions && assessment.questions.map((_, index) => (
             <div 
               key={index} 
               className={`h-2 w-2 rounded-full ${
@@ -336,7 +356,7 @@ const AssessmentPage = () => {
         </div>
         
         <div className="flex gap-2">
-          {currentQuestionIndex === assessment.questions.length - 1 ? (
+          {assessment.questions && currentQuestionIndex === assessment.questions.length - 1 ? (
             <Button
               className="bg-astra-red hover:bg-red-600 text-white"
               onClick={handleEndAssessment}
@@ -403,3 +423,4 @@ const AssessmentPage = () => {
 };
 
 export default AssessmentPage;
+
