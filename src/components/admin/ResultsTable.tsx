@@ -129,6 +129,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           // Determine if the submission should be flagged
           const isFlagged = submission.is_terminated || submission.fullscreen_violations > 1;
           
+          // Safely handle user_id which might be null
+          const userId = typeof submission.user_id === 'object' ? submission.user_id?.id || 'unknown' : 'unknown';
+          
           // Use the student's email as the name if no name is available
           const userEmail = typeof submission.user_id === 'object' ? submission.user_id?.email || 'Unknown' : 'Unknown';
           const userName = typeof submission.user_id === 'object' ? 
@@ -146,7 +149,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           const years = ['2023', '2024', '2025'];
           
           // Use hash of the user ID for consistent "random" assignments
-          const userId = typeof submission.user_id === 'object' ? submission.user_id?.id || '' : '';
           const hash = userId.split('').reduce((a, b) => {
             a = ((a << 5) - a) + b.charCodeAt(0);
             return a & a;
@@ -161,7 +163,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           const percentage = totalMarks > 0 ? Math.round((totalObtained / totalMarks) * 100) : 0;
           
           return {
-            id: typeof submission.user_id === 'object' ? submission.user_id?.id || 'Unknown' : 'Unknown',
+            id: userId,
             name: userName,
             email: userEmail,
             assessmentId: assessment?.id || '',
