@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,6 +11,7 @@ import OutputDisplay from './OutputDisplay';
 import ActionButtons from './ActionButtons';
 import { TestResult, processTestCase } from '@/utils/codeSubmissionUtils';
 import { fetchTestCases } from '@/services/testCaseService';
+import { createSubmission, waitForSubmissionResult } from '@/services/judge0Service';
 
 interface CodeEditorProps {
   question: CodeQuestion;

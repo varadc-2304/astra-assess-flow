@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -8,16 +9,23 @@ import {
   SheetTitle,
   SheetTrigger
 } from '@/components/ui/sheet';
-import { useAssessment } from '@/contexts/AssessmentContext';
+import { useAssessment, CodeQuestion, MCQQuestion } from '@/contexts/AssessmentContext';
 import { useFullscreen } from '@/hooks/useFullscreen';
 import { Timer } from '@/components/Timer';
-import MCQQuestion from '@/components/MCQQuestion';
+import MCQQuestionComponent from '@/components/MCQQuestion';
 import CodeEditor from '@/components/code/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+
+// Type guards to check question type
+const isMCQQuestion = (question: any): question is MCQQuestion => 
+  question.type === 'mcq';
+
+const isCodeQuestion = (question: any): question is CodeQuestion => 
+  question.type === 'code';
 
 const AssessmentPage = () => {
   const { 
@@ -96,10 +104,10 @@ const AssessmentPage = () => {
   const currentQuestion = assessment.questions[currentQuestionIndex];
   
   const questionStatus = assessment.questions.map(q => {
-    if (q.type === 'mcq') {
+    if (isMCQQuestion(q)) {
       return !!q.selectedOption;
-    } else if (q.type === 'code') {
-      return Object.values(q.userSolution).some(solution => solution && solution.trim() !== '');
+    } else if (isCodeQuestion(q)) {
+      return Object.values(q.userSolution).some(solution => solution && String(solution).trim() !== '');
     }
     return false;
   });
@@ -243,9 +251,9 @@ const AssessmentPage = () => {
       
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-6xl mx-auto">
-          {currentQuestion.type === 'mcq' ? (
+          {isMCQQuestion(currentQuestion) ? (
             <div className="bg-white p-6 rounded-lg shadow">
-              <MCQQuestion 
+              <MCQQuestionComponent 
                 question={currentQuestion} 
                 onAnswerSelect={answerMCQ}
               />
@@ -256,7 +264,7 @@ const AssessmentPage = () => {
                 <h3 className="text-lg font-medium mb-3">{currentQuestion.title}</h3>
                 <p className="text-gray-700 whitespace-pre-line mb-4">{currentQuestion.description}</p>
                 
-                {currentQuestion.examples.length > 0 && (
+                {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (
                   <div className="mb-4">
                     <h4 className="font-medium text-sm mb-2">Examples:</h4>
                     <div className="space-y-3">
@@ -282,7 +290,7 @@ const AssessmentPage = () => {
                   </div>
                 )}
                 
-                {currentQuestion.constraints.length > 0 && (
+                {isCodeQuestion(currentQuestion) && currentQuestion.constraints.length > 0 && (
                   <div>
                     <h4 className="font-medium text-sm mb-2">Constraints:</h4>
                     <ul className="list-disc list-inside text-sm text-gray-700">
@@ -296,11 +304,13 @@ const AssessmentPage = () => {
               
               <div className="md:w-1/2 bg-white rounded-lg shadow flex flex-col overflow-hidden">
                 <div className="p-4 flex-1 overflow-hidden">
-                  <CodeEditor 
-                    question={currentQuestion}
-                    onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
-                    onMarksUpdate={handleUpdateMarks}
-                  />
+                  {isCodeQuestion(currentQuestion) && (
+                    <CodeEditor 
+                      question={currentQuestion}
+                      onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
+                      onMarksUpdate={handleUpdateMarks}
+                    />
+                  )}
                 </div>
               </div>
             </div>

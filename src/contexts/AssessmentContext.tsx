@@ -40,15 +40,17 @@ interface CodeQuestion extends Question {
   solutionTemplate: Record<string, string>;
   userSolution: Record<string, string>;
   assessment_id: string;
+  marksObtained?: number;
 }
 
-interface MCQQuestion extends Question {
+interface MCQQuestion extends Omit<Question, 'image_url'> {
   options: MCQOption[];
   selectedOption?: string;
   image_url?: string | null;
+  marksObtained?: number;
 }
 
-interface ExtendedAssessment extends AssessmentType {
+interface ExtendedAssessment extends Omit<AssessmentType, 'questions'> {
   questions: (CodeQuestion | MCQQuestion)[];
   mcqCount?: number;
   codingCount?: number;
