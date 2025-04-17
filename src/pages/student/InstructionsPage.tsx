@@ -41,7 +41,7 @@ const InstructionsPage = () => {
   }
   
   const handleStartAssessment = () => {
-    startAssessment();
+    startAssessment(assessment);
     navigate('/assessment');
   };
 
@@ -91,7 +91,7 @@ const InstructionsPage = () => {
                 <Clock className="h-5 w-5 text-astra-red" />
                 <div>
                   <p className="text-sm text-gray-500">Duration</p>
-                  <p className="font-semibold">{assessment.durationMinutes} minutes</p>
+                  <p className="font-semibold">{assessment.duration_minutes} minutes</p>
                 </div>
               </div>
             </div>
@@ -120,7 +120,7 @@ const InstructionsPage = () => {
               <div className="flex justify-center my-4">
                 <Timer 
                   variant="countdown"
-                  targetTime={assessment.startTime}
+                  targetTime={assessment.start_time}
                   onCountdownEnd={handleCountdownEnd}
                 />
               </div>

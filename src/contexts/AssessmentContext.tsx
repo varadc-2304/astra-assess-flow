@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Assessment as AssessmentType, Question, MCQOption } from '@/types/database';
@@ -5,9 +6,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 
 interface AssessmentContextType {
-  assessment: AssessmentType | null;
+  assessment: ExtendedAssessment | null;
   assessmentStarted: boolean;
-  startAssessment: (assessment: AssessmentType) => void;
+  startAssessment: (assessment?: AssessmentType) => void;
   currentQuestionIndex: number;
   setCurrentQuestionIndex: React.Dispatch<React.SetStateAction<number>>;
   answerMCQ: (questionId: string, optionId: string) => Promise<void>;
@@ -17,6 +18,14 @@ interface AssessmentContextType {
   assessmentEnded: boolean;
   totalMarksObtained: number;
   totalPossibleMarks: number;
+  timeRemaining: number;
+  setTimeRemaining: React.Dispatch<React.SetStateAction<number>>;
+  fullscreenWarnings: number;
+  addFullscreenWarning: () => void;
+  assessmentCode: string | null;
+  setAssessmentCode: (code: string) => void;
+  loadAssessment: (code: string) => Promise<boolean>;
+  loading: boolean;
 }
 
 const AssessmentContext = createContext<AssessmentContextType | undefined>(undefined);
@@ -30,24 +39,32 @@ interface CodeQuestion extends Question {
   examples: { input: string; output: string; explanation?: string }[];
   solutionTemplate: Record<string, string>;
   userSolution: Record<string, string>;
+  assessment_id: string;
 }
 
 interface MCQQuestion extends Question {
   options: MCQOption[];
   selectedOption?: string;
+  image_url?: string | null;
 }
 
-interface Assessment extends AssessmentType {
+interface ExtendedAssessment extends AssessmentType {
   questions: (CodeQuestion | MCQQuestion)[];
+  mcqCount?: number;
+  codingCount?: number;
 }
 
 export const AssessmentProvider: React.FC<AssessmentProviderProps> = ({ children }) => {
-  const [assessment, setAssessment] = useState<Assessment | null>(null);
+  const [assessment, setAssessment] = useState<ExtendedAssessment | null>(null);
   const [assessmentStarted, setAssessmentStarted] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [assessmentEnded, setAssessmentEnded] = useState(false);
   const [totalMarksObtained, setTotalMarksObtained] = useState(0);
   const [totalPossibleMarks, setTotalPossibleMarks] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [fullscreenWarnings, setFullscreenWarnings] = useState(0);
+  const [assessmentCode, setAssessmentCode] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
   
@@ -55,14 +72,115 @@ export const AssessmentProvider: React.FC<AssessmentProviderProps> = ({ children
     if (assessment) {
       const totalPossible = assessment.questions.reduce((sum, question) => sum + question.marks, 0);
       setTotalPossibleMarks(totalPossible);
+      // Set time remaining based on duration_minutes
+      setTimeRemaining(assessment.duration_minutes * 60);
     }
   }, [assessment]);
 
-  const startAssessment = (assessment: AssessmentType) => {
-    setAssessment({
-      ...assessment,
-      questions: assessment.questions.sort((a, b) => a.order_index - b.order_index)
-    });
+  const addFullscreenWarning = () => {
+    setFullscreenWarnings(prev => prev + 1);
+  };
+
+  const loadAssessment = async (code: string): Promise<boolean> => {
+    setLoading(true);
+    try {
+      // Fetch the assessment
+      const { data: assessmentData, error: assessmentError } = await supabase
+        .from('assessments')
+        .select('*')
+        .eq('code', code)
+        .single();
+      
+      if (assessmentError || !assessmentData) {
+        console.error('Error fetching assessment:', assessmentError);
+        setLoading(false);
+        return false;
+      }
+      
+      // Fetch questions for this assessment
+      const { data: questionsData, error: questionsError } = await supabase
+        .from('questions')
+        .select('*')
+        .eq('assessment_id', assessmentData.id)
+        .order('order_index', { ascending: true });
+      
+      if (questionsError) {
+        console.error('Error fetching questions:', questionsError);
+        setLoading(false);
+        return false;
+      }
+      
+      // Process and enhance questions with related data
+      const enhancedQuestions = await Promise.all(questionsData.map(async (q) => {
+        if (q.type === 'mcq') {
+          // Fetch options for MCQ questions
+          const { data: options } = await supabase
+            .from('mcq_options')
+            .select('*')
+            .eq('question_id', q.id)
+            .order('order_index', { ascending: true });
+          
+          return {
+            ...q,
+            options: options || []
+          } as MCQQuestion;
+        } else if (q.type === 'code') {
+          // Fetch coding question details
+          const { data: codingData } = await supabase
+            .from('coding_questions')
+            .select('*')
+            .eq('question_id', q.id)
+            .single();
+          
+          // Fetch examples for coding questions
+          const { data: examples } = await supabase
+            .from('coding_examples')
+            .select('*')
+            .eq('question_id', q.id)
+            .order('order_index', { ascending: true });
+          
+          return {
+            ...q,
+            constraints: codingData?.constraints || [],
+            examples: examples || [],
+            solutionTemplate: codingData?.solution_template || {},
+            userSolution: {}
+          } as CodeQuestion;
+        }
+        
+        return q;
+      }));
+      
+      // Count MCQ and coding questions
+      const mcqCount = enhancedQuestions.filter(q => q.type === 'mcq').length;
+      const codingCount = enhancedQuestions.filter(q => q.type === 'code').length;
+      
+      // Create the enhanced assessment object
+      const enhancedAssessment: ExtendedAssessment = {
+        ...assessmentData,
+        questions: enhancedQuestions,
+        mcqCount,
+        codingCount
+      };
+      
+      setAssessment(enhancedAssessment);
+      setLoading(false);
+      return true;
+    } catch (error) {
+      console.error('Error loading assessment:', error);
+      setLoading(false);
+      return false;
+    }
+  };
+
+  const startAssessment = (assessmentData?: AssessmentType) => {
+    if (assessmentData) {
+      // If an assessment is provided, use it
+      setAssessment({
+        ...assessmentData,
+        questions: assessment?.questions || []
+      });
+    }
     setAssessmentStarted(true);
     setAssessmentEnded(false);
     setCurrentQuestionIndex(0);
@@ -136,7 +254,7 @@ export const AssessmentProvider: React.FC<AssessmentProviderProps> = ({ children
       return {
         ...prev,
         questions: prev.questions.map(q => {
-          if (q.id === questionId) {
+          if (q.id === questionId && q.type === 'code') {
             return {
               ...q,
               userSolution: {
@@ -189,7 +307,15 @@ export const AssessmentProvider: React.FC<AssessmentProviderProps> = ({ children
     endAssessment,
     assessmentEnded,
     totalMarksObtained,
-    totalPossibleMarks
+    totalPossibleMarks,
+    timeRemaining,
+    setTimeRemaining,
+    fullscreenWarnings,
+    addFullscreenWarning,
+    assessmentCode,
+    setAssessmentCode,
+    loadAssessment,
+    loading
   };
 
   return (
@@ -207,4 +333,4 @@ export const useAssessment = () => {
   return context;
 };
 
-export type { CodeQuestion, MCQQuestion };
+export type { CodeQuestion, MCQQuestion, ExtendedAssessment };
