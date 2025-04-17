@@ -63,3 +63,15 @@ export interface Answer {
   test_results?: any;
   created_at?: string | null;
 }
+
+// Add interface for the Results table
+export interface Result {
+  id?: string;
+  user_id: string;
+  assessment_id: string;
+  total_score: number;
+  total_marks: number;
+  percentage: number;
+  completed_at: string;
+  created_at?: string | null;
+}

@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CheckCircle, FileCog, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import { Submission, Result } from '@/types/database';
 
 interface SubmissionSummary {
   totalQuestions: number;
@@ -38,6 +39,8 @@ const SummaryPage = () => {
       if (!assessment || !user) return;
       
       try {
+        console.log('Fetching summary for assessment:', assessment.id, 'and user:', user.id);
+        
         // Get the latest submission for this assessment
         const { data: submissions, error: submissionError } = await supabase
           .from('submissions')
@@ -47,10 +50,17 @@ const SummaryPage = () => {
           .order('created_at', { ascending: false })
           .limit(1);
         
-        if (submissionError || !submissions || submissions.length === 0) {
+        if (submissionError) {
+          console.error('Error fetching submissions:', submissionError);
           throw new Error('No submission found');
         }
         
+        if (!submissions || submissions.length === 0) {
+          console.error('No submissions found');
+          throw new Error('No submission found');
+        }
+        
+        console.log('Found submission:', submissions[0]);
         const submission = submissions[0];
         
         // Get questions data to calculate scores
@@ -60,8 +70,11 @@ const SummaryPage = () => {
           .eq('assessment_id', assessment.id);
         
         if (questionsError) {
+          console.error('Error fetching questions:', questionsError);
           throw new Error('Failed to load questions');
         }
+        
+        console.log('Found questions:', questions?.length || 0);
         
         // Get answers for this submission
         const { data: answers, error: answersError } = await supabase
@@ -70,35 +83,46 @@ const SummaryPage = () => {
           .eq('submission_id', submission.id);
         
         if (answersError) {
+          console.error('Error fetching answers:', answersError);
           throw new Error('Failed to load answers');
         }
         
-        // Calculate summary statistics
-        const mcqQuestions = questions.filter(q => q.type === 'mcq');
-        const codeQuestions = questions.filter(q => q.type === 'code');
+        console.log('Found answers:', answers?.length || 0);
         
-        const mcqAnswers = answers.filter(a => mcqQuestions.some(q => q.id === a.question_id));
-        const codeAnswers = answers.filter(a => codeQuestions.some(q => q.id === a.question_id));
+        // Calculate summary statistics
+        const mcqQuestions = questions?.filter(q => q.type === 'mcq') || [];
+        const codeQuestions = questions?.filter(q => q.type === 'code') || [];
+        
+        const mcqAnswers = answers?.filter(a => mcqQuestions.some(q => q.id === a.question_id)) || [];
+        const codeAnswers = answers?.filter(a => codeQuestions.some(q => q.id === a.question_id)) || [];
         
         const correctMCQ = mcqAnswers.filter(a => a.is_correct).length;
         const correctCode = codeAnswers.filter(a => a.is_correct).length;
         
-        const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 1), 0);
-        const earnedMarks = answers.reduce((sum, a) => sum + (a.marks_obtained || 0), 0);
+        const totalMarks = questions?.reduce((sum, q) => sum + (q.marks || 1), 0) || 0;
+        const earnedMarks = answers?.reduce((sum, a) => sum + (a.marks_obtained || 0), 0) || 0;
         
         const percentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
         
+        console.log('Calculated results:', {
+          totalMarks,
+          earnedMarks,
+          percentage
+        });
+        
         // Store results in the results table
+        const resultData: Partial<Result> = {
+          user_id: user.id,
+          assessment_id: assessment.id,
+          total_score: earnedMarks,
+          total_marks: totalMarks,
+          percentage,
+          completed_at: submission.completed_at || submission.created_at || new Date().toISOString()
+        };
+        
         const { error: resultsError } = await supabase
           .from('results')
-          .insert({
-            user_id: user.id,
-            assessment_id: assessment.id,
-            total_score: earnedMarks,
-            total_marks: totalMarks,
-            percentage,
-            completed_at: submission.completed_at || submission.created_at
-          });
+          .insert(resultData);
         
         if (resultsError) {
           console.error('Error storing results:', resultsError);
@@ -107,10 +131,12 @@ const SummaryPage = () => {
             description: "Your results were calculated but there was an error saving them.",
             variant: "destructive"
           });
+        } else {
+          console.log('Results stored successfully');
         }
         
         setSummary({
-          totalQuestions: questions.length,
+          totalQuestions: questions?.length || 0,
           attemptedMCQ: mcqAnswers.length,
           attemptedCode: codeAnswers.length,
           correctMCQ,

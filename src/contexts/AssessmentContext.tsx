@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -136,6 +135,10 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       }
       
       console.log(`Found ${questionsData?.length || 0} questions for assessment ID:`, assessmentData.id);
+      
+      if (!questionsData || questionsData.length === 0) {
+        console.warn('No questions found for this assessment');
+      }
       
       const questions: Question[] = [];
       
@@ -293,7 +296,11 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       if (assessment && !assessmentEnded) {
         setAssessmentEnded(true);
         setAssessmentStarted(false);
+        
+        console.log('Assessment ended successfully');
+        return true;
       }
+      return false;
     } catch (error) {
       console.error('Error ending assessment:', error);
       toast({
@@ -301,6 +308,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         description: "There was an error finalizing your assessment. Your answers may not have been saved.",
         variant: "destructive",
       });
+      return false;
     }
   };
 

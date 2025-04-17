@@ -198,34 +198,48 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
       // Store results if user is logged in
       if (user) {
         try {
-          // Create a submission record
-          const { data: submissionData, error: submissionError } = await supabase
+          // Create a submission record with only the required fields
+          const submissionData: Partial<Submission> = {
+            assessment_id: question.assessmentId || '',
+            user_id: user.id,
+            started_at: new Date().toISOString(),
+            completed_at: new Date().toISOString()
+          };
+
+          const { data: submissionResult, error: submissionError } = await supabase
             .from('submissions')
-            .insert({
-              assessment_id: question.assessmentId || '',
-              user_id: user.id,
-              started_at: new Date().toISOString(),
-              completed_at: new Date().toISOString()
-            } as Submission)
+            .insert(submissionData)
             .select()
             .single();
 
-          if (submissionError) throw submissionError;
+          if (submissionError) {
+            console.error('Error creating submission:', submissionError);
+            throw submissionError;
+          }
 
-          // Store answer details
+          if (!submissionResult) {
+            throw new Error('No submission result returned');
+          }
+
+          // Store answer details with only the required fields
+          const answerData: Partial<Answer> = {
+            submission_id: submissionResult.id,
+            question_id: question.id,
+            code_solution: currentCode,
+            language: selectedLanguage,
+            is_correct: allPassed,
+            marks_obtained: allPassed ? question.marks || 1 : 0,
+            test_results: finalResults
+          };
+
           const { error: answerError } = await supabase
             .from('answers')
-            .insert({
-              submission_id: submissionData.id,
-              question_id: question.id,
-              code_solution: currentCode,
-              language: selectedLanguage,
-              is_correct: allPassed,
-              marks_obtained: allPassed ? question.marks || 1 : 0,
-              test_results: finalResults
-            } as Answer);
+            .insert(answerData);
 
-          if (answerError) throw answerError;
+          if (answerError) {
+            console.error('Error storing answer:', answerError);
+            throw answerError;
+          }
           
           toast({
             title: allPassed ? "Success!" : "Test Cases Failed",
