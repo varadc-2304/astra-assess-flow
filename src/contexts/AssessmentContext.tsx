@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
@@ -145,7 +144,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         .from('questions')
         .select('*')
         .eq('assessment_id', assessmentId)
-        .order('order_index');
+        .order('order_index', { ascending: true });
 
       if (questionError) {
         toast({
@@ -158,13 +157,13 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
 
       const formattedQuestions: Question[] = [];
 
-      for (const question of questionData) {
+      for (const question of questionData || []) {
         if (question.type === 'mcq') {
           const { data: optionsData, error: optionsError } = await supabase
             .from('mcq_options')
             .select('*')
             .eq('question_id', question.id)
-            .order('order_index');
+            .order('order_index', { ascending: true });
 
           if (optionsError) {
             console.error("Error fetching MCQ options:", optionsError);
@@ -203,16 +202,14 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .from('coding_examples')
             .select('*')
             .eq('question_id', question.id)
-            .order('order_index');
+            .order('order_index', { ascending: true });
 
           if (examplesError) {
             console.error("Error fetching coding examples:", examplesError);
             continue;
           }
 
-          // Fix for the first TypeScript error - ensure solutionTemplate is Record<string, string>
           const solutionTemplate: Record<string, string> = {};
-          // Convert the JSON solution_template to the expected format
           if (codingData.solution_template && typeof codingData.solution_template === 'object') {
             Object.entries(codingData.solution_template).forEach(([key, value]) => {
               if (typeof value === 'string') {
@@ -397,7 +394,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Fix for the second and third TypeScript errors - implement startAssessment with void return type
   const startAssessment = async (assessmentId: string): Promise<void> => {
     setAssessmentStarted(true);
     
