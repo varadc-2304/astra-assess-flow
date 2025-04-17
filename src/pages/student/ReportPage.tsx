@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { formatDateTime } from '@/lib/utils';
 import { Download, ChevronLeft, FileText, Code, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 interface TestResult {
   passed: boolean;
@@ -34,6 +36,7 @@ interface ReportData {
   totalMarks: number;
   earnedMarks: number;
   percentage: number;
+  totalQuestionsSolved: number;
 }
 
 const ReportPage = () => {
@@ -43,6 +46,7 @@ const ReportPage = () => {
   const reportRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [reportData, setReportData] = useState<ReportData | null>(null);
+  const { toast } = useToast();
   
   useEffect(() => {
     if (!assessment || !assessmentEnded) {
@@ -63,6 +67,11 @@ const ReportPage = () => {
           .limit(1);
         
         if (submissionError || !submissions || submissions.length === 0) {
+          toast({
+            title: "Error",
+            description: "No submission found for this assessment",
+            variant: "destructive"
+          });
           throw new Error('No submission found');
         }
         
@@ -74,6 +83,11 @@ const ReportPage = () => {
           .eq('submission_id', submission.id);
         
         if (answersError) {
+          toast({
+            title: "Error",
+            description: "Failed to load answers",
+            variant: "destructive"
+          });
           throw new Error('Failed to load answers');
         }
         
@@ -84,6 +98,11 @@ const ReportPage = () => {
           .order('order_index', { ascending: true });
         
         if (questionsError) {
+          toast({
+            title: "Error",
+            description: "Failed to load questions",
+            variant: "destructive"
+          });
           throw new Error('Failed to load questions');
         }
         
@@ -93,6 +112,11 @@ const ReportPage = () => {
           .in('question_id', questions.filter(q => q.type === 'mcq').map(q => q.id));
         
         if (mcqOptionsError) {
+          toast({
+            title: "Error",
+            description: "Failed to load MCQ options",
+            variant: "destructive"
+          });
           throw new Error('Failed to load MCQ options');
         }
         
@@ -110,6 +134,11 @@ const ReportPage = () => {
           .in('question_id', questions.filter(q => q.type === 'code').map(q => q.id));
         
         if (codingError) {
+          toast({
+            title: "Error",
+            description: "Failed to load coding details",
+            variant: "destructive"
+          });
           throw new Error('Failed to load coding details');
         }
         
@@ -119,6 +148,11 @@ const ReportPage = () => {
           .in('question_id', questions.filter(q => q.type === 'code').map(q => q.id));
         
         if (examplesError) {
+          toast({
+            title: "Error",
+            description: "Failed to load coding examples",
+            variant: "destructive"
+          });
           throw new Error('Failed to load coding examples');
         }
         
@@ -140,8 +174,26 @@ const ReportPage = () => {
         const earnedMarks = answers.reduce((sum, a) => sum + (a.marks_obtained || 0), 0);
         const percentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
         
+        // Calculate total questions solved (attempted with some answer)
+        const mcqSolved = mcqQuestions.filter(q => q.answer).length;
+        const codeSolved = codeQuestions.filter(q => q.answer && q.answer.code_solution).length;
+        const totalQuestionsSolved = mcqSolved + codeSolved;
+        
         const formattedAnswers: AnswerResult[] = answers.map(answer => {
-          const answerData = answer as any;
+          let testResults;
+          
+          // Parse test results if they exist
+          if (answer.test_results) {
+            try {
+              testResults = typeof answer.test_results === 'string' 
+                ? JSON.parse(answer.test_results) 
+                : answer.test_results;
+            } catch (error) {
+              console.error('Error parsing test results:', error);
+              testResults = [];
+            }
+          }
+          
           return {
             questionId: answer.question_id,
             isCorrect: answer.is_correct || false,
@@ -149,10 +201,7 @@ const ReportPage = () => {
             codeSolution: answer.code_solution,
             language: answer.language,
             marksObtained: answer.marks_obtained || 0,
-            testResults: answerData.test_results ? 
-              (typeof answerData.test_results === 'string' ? 
-                JSON.parse(answerData.test_results) : answerData.test_results) : 
-              undefined
+            testResults
           };
         });
         
@@ -164,7 +213,8 @@ const ReportPage = () => {
           codeQuestions,
           totalMarks,
           earnedMarks,
-          percentage
+          percentage,
+          totalQuestionsSolved
         });
       } catch (error) {
         console.error('Error fetching report data:', error);
@@ -174,7 +224,7 @@ const ReportPage = () => {
     };
     
     fetchReportData();
-  }, [assessment, assessmentEnded, navigate, user]);
+  }, [assessment, assessmentEnded, navigate, user, toast]);
   
   if (!assessment || loading || !reportData) {
     return (
@@ -386,23 +436,79 @@ const ReportPage = () => {
               
               <div>
                 <h3 className="text-lg font-medium mb-3">Performance</h3>
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-gray-50 p-4 rounded-md text-center">
                     <p className="text-2xl font-bold text-astra-red">{reportData.percentage}%</p>
                     <p className="text-xs text-gray-500">Score</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-md text-center">
-                    <p className="text-2xl font-bold">{reportData.mcqQuestions.length + reportData.codeQuestions.length}</p>
-                    <p className="text-xs text-gray-500">Total Questions</p>
+                    <p className="text-2xl font-bold">{reportData.earnedMarks}/{reportData.totalMarks}</p>
+                    <p className="text-xs text-gray-500">Marks</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-md text-center">
-                    <p className="text-2xl font-bold">{reportData.mcqQuestions.filter(q => q.answer).length}/{reportData.mcqQuestions.length}</p>
-                    <p className="text-xs text-gray-500">MCQs Attempted</p>
+                    <p className="text-2xl font-bold">{reportData.totalQuestionsSolved}/{reportData.mcqQuestions.length + reportData.codeQuestions.length}</p>
+                    <p className="text-xs text-gray-500">Questions Solved</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-md text-center">
-                    <p className="text-2xl font-bold">{reportData.codeQuestions.filter(q => q.answer).length}/{reportData.codeQuestions.length}</p>
-                    <p className="text-xs text-gray-500">Coding Questions</p>
+                    <p className="text-2xl font-bold">{formatDateTime(reportData.completedAt)}</p>
+                    <p className="text-xs text-gray-500">Completed</p>
                   </div>
+                </div>
+                
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">MCQ Performance</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Attempted:</span>
+                          <span className="font-medium">{reportData.mcqQuestions.filter(q => q.answer).length}/{reportData.mcqQuestions.length}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Correct Answers:</span>
+                          <span className="font-medium">{reportData.mcqQuestions.filter(q => q.answer && q.answer.is_correct).length}/{reportData.mcqQuestions.length}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Marks Obtained:</span>
+                          <span className="font-medium">{
+                            reportData.mcqQuestions.reduce((total, q) => 
+                              total + (q.answer ? (q.answer.marks_obtained || 0) : 0), 0)
+                          }/{
+                            reportData.mcqQuestions.reduce((total, q) => total + (q.marks || 1), 0)
+                          }</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Coding Performance</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>Attempted:</span>
+                          <span className="font-medium">{reportData.codeQuestions.filter(q => q.answer && q.answer.code_solution).length}/{reportData.codeQuestions.length}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Fully Correct:</span>
+                          <span className="font-medium">{reportData.codeQuestions.filter(q => q.answer && q.answer.is_correct).length}/{reportData.codeQuestions.length}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>Marks Obtained:</span>
+                          <span className="font-medium">{
+                            reportData.codeQuestions.reduce((total, q) => 
+                              total + (q.answer ? (q.answer.marks_obtained || 0) : 0), 0)
+                          }/{
+                            reportData.codeQuestions.reduce((total, q) => total + (q.marks || 1), 0)
+                          }</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             </CardContent>
@@ -422,190 +528,208 @@ const ReportPage = () => {
             
             <TabsContent value="mcq">
               <div className="space-y-6">
-                {reportData.mcqQuestions.map((question, index) => {
-                  const answer = question.answer;
-                  const selectedOption = question.options.find(opt => answer && opt.id === answer.mcq_option_id);
-                  const correctOption = question.options.find(opt => opt.is_correct);
-                  const isCorrect = answer && answer.is_correct;
-                  
-                  return (
-                    <Card key={question.id} className="overflow-hidden">
-                      <CardHeader className="bg-gray-50">
-                        <CardTitle className="flex justify-between items-center">
-                          <div>Question {index + 1}: {question.title}</div>
-                          {answer ? (
-                            isCorrect ? (
-                              <div className="flex items-center text-green-500">
-                                <CheckCircle className="h-5 w-5 mr-2" />
-                                Correct ({answer.marks_obtained} mark{answer.marks_obtained !== 1 ? 's' : ''})
-                              </div>
-                            ) : (
-                              <div className="flex items-center text-red-500">
-                                <XCircle className="h-5 w-5 mr-2" />
-                                Incorrect (0 marks)
-                              </div>
-                            )
-                          ) : (
-                            <div className="text-gray-500">Not Attempted</div>
-                          )}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-4">
-                        <div className="mb-4 whitespace-pre-line">{question.description}</div>
-                        
-                        {question.image_url && (
-                          <div className="mb-4">
-                            <img 
-                              src={question.image_url} 
-                              alt={question.title}
-                              className="max-w-full h-auto rounded-md border border-gray-200"
-                            />
-                          </div>
-                        )}
-                        
-                        <h4 className="font-medium mb-2">Options:</h4>
-                        <ul className="space-y-2">
-                          {question.options.map(option => (
-                            <li 
-                              key={option.id}
-                              className={`p-3 rounded-md border ${
-                                answer && option.id === answer.mcq_option_id
-                                  ? option.is_correct
-                                    ? 'border-green-500 bg-green-50'
-                                    : 'border-red-500 bg-red-50'
-                                  : option.is_correct
-                                    ? 'border-green-500 bg-green-50' 
-                                    : 'border-gray-200'
-                              }`}
-                            >
-                              <div className="flex items-center">
-                                {answer && option.id === answer.mcq_option_id && (
-                                  <div className="mr-2">
-                                    {option.is_correct ? (
-                                      <CheckCircle className="h-4 w-4 text-green-500" />
-                                    ) : (
-                                      <XCircle className="h-4 w-4 text-red-500" />
-                                    )}
+                {reportData.mcqQuestions.length === 0 ? (
+                  <p className="text-center text-gray-500 py-12">No multiple choice questions in this assessment</p>
+                ) : (
+                  reportData.mcqQuestions.map((question, index) => {
+                    const answer = question.answer;
+                    const selectedOption = question.options.find(opt => answer && opt.id === answer.mcq_option_id);
+                    const correctOption = question.options.find(opt => opt.is_correct);
+                    const isCorrect = answer && answer.is_correct;
+                    
+                    return (
+                      <Card key={question.id} className="overflow-hidden">
+                        <CardHeader className="bg-gray-50">
+                          <CardTitle className="flex justify-between items-center">
+                            <div>Question {index + 1}: {question.title}</div>
+                            <div className="flex items-center gap-2">
+                              {answer ? (
+                                isCorrect ? (
+                                  <div className="flex items-center text-green-500">
+                                    <CheckCircle className="h-5 w-5 mr-2" />
+                                    Correct
                                   </div>
-                                )}
-                                <span>{option.text}</span>
-                                {option.is_correct && (!answer || option.id !== answer.mcq_option_id) && (
-                                  <span className="ml-2 text-sm text-green-600">(Correct Answer)</span>
-                                )}
+                                ) : (
+                                  <div className="flex items-center text-red-500">
+                                    <XCircle className="h-5 w-5 mr-2" />
+                                    Incorrect
+                                  </div>
+                                )
+                              ) : (
+                                <div className="text-gray-500">Not Attempted</div>
+                              )}
+                              <div className="bg-gray-200 px-2 py-1 rounded text-xs">
+                                {answer ? `${answer.marksObtained}/${question.marks || 1}` : `0/${question.marks || 1}`} marks
                               </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                            </div>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-4">
+                          <div className="mb-4 whitespace-pre-line">{question.description}</div>
+                          
+                          {question.image_url && (
+                            <div className="mb-4">
+                              <img 
+                                src={question.image_url} 
+                                alt={question.title}
+                                className="max-w-full h-auto rounded-md border border-gray-200"
+                              />
+                            </div>
+                          )}
+                          
+                          <h4 className="font-medium mb-2">Options:</h4>
+                          <ul className="space-y-2">
+                            {question.options.map(option => (
+                              <li 
+                                key={option.id}
+                                className={`p-3 rounded-md border ${
+                                  answer && option.id === answer.mcq_option_id
+                                    ? option.is_correct
+                                      ? 'border-green-500 bg-green-50'
+                                      : 'border-red-500 bg-red-50'
+                                    : option.is_correct && answer
+                                      ? 'border-green-500 bg-green-50' 
+                                      : 'border-gray-200'
+                                }`}
+                              >
+                                <div className="flex items-center">
+                                  {answer && option.id === answer.mcq_option_id && (
+                                    <div className="mr-2">
+                                      {option.is_correct ? (
+                                        <CheckCircle className="h-4 w-4 text-green-500" />
+                                      ) : (
+                                        <XCircle className="h-4 w-4 text-red-500" />
+                                      )}
+                                    </div>
+                                  )}
+                                  <span>{option.text}</span>
+                                  {option.is_correct && (!answer || option.id !== answer.mcq_option_id) && (
+                                    <span className="ml-2 text-sm text-green-600">(Correct Answer)</span>
+                                  )}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                )}
               </div>
             </TabsContent>
             
             <TabsContent value="code">
               <div className="space-y-6">
-                {reportData.codeQuestions.map((question, index) => {
-                  const answer = question.answer;
-                  const hasSubmission = answer && answer.code_solution;
-                  const testResults = answer?.test_results || [];
-                  const passedTests = testResults.filter(t => t.passed).length;
-                  const totalTests = testResults.length;
-                  
-                  return (
-                    <Card key={question.id}>
-                      <CardHeader className="bg-gray-50">
-                        <CardTitle className="flex justify-between items-center">
-                          <div>Question {index + 1}: {question.title}</div>
-                          {hasSubmission ? (
-                            answer.is_correct ? (
-                              <div className="flex items-center text-green-500">
-                                <CheckCircle className="h-5 w-5 mr-2" />
-                                Correct ({answer.marks_obtained} mark{answer.marks_obtained !== 1 ? 's' : ''})
+                {reportData.codeQuestions.length === 0 ? (
+                  <p className="text-center text-gray-500 py-12">No coding questions in this assessment</p>
+                ) : (
+                  reportData.codeQuestions.map((question, index) => {
+                    const answer = question.answer;
+                    const hasSubmission = answer && answer.code_solution;
+                    const testResults = answer?.testResults || [];
+                    const passedTests = testResults.filter(t => t.passed).length;
+                    const totalTests = testResults.length;
+                    
+                    return (
+                      <Card key={question.id}>
+                        <CardHeader className="bg-gray-50">
+                          <CardTitle className="flex justify-between items-center">
+                            <div>Question {index + 1}: {question.title}</div>
+                            <div className="flex items-center gap-2">
+                              {hasSubmission ? (
+                                answer.isCorrect ? (
+                                  <div className="flex items-center text-green-500">
+                                    <CheckCircle className="h-5 w-5 mr-2" />
+                                    All Tests Passed
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center text-orange-500">
+                                    <div>
+                                      {passedTests}/{totalTests} Tests Passed
+                                    </div>
+                                  </div>
+                                )
+                              ) : (
+                                <div className="text-gray-500">Not Attempted</div>
+                              )}
+                              <div className="bg-gray-200 px-2 py-1 rounded text-xs">
+                                {hasSubmission ? `${answer.marksObtained}/${question.marks || 1}` : `0/${question.marks || 1}`} marks
                               </div>
-                            ) : (
-                              <div className="flex items-center text-orange-500">
-                                <div>
-                                  {passedTests}/{totalTests} Tests Passed ({answer.marks_obtained} mark{answer.marks_obtained !== 1 ? 's' : ''})
+                            </div>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-4">
+                          <div className="mb-4 whitespace-pre-line">{question.description}</div>
+                          
+                          <h4 className="font-medium mb-2">Examples:</h4>
+                          <div className="space-y-3 mb-4">
+                            {question.examples.map((example, idx) => (
+                              <div key={idx} className="bg-gray-50 p-3 rounded-md">
+                                <div className="mb-1">
+                                  <span className="font-medium text-xs">Input:</span>
+                                  <pre className="text-xs bg-gray-100 p-1 rounded mt-1">{example.input}</pre>
                                 </div>
+                                <div className="mb-1">
+                                  <span className="font-medium text-xs">Output:</span>
+                                  <pre className="text-xs bg-gray-100 p-1 rounded mt-1">{example.output}</pre>
+                                </div>
+                                {example.explanation && (
+                                  <div>
+                                    <span className="font-medium text-xs">Explanation:</span>
+                                    <p className="text-xs mt-1">{example.explanation}</p>
+                                  </div>
+                                )}
                               </div>
-                            )
-                          ) : (
-                            <div className="text-gray-500">Not Attempted</div>
-                          )}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="pt-4">
-                        <div className="mb-4 whitespace-pre-line">{question.description}</div>
-                        
-                        <h4 className="font-medium mb-2">Examples:</h4>
-                        <div className="space-y-3 mb-4">
-                          {question.examples.map((example, idx) => (
-                            <div key={idx} className="bg-gray-50 p-3 rounded-md">
-                              <div className="mb-1">
-                                <span className="font-medium text-xs">Input:</span>
-                                <pre className="text-xs bg-gray-100 p-1 rounded mt-1">{example.input}</pre>
+                            ))}
+                          </div>
+                          
+                          <h4 className="font-medium mb-2">Your Submission:</h4>
+                          {hasSubmission ? (
+                            <div>
+                              <div className="mb-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h5 className="font-medium">Language: {answer.language}</h5>
+                                </div>
+                                <pre className="bg-gray-100 p-3 rounded-md font-mono text-sm overflow-x-auto whitespace-pre-wrap">
+                                  {answer.codeSolution}
+                                </pre>
                               </div>
-                              <div className="mb-1">
-                                <span className="font-medium text-xs">Output:</span>
-                                <pre className="text-xs bg-gray-100 p-1 rounded mt-1">{example.output}</pre>
-                              </div>
-                              {example.explanation && (
+                              
+                              {testResults.length > 0 && (
                                 <div>
-                                  <span className="font-medium text-xs">Explanation:</span>
-                                  <p className="text-xs mt-1">{example.explanation}</p>
+                                  <h5 className="font-medium mb-2">Test Results:</h5>
+                                  <div className="space-y-2">
+                                    {testResults.map((test, idx) => (
+                                      <div key={idx} className={`p-2 rounded-md ${test.passed ? 'bg-green-50 border border-green-100' : 'bg-red-50 border border-red-100'}`}>
+                                        <div className="flex items-start gap-2">
+                                          {test.passed ? (
+                                            <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                                          ) : (
+                                            <XCircle className="h-4 w-4 text-red-500 mt-0.5" />
+                                          )}
+                                          <div>
+                                            <p className="text-sm font-medium">
+                                              Test Case {idx + 1}: {test.passed ? 'Passed' : 'Failed'}
+                                            </p>
+                                            {!test.passed && test.actualOutput && (
+                                              <p className="text-xs mt-1">Your Output: {test.actualOutput}</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
                             </div>
-                          ))}
-                        </div>
-                        
-                        <h4 className="font-medium mb-2">Your Submission:</h4>
-                        {hasSubmission ? (
-                          <div>
-                            <div className="mb-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <h5 className="font-medium">Language: {answer.language}</h5>
-                              </div>
-                              <pre className="bg-gray-100 p-3 rounded-md font-mono text-sm overflow-x-auto whitespace-pre-wrap">
-                                {answer.code_solution}
-                              </pre>
-                            </div>
-                            
-                            {testResults.length > 0 && (
-                              <div>
-                                <h5 className="font-medium mb-2">Test Results:</h5>
-                                <div className="space-y-2">
-                                  {testResults.map((test, idx) => (
-                                    <div key={idx} className={`p-2 rounded-md ${test.passed ? 'bg-green-50 border border-green-100' : 'bg-red-50 border border-red-100'}`}>
-                                      <div className="flex items-start gap-2">
-                                        {test.passed ? (
-                                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                                        ) : (
-                                          <XCircle className="h-4 w-4 text-red-500 mt-0.5" />
-                                        )}
-                                        <div>
-                                          <p className="text-sm font-medium">
-                                            Test Case {idx + 1}: {test.passed ? 'Passed' : 'Failed'}
-                                          </p>
-                                          {!test.passed && test.actualOutput && (
-                                            <p className="text-xs mt-1">Your Output: {test.actualOutput}</p>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-gray-500 italic">No submission</div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                          ) : (
+                            <div className="text-gray-500 italic">No submission</div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                )}
               </div>
             </TabsContent>
           </Tabs>
