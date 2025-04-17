@@ -2,7 +2,6 @@
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Session } from '@supabase/supabase-js';
 
 type UserRole = 'student' | 'admin';
 
@@ -16,7 +15,6 @@ type UserData = {
 
 interface AuthContextType {
   user: UserData | null;
-  session: Session | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   isLoading: boolean;
@@ -26,7 +24,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserData | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const { toast } = useToast();
 
@@ -46,7 +43,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     
     try {
-      // First check if user exists in our users table
       const userData = await fetchUserData(email);
       
       if (!userData) {
@@ -67,24 +63,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         prn: userData.prn,
         role: appRole
       });
-
-      // Create a mock session that matches the Session type
-      const mockSession = {
-        access_token: `mock_token_${userData.id}`,
-        refresh_token: `mock_refresh_${userData.id}`,
-        expires_in: 3600,
-        token_type: 'bearer',
-        user: {
-          id: userData.id,
-          email: userData.email,
-          user_metadata: {
-            name: userData.name,
-            role: appRole
-          }
-        }
-      } as unknown as Session;
-      
-      setSession(mockSession);
 
       toast({
         title: "Login successful",
@@ -108,7 +86,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       setUser(null);
-      setSession(null);
       toast({
         title: "Logged out",
         description: "You have been logged out successfully",
@@ -125,7 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,12 +32,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const { toast } = useToast();
   const { user } = useAuth();
 
-  // Initialize the editor with the user's previous solution or the template
   useEffect(() => {
     if (question?.userSolution && Object.keys(question.userSolution).length > 0) {
-      // If there is a user solution for the current language, use it
       if (question.userSolution[selectedLanguage]) {
-        // No need to call onCodeChange here as we're just initializing
         console.log("Loading user solution for language:", selectedLanguage);
       }
     }
@@ -268,13 +264,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
       setOutput(prev => `${prev}\n\nTotal marks earned: ${totalMarksEarned}/${totalPossibleMarks} (${correctPercentage.toFixed(1)}%)`);
       
-      // Update marks in the parent component
       if (onMarksUpdate) {
         console.log("Updating marks for question:", question.id, "marks:", totalMarksEarned);
         onMarksUpdate(question.id, totalMarksEarned);
       }
       
-      // Store the test results
       try {
         if (user) {
           const answerData = {

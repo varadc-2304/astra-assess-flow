@@ -160,7 +160,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
 
       for (const question of questionData || []) {
         possibleMarks += question.marks;
-
+        
         if (question.type === 'mcq') {
           const { data: optionsData, error: optionsError } = await supabase
             .from('mcq_options')
@@ -168,10 +168,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .eq('question_id', question.id)
             .order('order_index', { ascending: true });
 
-          if (optionsError) {
-            console.error("Error fetching MCQ options:", optionsError);
-            continue;
-          }
+          if (optionsError) continue;
 
           const mcqQuestion: MCQQuestion = {
             id: question.id,
@@ -196,10 +193,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .eq('question_id', question.id)
             .single();
 
-          if (codingError) {
-            console.error("Error fetching coding question details:", codingError);
-            continue;
-          }
+          if (codingError) continue;
 
           const { data: examplesData, error: examplesError } = await supabase
             .from('coding_examples')
@@ -207,10 +201,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .eq('question_id', question.id)
             .order('order_index', { ascending: true });
 
-          if (examplesError) {
-            console.error("Error fetching coding examples:", examplesError);
-            continue;
-          }
+          if (examplesError) continue;
 
           const solutionTemplate = codingData.solution_template as Record<string, string>;
           const existingAnswer = answers[question.id];
@@ -244,49 +235,27 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       setQuestions(formattedQuestions);
       setTotalPossibleMarks(possibleMarks);
       
-      const mcq = formattedQuestions.filter(q => q.type === 'mcq').length;
-      const coding = formattedQuestions.filter(q => q.type === 'code').length;
-      
-      setMcqCount(mcq);
-      setCodingCount(coding);
-      
-      if (assessment) {
-        setAssessment(prevAssessment => {
-          if (!prevAssessment) return null;
-          return {
-            ...prevAssessment,
-            mcqCount: mcq,
-            codingCount: coding,
-            questions: formattedQuestions
-          };
-        });
-      }
-
+      // Load existing answers if available
       if (user && submission) {
-        try {
-          const { data: existingAnswers, error: answersError } = await supabase
-            .from('answers')
-            .select('*')
-            .eq('submission_id', submission.id);
-            
-          if (!answersError && existingAnswers && existingAnswers.length > 0) {
-            const answersObj: { [questionId: string]: Answer } = {};
-            let marksObtained = 0;
-            
-            existingAnswers.forEach(answer => {
-              answersObj[answer.question_id] = answer;
-              marksObtained += answer.marks_obtained || 0;
-            });
-            
-            setAnswers(answersObj);
-            setTotalMarksObtained(marksObtained);
-            console.log("Loaded existing answers:", answersObj);
-          }
-        } catch (error) {
-          console.error("Error loading existing answers:", error);
+        const { data: existingAnswers, error: answersError } = await supabase
+          .from('answers')
+          .select('*')
+          .eq('submission_id', submission.id);
+          
+        if (!answersError && existingAnswers && existingAnswers.length > 0) {
+          const answersObj: { [questionId: string]: Answer } = {};
+          let marksObtained = 0;
+          
+          existingAnswers.forEach(answer => {
+            answersObj[answer.question_id] = answer;
+            marksObtained += answer.marks_obtained || 0;
+          });
+          
+          setAnswers(answersObj);
+          setTotalMarksObtained(marksObtained);
         }
       }
-      
+
       return true;
     } catch (error: any) {
       console.error("Error in loadQuestions:", error);
