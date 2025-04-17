@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -21,7 +20,6 @@ const SummaryPage = () => {
     ? Math.round((totalMarksObtained / totalPossibleMarks) * 100)
     : 0;
 
-  // Function to determine grade based on percentage
   const getGrade = (percent: number) => {
     if (percent >= 90) return { grade: 'A+', color: 'text-green-600' };
     if (percent >= 80) return { grade: 'A', color: 'text-green-500' };

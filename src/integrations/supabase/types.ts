@@ -386,7 +386,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      calculate_assessment_total_marks: {
+        Args: { assessment_id: string }
+        Returns: number
+      }
+      calculate_coding_question_marks: {
+        Args: { question_id: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never

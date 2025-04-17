@@ -20,12 +20,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
 
-// Type guard to check if a question is an MCQ question
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
 }
 
-// Type guard to check if a question is a code question
 function isCodeQuestion(question: any): question is CodeQuestion {
   return question.type === 'code';
 }
@@ -243,7 +241,7 @@ const AssessmentPage = () => {
           </SheetContent>
         </Sheet>
         
-        <div className="flex items-center justify-end">
+        <div className="flex items-center">
           <Timer variant="assessment" />
         </div>
       </header>

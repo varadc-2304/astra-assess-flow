@@ -155,6 +155,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       
       for (const questionData of questionsData || []) {
         if (questionData.type === 'mcq') {
+          totalPossibleMarks += questionData.marks || 0;
+          
           const { data: optionsData, error: optionsError } = await supabase
             .from('mcq_options')
             .select('*')
@@ -183,7 +185,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           };
           
           questions.push(mcqQuestion);
-          totalPossibleMarks += questionData.marks || 1;
         } else if (questionData.type === 'code') {
           const { data: codeData, error: codeError } = await supabase
             .from('coding_questions')
@@ -221,6 +222,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           }
           
           const testCaseMarks = testCasesData?.reduce((sum, tc) => sum + (tc.marks || 0), 0) || 0;
+          totalPossibleMarks += testCaseMarks;
           
           const solutionTemplate = codeData?.solution_template ? 
             Object.fromEntries(
@@ -253,7 +255,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           };
           
           questions.push(codeQuestion);
-          totalPossibleMarks += testCaseMarks;
         }
       }
       
@@ -311,7 +312,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         console.log('Assessment ended successfully');
         console.log(`Total marks obtained: ${totalMarksObtained}/${totalPossibleMarks}`);
         
-        // Find the latest submission for this assessment
         const { data: submissions, error: submissionError } = await supabase
           .from('submissions')
           .select('*')
@@ -331,7 +331,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
         
         if (!submissions || submissions.length === 0) {
-          // Create a new submission
           const { data: newSubmission, error: newSubmissionError } = await supabase
             .from('submissions')
             .insert({
@@ -354,7 +353,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             return false;
           }
         } else {
-          // Update existing submission
           const { error: updateError } = await supabase
             .from('submissions')
             .update({ 
@@ -374,12 +372,10 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         
-        // Calculate percentage
         const percentage = totalPossibleMarks > 0
           ? Math.round((totalMarksObtained / totalPossibleMarks) * 100)
           : 0;
         
-        // Store results
         const { error: resultError } = await supabase
           .from('results')
           .insert({
@@ -436,7 +432,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       })
     });
     
-    // Update marks obtained for MCQs
     const updatedAssessment = {
       ...assessment,
       questions: assessment.questions.map(q => {
@@ -450,7 +445,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       })
     };
     
-    // Calculate total marks for MCQs
     let newTotalMarksObtained = 0;
     
     updatedAssessment.questions.forEach(q => {
@@ -505,7 +499,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       })
     });
     
-    // Recalculate total marks obtained
     let newTotalMarksObtained = 0;
     
     assessment.questions.forEach(q => {
@@ -554,7 +547,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
-      // If reattempt is false and user has previous results, block reattempt
       if (!assessmentData.reattempt && existingResults.length > 0) {
         toast({
           title: "Reattempt Not Allowed",
