@@ -82,6 +82,7 @@ export type Database = {
           name: string
           reattempt: boolean
           start_time: string
+          status: string | null
         }
         Insert: {
           code: string
@@ -94,6 +95,7 @@ export type Database = {
           name: string
           reattempt?: boolean
           start_time: string
+          status?: string | null
         }
         Update: {
           code?: string
@@ -106,6 +108,7 @@ export type Database = {
           name?: string
           reattempt?: boolean
           start_time?: string
+          status?: string | null
         }
         Relationships: []
       }
@@ -380,6 +383,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      users: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          password: string
+          prn: string | null
+          role: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          password: string
+          prn?: string | null
+          role: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          password?: string
+          prn?: string | null
+          role?: string
+        }
+        Relationships: []
       }
     }
     Views: {
