@@ -174,23 +174,24 @@ const ReportPage = () => {
         const earnedMarks = answers.reduce((sum, a) => sum + (a.marks_obtained || 0), 0);
         const percentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
         
-        // Calculate total questions solved (attempted with some answer)
-        const mcqSolved = mcqQuestions.filter(q => q.answer).length;
+        // Calculate attempted questions (count if any answer provided)
+        const mcqSolved = mcqQuestions.filter(q => q.answer && q.answer.mcq_option_id).length;
         const codeSolved = codeQuestions.filter(q => q.answer && q.answer.code_solution).length;
         const totalQuestionsSolved = mcqSolved + codeSolved;
         
         const formattedAnswers: AnswerResult[] = answers.map(answer => {
-          let testResults;
+          let testResults: TestResult[] | undefined = undefined;
           
-          // Parse test results if they exist
+          // Safely parse test results if they exist
           if (answer.test_results) {
             try {
-              testResults = typeof answer.test_results === 'string' 
-                ? JSON.parse(answer.test_results) 
-                : answer.test_results;
+              // TypeScript doesn't know about test_results, so we use a type assertion here
+              const rawTestResults = (answer as any).test_results;
+              testResults = typeof rawTestResults === 'string' 
+                ? JSON.parse(rawTestResults) 
+                : rawTestResults;
             } catch (error) {
               console.error('Error parsing test results:', error);
-              testResults = [];
             }
           }
           
@@ -464,20 +465,25 @@ const ReportPage = () => {
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span>Attempted:</span>
-                          <span className="font-medium">{reportData.mcqQuestions.filter(q => q.answer).length}/{reportData.mcqQuestions.length}</span>
+                          <span className="font-medium">
+                            {reportData.mcqQuestions.filter(q => q.answer && q.answer.mcq_option_id).length}/
+                            {reportData.mcqQuestions.length}
+                          </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span>Correct Answers:</span>
-                          <span className="font-medium">{reportData.mcqQuestions.filter(q => q.answer && q.answer.is_correct).length}/{reportData.mcqQuestions.length}</span>
+                          <span className="font-medium">
+                            {reportData.mcqQuestions.filter(q => q.answer && q.answer.is_correct).length}/
+                            {reportData.mcqQuestions.length}
+                          </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span>Marks Obtained:</span>
-                          <span className="font-medium">{
-                            reportData.mcqQuestions.reduce((total, q) => 
-                              total + (q.answer ? (q.answer.marks_obtained || 0) : 0), 0)
-                          }/{
-                            reportData.mcqQuestions.reduce((total, q) => total + (q.marks || 1), 0)
-                          }</span>
+                          <span className="font-medium">
+                            {reportData.mcqQuestions.reduce((total, q) => 
+                              total + (q.answer ? (q.answer.marks_obtained || 0) : 0), 0)}/
+                            {reportData.mcqQuestions.reduce((total, q) => total + (q.marks || 1), 0)}
+                          </span>
                         </div>
                       </div>
                     </CardContent>
@@ -491,20 +497,25 @@ const ReportPage = () => {
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span>Attempted:</span>
-                          <span className="font-medium">{reportData.codeQuestions.filter(q => q.answer && q.answer.code_solution).length}/{reportData.codeQuestions.length}</span>
+                          <span className="font-medium">
+                            {reportData.codeQuestions.filter(q => q.answer && q.answer.code_solution).length}/
+                            {reportData.codeQuestions.length}
+                          </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span>Fully Correct:</span>
-                          <span className="font-medium">{reportData.codeQuestions.filter(q => q.answer && q.answer.is_correct).length}/{reportData.codeQuestions.length}</span>
+                          <span className="font-medium">
+                            {reportData.codeQuestions.filter(q => q.answer && q.answer.is_correct).length}/
+                            {reportData.codeQuestions.length}
+                          </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span>Marks Obtained:</span>
-                          <span className="font-medium">{
-                            reportData.codeQuestions.reduce((total, q) => 
-                              total + (q.answer ? (q.answer.marks_obtained || 0) : 0), 0)
-                          }/{
-                            reportData.codeQuestions.reduce((total, q) => total + (q.marks || 1), 0)
-                          }</span>
+                          <span className="font-medium">
+                            {reportData.codeQuestions.reduce((total, q) => 
+                              total + (q.answer ? (q.answer.marks_obtained || 0) : 0), 0)}/
+                            {reportData.codeQuestions.reduce((total, q) => total + (q.marks || 1), 0)}
+                          </span>
                         </div>
                       </div>
                     </CardContent>
@@ -536,6 +547,7 @@ const ReportPage = () => {
                     const selectedOption = question.options.find(opt => answer && opt.id === answer.mcq_option_id);
                     const correctOption = question.options.find(opt => opt.is_correct);
                     const isCorrect = answer && answer.is_correct;
+                    const hasAttempted = answer && answer.mcq_option_id;
                     
                     return (
                       <Card key={question.id} className="overflow-hidden">
@@ -543,7 +555,7 @@ const ReportPage = () => {
                           <CardTitle className="flex justify-between items-center">
                             <div>Question {index + 1}: {question.title}</div>
                             <div className="flex items-center gap-2">
-                              {answer ? (
+                              {hasAttempted ? (
                                 isCorrect ? (
                                   <div className="flex items-center text-green-500">
                                     <CheckCircle className="h-5 w-5 mr-2" />
@@ -559,7 +571,7 @@ const ReportPage = () => {
                                 <div className="text-gray-500">Not Attempted</div>
                               )}
                               <div className="bg-gray-200 px-2 py-1 rounded text-xs">
-                                {answer ? `${answer.marksObtained}/${question.marks || 1}` : `0/${question.marks || 1}`} marks
+                                {hasAttempted ? `${answer.marks_obtained || 0}/${question.marks || 1}` : `0/${question.marks || 1}`} marks
                               </div>
                             </div>
                           </CardTitle>
@@ -583,17 +595,17 @@ const ReportPage = () => {
                               <li 
                                 key={option.id}
                                 className={`p-3 rounded-md border ${
-                                  answer && option.id === answer.mcq_option_id
+                                  hasAttempted && option.id === answer.mcq_option_id
                                     ? option.is_correct
                                       ? 'border-green-500 bg-green-50'
                                       : 'border-red-500 bg-red-50'
-                                    : option.is_correct && answer
+                                    : option.is_correct && hasAttempted
                                       ? 'border-green-500 bg-green-50' 
                                       : 'border-gray-200'
                                 }`}
                               >
                                 <div className="flex items-center">
-                                  {answer && option.id === answer.mcq_option_id && (
+                                  {hasAttempted && option.id === answer.mcq_option_id && (
                                     <div className="mr-2">
                                       {option.is_correct ? (
                                         <CheckCircle className="h-4 w-4 text-green-500" />
@@ -603,7 +615,7 @@ const ReportPage = () => {
                                     </div>
                                   )}
                                   <span>{option.text}</span>
-                                  {option.is_correct && (!answer || option.id !== answer.mcq_option_id) && (
+                                  {option.is_correct && (!hasAttempted || option.id !== answer.mcq_option_id) && (
                                     <span className="ml-2 text-sm text-green-600">(Correct Answer)</span>
                                   )}
                                 </div>
