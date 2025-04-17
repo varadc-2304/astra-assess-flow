@@ -151,6 +151,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       }
       
       const questions: Question[] = [];
+      let totalPossibleMarks = 0;
       
       for (const questionData of questionsData || []) {
         if (questionData.type === 'mcq') {
@@ -182,6 +183,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           };
           
           questions.push(mcqQuestion);
+          totalPossibleMarks += questionData.marks || 1;
         } else if (questionData.type === 'code') {
           const { data: codeData, error: codeError } = await supabase
             .from('coding_questions')
@@ -218,6 +220,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
           
+          const testCaseMarks = testCasesData?.reduce((sum, tc) => sum + (tc.marks || 0), 0) || 0;
+          
           const solutionTemplate = codeData?.solution_template ? 
             Object.fromEntries(
               Object.entries(codeData.solution_template as Record<string, any>)
@@ -241,16 +245,20 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             userSolution: {},
             testCases: testCasesData?.map(testCase => ({
               input: testCase.input,
-              output: testCase.output
+              output: testCase.output,
+              marks: testCase.marks,
+              is_hidden: testCase.is_hidden
             })) || [],
-            marks: questionData.marks
+            marks: testCaseMarks
           };
           
           questions.push(codeQuestion);
+          totalPossibleMarks += testCaseMarks;
         }
       }
       
       console.log(`Total questions processed: ${questions.length}`);
+      console.log(`Total possible marks: ${totalPossibleMarks}`);
       
       const loadedAssessment: Assessment = {
         id: assessmentData.id,
@@ -267,6 +275,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       
       console.log('Setting assessment:', loadedAssessment);
       setAssessment(loadedAssessment);
+      setTotalPossibleMarks(totalPossibleMarks);
       setTimeRemaining(loadedAssessment.durationMinutes * 60);
       
       toast({
@@ -291,19 +300,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
 
   const startAssessment = () => {
     setAssessmentStarted(true);
-    
-    // Calculate total possible marks
-    if (assessment) {
-      let totalMarks = 0;
-      assessment.questions.forEach(q => {
-        if (q.marks) {
-          totalMarks += q.marks;
-        } else {
-          totalMarks += 1; // Default mark if not specified
-        }
-      });
-      setTotalPossibleMarks(totalMarks);
-    }
   };
 
   const endAssessment = async (): Promise<boolean> => {

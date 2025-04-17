@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -244,11 +243,7 @@ const AssessmentPage = () => {
           </SheetContent>
         </Sheet>
         
-        <div className="flex items-center gap-4">
-          <div className="text-sm font-medium">
-            <span>Score: </span>
-            <span className="text-astra-red">{totalMarksObtained}/{totalPossibleMarks}</span>
-          </div>
+        <div className="flex items-center justify-end">
           <Timer variant="assessment" />
         </div>
       </header>

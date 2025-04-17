@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -60,61 +61,74 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     }
     
     setIsRunning(true);
-    setOutput('Running code...');
+    setOutput('Running code on visible test cases...\n');
     
     try {
-      const input = question.examples[0]?.input || '';
-      const token = await createSubmission(currentCode, selectedLanguage, input);
-      
-      // Wait for the result
-      const result = await waitForSubmissionResult(token);
-      
-      if (result.status.id >= 6) {
-        const errorOutput = result.compile_output || result.stderr || 'An error occurred while running your code';
-        setOutput(`Error: ${errorOutput}`);
-        setIsRunning(false);
+      // Fetch visible test cases only
+      const { data: testCases, error: testCasesError } = await supabase
+        .from('test_cases')
+        .select('*')
+        .eq('question_id', question.id)
+        .eq('is_hidden', false)
+        .order('order_index', { ascending: true });
         
-        toast({
-          title: "Error",
-          description: "Your code contains errors. Please fix them and try again.",
-          variant: "destructive",
-        });
-        
-        return;
+      if (testCasesError) {
+        throw new Error(`Failed to load test cases: ${testCasesError.message}`);
       }
       
-      let formattedOutput = `Running test case...\n`;
-      const actualOutput = result.stdout?.trim() || '';
-      const example = question.examples[0];
-      const expectedOutput = example.output.trim().replace(/\r\n/g, '\n');
-      const passed = actualOutput === expectedOutput;
+      if (!testCases || testCases.length === 0) {
+        throw new Error('No visible test cases found for this question');
+      }
       
-      formattedOutput += `Input: ${example.input}\n`;
-      formattedOutput += `Expected Output: ${expectedOutput}\n`;
-      formattedOutput += `Your Output: ${actualOutput}\n`;
-      formattedOutput += `Result: ${passed ? 'Passed' : 'Failed'}\n`;
+      let passedCount = 0;
+      let totalTestCases = testCases.length;
       
-      setOutput(formattedOutput);
-      setIsRunning(false);
+      for (let i = 0; i < testCases.length; i++) {
+        const testCase = testCases[i];
+        setOutput(prev => `${prev}\nRunning test case ${i + 1}/${totalTestCases}...\n`);
+        
+        const token = await createSubmission(currentCode, selectedLanguage, testCase.input);
+        const result = await waitForSubmissionResult(token);
+        
+        if (result.status.id >= 6) {
+          const errorOutput = result.compile_output || result.stderr || 'An error occurred while running your code';
+          setOutput(prev => `${prev}\nError in test case ${i + 1}: ${errorOutput}\n`);
+          continue;
+        }
+        
+        const actualOutput = result.stdout?.trim() || '';
+        const expectedOutput = testCase.output.trim().replace(/\r\n/g, '\n');
+        const passed = actualOutput === expectedOutput;
+        
+        if (passed) {
+          passedCount++;
+        }
+        
+        setOutput(prev => `${prev}Test case ${i + 1}/${totalTestCases}: ${passed ? 'Passed' : 'Failed'}\n`);
+        if (!passed) {
+          setOutput(prev => `${prev}Expected Output: "${expectedOutput}"\nYour Output: "${actualOutput}"\n`);
+        }
+      }
+      
+      setOutput(prev => `${prev}\n${passedCount}/${totalTestCases} test cases passed\n`);
       
       toast({
-        title: passed ? "Success!" : "Test Case Failed",
-        description: passed 
-          ? "Your code produced the expected output!" 
-          : "Your code's output doesn't match the expected output.",
-        variant: passed ? "default" : "destructive",
+        title: passedCount === totalTestCases ? "Success!" : "Test Cases Completed",
+        description: `${passedCount}/${totalTestCases} test cases passed.`,
+        variant: passedCount === totalTestCases ? "default" : "destructive",
       });
       
     } catch (error) {
       console.error('Error running code:', error);
       setOutput(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
-      setIsRunning(false);
       
       toast({
         title: "Error",
         description: "Failed to run code. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsRunning(false);
     }
   };
 
@@ -130,7 +144,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         throw error;
       }
       
-      // Ensure the returned data matches the TestCase interface
       return testCases || [];
     } catch (error) {
       console.error('Error fetching test cases:', error);
