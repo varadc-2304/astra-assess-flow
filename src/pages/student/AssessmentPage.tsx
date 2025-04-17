@@ -12,7 +12,7 @@ import { useAssessment } from '@/contexts/AssessmentContext';
 import { useFullscreen } from '@/hooks/useFullscreen';
 import { Timer } from '@/components/Timer';
 import MCQQuestion from '@/components/MCQQuestion';
-import CodeEditor from '@/components/CodeEditor';
+import CodeEditor from '@/components/code/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2 } from 'lucide-react';
