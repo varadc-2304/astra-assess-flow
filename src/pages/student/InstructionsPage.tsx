@@ -40,8 +40,8 @@ const InstructionsPage = () => {
     return null; // Don't render anything while redirecting
   }
   
-  const handleStartAssessment = () => {
-    startAssessment(assessment.id);
+  const handleStartAssessment = async () => {
+    await startAssessment(assessment.id);
     navigate('/assessment');
   };
 

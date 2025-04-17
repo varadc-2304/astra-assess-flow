@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
@@ -15,7 +16,7 @@ interface AssessmentContextType {
   submission: Submission | null;
   isLoading: boolean;
   startAssessment: (assessmentId: string) => Promise<void>;
-  loadQuestions: (assessmentId: string) => Promise<void>;
+  loadQuestions: (assessmentId: string) => Promise<boolean>;
   goToNextQuestion: () => void;
   goToPreviousQuestion: () => void;
   submitAnswer: (questionId: string, answer: Answer) => void;
@@ -209,6 +210,17 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
 
+          // Fix for the first TypeScript error - ensure solutionTemplate is Record<string, string>
+          const solutionTemplate: Record<string, string> = {};
+          // Convert the JSON solution_template to the expected format
+          if (codingData.solution_template && typeof codingData.solution_template === 'object') {
+            Object.entries(codingData.solution_template).forEach(([key, value]) => {
+              if (typeof value === 'string') {
+                solutionTemplate[key] = value;
+              }
+            });
+          }
+
           const codeQuestion: CodeQuestion = {
             id: question.id,
             type: 'code',
@@ -220,7 +232,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
               explanation: ex.explanation
             })),
             constraints: codingData.constraints || [],
-            solutionTemplate: codingData.solution_template || {},
+            solutionTemplate: solutionTemplate,
             userSolution: {},
             marks: question.marks,
             assessmentId: question.assessment_id
@@ -239,10 +251,14 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       setCodingCount(coding);
       
       if (assessment) {
-        setAssessment({
-          ...assessment,
-          mcqCount: mcq,
-          codingCount: coding
+        setAssessment(prevAssessment => {
+          if (!prevAssessment) return null;
+          return {
+            ...prevAssessment,
+            mcqCount: mcq,
+            codingCount: coding,
+            questions: formattedQuestions
+          };
         });
       }
       
@@ -378,6 +394,35 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       throw error;
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Fix for the second and third TypeScript errors - implement startAssessment with void return type
+  const startAssessment = async (assessmentId: string): Promise<void> => {
+    setAssessmentStarted(true);
+    
+    try {
+      if (!user || !assessment) return;
+      
+      const { data, error } = await supabase
+        .from('submissions')
+        .insert({
+          assessment_id: assessmentId,
+          user_id: user.id,
+          started_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+        
+      if (error) {
+        console.error("Error creating submission:", error);
+        return;
+      }
+      
+      setSubmission(data);
+      setTimeRemaining(assessment.duration_minutes * 60);
+    } catch (error) {
+      console.error("Error starting assessment:", error);
     }
   };
 
