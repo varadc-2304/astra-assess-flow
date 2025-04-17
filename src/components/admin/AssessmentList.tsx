@@ -142,18 +142,32 @@ const AssessmentList = () => {
   const viewStudents = async (assessmentId: string) => {
     setSelectedAssessment(assessmentId);
     
-    // In a real app, fetch students from Supabase
-    // For now, use mock data
-    const mockStudents: Student[] = Array(5).fill(null).map((_, i) => ({
-      id: `S${1000 + i}`,
-      name: `Student ${i + 1}`,
-      email: `student${i + 1}@example.com`,
-      completedAt: new Date(2025, 3, Math.floor(Math.random() * 14) + 1).toISOString(),
-      score: Math.floor(Math.random() * 50) + 50,
-      totalMarks: 100
-    }));
+    try {
+      // Fetch actual submissions data from Supabase
+      const { data: submissionsData, error: submissionsError } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('assessment_id', assessmentId);
+        
+      if (submissionsError) throw submissionsError;
+      
+      // Convert submissions to student format
+      // In a real app, you would join with user data
+      const students: Student[] = (submissionsData || []).map((submission, index) => ({
+        id: submission.id,
+        name: `Student ${index + 1}`,
+        email: `student${index + 1}@example.com`,
+        completedAt: submission.completed_at || new Date().toISOString(),
+        score: 0, // Would calculate from answers
+        totalMarks: 100 // Would calculate from questions
+      }));
+      
+      setStudents(students);
+    } catch (error) {
+      console.error('Error fetching submissions:', error);
+      setStudents([]);
+    }
     
-    setStudents(mockStudents);
     setStudentsDialogOpen(true);
   };
 
@@ -166,8 +180,14 @@ const AssessmentList = () => {
     if (!selectedStudentId) return;
 
     try {
-      // In a real app, this would delete from Supabase
-      // For now, just update the UI
+      // Delete submission from Supabase
+      const { error } = await supabase
+        .from('submissions')
+        .delete()
+        .eq('id', selectedStudentId);
+        
+      if (error) throw error;
+      
       setStudents(students.filter(student => student.id !== selectedStudentId));
       
       toast({

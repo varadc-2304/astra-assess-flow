@@ -32,7 +32,6 @@ const ResultsPage = () => {
   };
 
   const handleDownloadPDF = () => {
-    // In a real app, this would generate a PDF report
     toast({
       title: "PDF Download",
       description: "The PDF report is being generated and will download shortly.",
@@ -49,7 +48,7 @@ const ResultsPage = () => {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-astra-red">AstraAssessments</h1>
+              <h1 className="text-2xl font-bold text-astra-red">Yudh</h1>
               <p className="text-sm text-gray-600">Results Dashboard</p>
             </div>
           </div>

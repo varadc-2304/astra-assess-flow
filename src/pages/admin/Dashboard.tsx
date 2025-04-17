@@ -25,12 +25,35 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // In a real app, these would be actual database queries
-        // For demo purposes, we'll use fake stats
+        // Fetch actual data from Supabase
+        const { data: assessments, error: assessmentsError } = await supabase
+          .from('assessments')
+          .select('*');
+
+        if (assessmentsError) throw assessmentsError;
+        
+        // Calculate active assessments (current date is between start_time and end_time)
+        const now = new Date();
+        const activeAssessments = assessments?.filter(assessment => {
+          const startTime = new Date(assessment.start_time);
+          const endTime = new Date(assessment.end_time);
+          return now >= startTime && now <= endTime;
+        }).length || 0;
+        
+        // Count completed assessments (current date is after end_time)
+        const completedAssessments = assessments?.filter(assessment => {
+          const endTime = new Date(assessment.end_time);
+          return now > endTime;
+        }).length || 0;
+        
+        // For student count, we would typically query a students or users table
+        // Since we don't have direct access to auth.users table, we'll set this to 0
+        const students = 0;
+        
         setStats({
-          activeAssessments: 3,
-          students: 42,
-          completedAssessments: 15
+          activeAssessments,
+          students,
+          completedAssessments
         });
       } catch (error) {
         console.error('Error fetching stats:', error);
@@ -48,7 +71,7 @@ const AdminDashboard = () => {
       <header className="bg-white border-b border-gray-200 py-4 px-6 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-astra-red">AstraAssessments</h1>
+            <h1 className="text-2xl font-bold text-astra-red">Yudh</h1>
             <p className="text-sm text-gray-600">Admin Dashboard</p>
           </div>
           <div className="flex items-center gap-4">
@@ -121,30 +144,16 @@ const AdminDashboard = () => {
                 <CardHeader>
                   <CardTitle>Recent Activity</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="border-b pb-2">
-                    <p className="font-medium">Programming Fundamentals Assessment</p>
-                    <div className="flex justify-between text-sm text-gray-500">
-                      <span>Started by 12 students</span>
-                      <span>2 hours ago</span>
+                <CardContent>
+                  {isLoading ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500">Loading activity data...</p>
                     </div>
-                  </div>
-                  
-                  <div className="border-b pb-2">
-                    <p className="font-medium">Data Structures Quiz</p>
-                    <div className="flex justify-between text-sm text-gray-500">
-                      <span>Created and scheduled</span>
-                      <span>Yesterday</span>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500">No recent activity to display</p>
                     </div>
-                  </div>
-                  
-                  <div>
-                    <p className="font-medium">Algorithm Design Test</p>
-                    <div className="flex justify-between text-sm text-gray-500">
-                      <span>All submissions graded</span>
-                      <span>2 days ago</span>
-                    </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
 
