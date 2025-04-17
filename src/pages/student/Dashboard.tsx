@@ -1,20 +1,74 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { Clock, CheckCircle, XCircle } from 'lucide-react';
+
+interface RecentAssessment {
+  id: string;
+  name: string;
+  code: string;
+  completed_at: string;
+  total_marks: number;
+  total_score: number;
+}
 
 const StudentDashboard = () => {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [recentAssessments, setRecentAssessments] = useState<RecentAssessment[]>([]);
   const { user, logout } = useAuth();
   const { setAssessmentCode, loadAssessment } = useAssessment();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchRecentAssessments = async () => {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('results')
+          .select(`
+            id,
+            total_marks,
+            total_score,
+            completed_at,
+            assessment:assessments (
+              name,
+              code
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('completed_at', { ascending: false })
+          .limit(5);
+
+        if (error) throw error;
+
+        if (data) {
+          const formatted = data.map(result => ({
+            id: result.id,
+            name: result.assessment.name,
+            code: result.assessment.code,
+            completed_at: result.completed_at,
+            total_marks: result.total_marks,
+            total_score: result.total_score
+          }));
+          setRecentAssessments(formatted);
+        }
+      } catch (error) {
+        console.error('Error fetching recent assessments:', error);
+      }
+    };
+
+    fetchRecentAssessments();
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,11 +150,51 @@ const StudentDashboard = () => {
         
         <div className="mt-8">
           <h2 className="text-lg font-semibold mb-2">Recent Assessments</h2>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <p className="text-gray-500 text-sm text-center py-6">
-              No recent assessments found
-            </p>
-          </div>
+          <Card>
+            <CardContent className="p-0">
+              {recentAssessments.length > 0 ? (
+                <ScrollArea className="h-[300px]">
+                  <div className="divide-y">
+                    {recentAssessments.map((assessment) => (
+                      <div key={assessment.id} className="p-4">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-medium text-gray-900">{assessment.name}</h3>
+                            <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                              <Clock className="h-4 w-4" />
+                              {new Date(assessment.completed_at).toLocaleDateString()}
+                            </div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              Code: {assessment.code}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="flex items-center gap-1">
+                              {assessment.total_score >= (assessment.total_marks * 0.4) ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              )}
+                              <span className="font-medium">
+                                {assessment.total_score}/{assessment.total_marks}
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              {Math.round((assessment.total_score / assessment.total_marks) * 100)}%
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-gray-500 text-sm text-center py-6">
+                  No recent assessments found
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

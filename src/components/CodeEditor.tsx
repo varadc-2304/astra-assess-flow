@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -64,7 +63,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     setOutput('Running code on visible test cases...\n');
     
     try {
-      // Fetch visible test cases only
       const { data: testCases, error: testCasesError } = await supabase
         .from('test_cases')
         .select('*')
@@ -168,17 +166,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
       setOutput(prev => `${prev}\n\nProcessing test case ${index + 1}/${testCases.length}...\n`);
       
-      // Create submission for current test case
       const token = await createSubmission(currentCode, selectedLanguage, testCase.input);
       
-      // Wait for the result of this specific test case
       const result = await waitForSubmissionResult(token);
       
       if (result.status.id >= 6) {
         const errorOutput = result.compile_output || result.stderr || 'An error occurred while running your code';
         setOutput(prev => `${prev}\nError in test case ${index + 1}: ${errorOutput}`);
         
-        // Add failed result with error
         const newResult: TestResult = { 
           passed: false, 
           actualOutput: `Error: ${errorOutput}`,
@@ -188,14 +183,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         const updatedResults = [...allResults, newResult];
         setTestResults(updatedResults);
         
-        // Display results summary
         if (!isHidden) {
           setOutput(prev => `${prev}\n\nTest case ${index + 1}/${testCases.length}: Failed (Error)\n`);
         } else {
           setOutput(prev => `${prev}\n\nHidden test case ${index + 1}/${testCases.length}: Failed (Error)\n`);
         }
         
-        // Process the next test case without adding any marks
         return processTestCase(index + 1, testCases, updatedResults, totalMarks);
       }
       
@@ -203,11 +196,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       const expectedOutput = testCase.output.trim().replace(/\r\n/g, '\n');
       const passed = actualOutput === expectedOutput;
       
-      // Calculate marks for this test case
       const marksEarned = passed ? testMarks : 0;
       const updatedTotalMarks = totalMarks + marksEarned;
       
-      // Add this result to our results array
       const newResult: TestResult = { 
         passed, 
         actualOutput,
@@ -217,7 +208,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       const updatedResults = [...allResults, newResult];
       setTestResults(updatedResults);
       
-      // Display result for this test case
       if (!isHidden) {
         const testResultOutput = `Test case ${index + 1}/${testCases.length} (${testMarks} marks): ${passed ? 'Passed' : 'Failed'}\n` + 
           (!passed ? `Expected Output: "${expectedOutput}"\nYour Output: "${actualOutput}"\n` : '');
@@ -226,13 +216,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         setOutput(prev => `${prev}\nHidden test case ${index + 1}/${testCases.length} (${testMarks} marks): ${passed ? 'Passed' : 'Failed'}\n`);
       }
       
-      // Process the next test case after this one completes
       return processTestCase(index + 1, testCases, updatedResults, updatedTotalMarks);
     } catch (error) {
       console.error(`Error processing test case ${index + 1}:`, error);
       setOutput(prev => `${prev}\nError processing test case ${index + 1}: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
       
-      // Add failed result for this test case
       const newResult: TestResult = { 
         passed: false, 
         actualOutput: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -261,7 +249,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     setTestResults([]);
     
     try {
-      // Fetch ALL test cases (visible and hidden)
       const testCases = await fetchTestCases(question.id);
       console.log('Fetched test cases:', testCases);
       
@@ -269,7 +256,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         throw new Error('No test cases found for this question');
       }
       
-      // Process all test cases sequentially and collect marks
       const { results: finalResults, totalMarksEarned } = await processTestCase(0, testCases);
       const allPassed = finalResults.every(r => r.passed);
       const totalPossibleMarks = testCases.reduce((sum, tc) => sum + (tc.marks || 0), 0);
@@ -277,15 +263,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
       setOutput(prev => `${prev}\n\nTotal marks earned: ${totalMarksEarned}/${totalPossibleMarks} (${correctPercentage.toFixed(1)}%)`);
       
-      // Update the onMarksUpdate callback with earned marks
       if (onMarksUpdate) {
         onMarksUpdate(question.id, totalMarksEarned);
       }
       
-      // Store results if user is logged in
       if (user) {
         try {
-          // Create a submission record with the required fields
           const submissionData: Submission = {
             assessment_id: question.assessmentId || '',
             user_id: user.id,
@@ -312,7 +295,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
 
           console.log('Submission created:', submissionResult);
 
-          // Store answer details with the required fields
           const answerData: Answer = {
             submission_id: submissionResult.id,
             question_id: question.id,
@@ -427,7 +409,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             />
           </TabsContent>
           <TabsContent value="output" className="flex-1 h-full m-0">
-            <div className="h-full bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-auto">
+            <div className="h-full bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto max-h-[calc(100vh-300px)]">
               <div className="flex items-center mb-2">
                 <Terminal className="h-4 w-4 mr-2" />
                 <span>Output</span>
