@@ -31,6 +31,29 @@ const ResultsPage = () => {
     searchQuery: '',
   });
   const [isExporting, setIsExporting] = useState(false);
+  const [assessmentCodes, setAssessmentCodes] = useState<{code: string, name: string}[]>([]);
+  
+  // Fetch assessment codes on component mount
+  useEffect(() => {
+    const fetchAssessmentCodes = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('assessments')
+          .select('code, name')
+          .order('name');
+        
+        if (error) throw error;
+        
+        if (data) {
+          setAssessmentCodes(data);
+        }
+      } catch (error) {
+        console.error('Error fetching assessment codes:', error);
+      }
+    };
+    
+    fetchAssessmentCodes();
+  }, []);
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters({
@@ -237,9 +260,11 @@ const ResultsPage = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Assessments</SelectItem>
-                      <SelectItem value="PROG101">Programming Fundamentals</SelectItem>
-                      <SelectItem value="ALGO202">Algorithms and Data Structures</SelectItem>
-                      <SelectItem value="TEST123">Test Assessment</SelectItem>
+                      {assessmentCodes.map(item => (
+                        <SelectItem key={item.code} value={item.code}>
+                          {item.name} ({item.code})
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

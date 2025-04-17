@@ -45,7 +45,7 @@ interface Student {
   completedAt: string;
   isFlagged: boolean;
   division: string;
-  batch: string; // This is the fixed type - changed from string[] to string
+  batch: string;
   year: string;
 }
 
@@ -74,55 +74,131 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
   const startIndex = (currentPage - 1) * pageSize;
   const visibleStudents = students.slice(startIndex, startIndex + pageSize);
 
-  // Mock data for demo purposes
+  // Fetch results from the database
   useEffect(() => {
     const fetchResults = async () => {
       setIsLoading(true);
       try {
-        // In a real app, this would fetch from Supabase
-        // For now, we'll use mock data
+        // Fetch submissions with related assessment data
+        const { data: submissionsData, error: submissionsError } = await supabase
+          .from('submissions')
+          .select(`
+            id,
+            created_at,
+            started_at,
+            completed_at,
+            fullscreen_violations,
+            is_terminated,
+            assessments:assessment_id (
+              id,
+              name,
+              code,
+              duration_minutes
+            ),
+            user_id:user_id (
+              id,
+              email,
+              name:email
+            ),
+            answers (
+              question_id,
+              is_correct,
+              marks_obtained
+            )
+          `)
+          .order('completed_at', { ascending: false });
         
-        // This would be replaced with actual database queries
-        const mockData: Student[] = Array(25).fill(null).map((_, i) => ({
-          id: `S${1000 + i}`,
-          name: `Student ${i + 1}`,
-          email: `student${i + 1}@example.com`,
-          assessmentId: `A${100 + (i % 3)}`,
-          assessmentName: ['Programming Fundamentals', 'Data Structures', 'Algorithms'][i % 3],
-          score: Math.floor(Math.random() * 50) + 50,
-          totalMarks: 100,
-          percentage: Math.floor(Math.random() * 50) + 50,
-          completedAt: new Date(2025, 3, Math.floor(Math.random() * 14) + 1).toISOString(),
-          isFlagged: i % 7 === 0, // Flag every 7th student
-          division: ['A', 'B', 'C'][i % 3],
-          batch: `B${(i % 3) + 1}`, // Fixed: Now returning a string instead of an array
-          year: '2025'
-        }));
+        if (submissionsError) throw submissionsError;
         
-        // Filter based on props
-        let filteredData = mockData;
+        if (!submissionsData || submissionsData.length === 0) {
+          setStudents([]);
+          setIsLoading(false);
+          return;
+        }
         
+        // Transform the data into the format we need
+        let transformedData: Student[] = submissionsData.map((submission) => {
+          // Calculate score from answers
+          const answers = submission.answers || [];
+          const totalObtained = answers.reduce((sum, answer) => sum + (answer.marks_obtained || 0), 0);
+          
+          // We'll need to fetch total marks available for the assessment separately
+          // For now, we'll just use a placeholder
+          const totalMarks = 100;
+          
+          // Determine if the submission should be flagged
+          const isFlagged = submission.is_terminated || submission.fullscreen_violations > 1;
+          
+          // Use the student's email as the name if no name is available
+          const userEmail = typeof submission.user_id === 'object' ? submission.user_id?.email || 'Unknown' : 'Unknown';
+          const userName = typeof submission.user_id === 'object' ? 
+                          submission.user_id?.name || userEmail.split('@')[0] : 
+                          'Unknown';
+          
+          // Get assessment details
+          const assessment = typeof submission.assessments === 'object' ? submission.assessments : null;
+          const assessmentName = assessment?.name || 'Unknown Assessment';
+          
+          // For demo purposes, assign random division, batch, and year
+          // In a real app, this would come from student profile data
+          const divisions = ['A', 'B', 'C'];
+          const batches = ['B1', 'B2', 'B3'];
+          const years = ['2023', '2024', '2025'];
+          
+          // Use hash of the user ID for consistent "random" assignments
+          const userId = typeof submission.user_id === 'object' ? submission.user_id?.id || '' : '';
+          const hash = userId.split('').reduce((a, b) => {
+            a = ((a << 5) - a) + b.charCodeAt(0);
+            return a & a;
+          }, 0);
+          
+          const absHash = Math.abs(hash);
+          const division = divisions[absHash % divisions.length];
+          const batch = batches[absHash % batches.length];
+          const year = years[absHash % years.length];
+          
+          // Calculate percentage score
+          const percentage = totalMarks > 0 ? Math.round((totalObtained / totalMarks) * 100) : 0;
+          
+          return {
+            id: typeof submission.user_id === 'object' ? submission.user_id?.id || 'Unknown' : 'Unknown',
+            name: userName,
+            email: userEmail,
+            assessmentId: assessment?.id || '',
+            assessmentName,
+            score: totalObtained,
+            totalMarks,
+            percentage,
+            completedAt: submission.completed_at || submission.created_at,
+            isFlagged,
+            division,
+            batch,
+            year
+          };
+        });
+        
+        // Apply filters
         if (filters.year) {
-          filteredData = filteredData.filter(s => s.year === filters.year);
+          transformedData = transformedData.filter(s => s.year === filters.year);
         }
         
         if (filters.division) {
-          filteredData = filteredData.filter(s => s.division === filters.division);
+          transformedData = transformedData.filter(s => s.division === filters.division);
         }
         
         if (filters.batch) {
-          filteredData = filteredData.filter(s => s.batch === filters.batch);
+          transformedData = transformedData.filter(s => s.batch === filters.batch);
         }
         
         if (filters.assessment && filters.assessment !== 'all') {
-          filteredData = filteredData.filter(s => 
+          transformedData = transformedData.filter(s => 
             s.assessmentName.toLowerCase().includes(filters.assessment.toLowerCase())
           );
         }
         
         if (filters.searchQuery) {
           const query = filters.searchQuery.toLowerCase();
-          filteredData = filteredData.filter(s => 
+          transformedData = transformedData.filter(s => 
             s.name.toLowerCase().includes(query) || 
             s.id.toLowerCase().includes(query) ||
             s.email.toLowerCase().includes(query)
@@ -130,15 +206,15 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         }
         
         if (flagged) {
-          filteredData = filteredData.filter(s => s.isFlagged);
+          transformedData = transformedData.filter(s => s.isFlagged);
         }
         
         if (topPerformers) {
-          filteredData.sort((a, b) => b.percentage - a.percentage);
-          filteredData = filteredData.slice(0, 10);
+          transformedData.sort((a, b) => b.percentage - a.percentage);
+          transformedData = transformedData.slice(0, 10);
         }
         
-        setStudents(filteredData);
+        setStudents(transformedData);
       } catch (error) {
         console.error('Error fetching results:', error);
         toast({
@@ -152,7 +228,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     };
     
     fetchResults();
-  }, [filters, flagged, topPerformers]);
+  }, [filters, flagged, topPerformers, toast]);
   
   const handleDeleteStudent = (studentId: string) => {
     setStudentToDelete(studentId);

@@ -128,7 +128,7 @@ export const useFullscreen = () => {
       addFullscreenWarning();
       recordFullscreenViolation();
       
-      // Show exit dialog
+      // Show exit dialog (and don't hide it automatically)
       setShowExitDialog(true);
       
       toast({
@@ -216,7 +216,7 @@ export const useFullscreen = () => {
     exitFullscreen,
     fullscreenWarnings,
     ExitDialog: () => (
-      <AlertDialog open={showExitDialog}>
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
         <AlertDialogContent>
           <AlertDialogTitle>Fullscreen Mode Exited</AlertDialogTitle>
           <AlertDialogDescription>

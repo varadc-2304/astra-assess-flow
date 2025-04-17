@@ -29,7 +29,7 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-astra-red mb-2">AstraAssessments</h1>
+          <h1 className="text-4xl font-bold text-astra-red mb-2">Yudh</h1>
           <p className="text-astra-darkGray">Your secure assessment platform</p>
         </div>
 
@@ -69,6 +69,7 @@ const Login = () => {
                   <Input
                     id="password"
                     type="password"
+                    placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full"
