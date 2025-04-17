@@ -35,19 +35,22 @@ const StudentDashboard = () => {
       setAssessmentCode(code);
       
       console.log("Loading assessment...");
-      await loadAssessment(code);
+      const success = await loadAssessment(code);
       
-      console.log("Navigating to instructions page");
-      // Only navigate after successful assessment loading
-      navigate('/instructions');
+      if (success) {
+        console.log("Assessment loaded successfully. Navigating to instructions page");
+        navigate('/instructions');
+      } else {
+        console.error("Failed to load assessment");
+        // Error is already shown in toast by the loadAssessment function
+      }
     } catch (error: any) {
-      console.error("Error loading assessment:", error);
+      console.error("Error in handleSubmit:", error);
       toast({
-        title: "Invalid Code",
-        description: "The assessment code you entered is invalid. Please try again.",
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
-      // Do not navigate if there was an error
     } finally {
       setLoading(false);
     }

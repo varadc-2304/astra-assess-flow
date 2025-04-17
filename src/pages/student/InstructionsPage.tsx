@@ -7,18 +7,34 @@ import { useAssessment } from '@/contexts/AssessmentContext';
 import { Timer } from '@/components/Timer';
 import { Separator } from '@/components/ui/separator';
 import { ClipboardList, Clock, Code } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 
 const InstructionsPage = () => {
-  const { assessment, startAssessment, assessmentCode } = useAssessment();
+  const { assessment, startAssessment, assessmentCode, loading } = useAssessment();
   const navigate = useNavigate();
   const [countdownEnded, setCountdownEnded] = useState(false);
+  const { toast } = useToast();
   
   // Check if assessment exists and redirect if not
   useEffect(() => {
-    if (!assessment && assessmentCode) {
+    if (!loading && !assessment && assessmentCode) {
+      console.log("No assessment data available, redirecting to dashboard");
+      toast({
+        title: "Error",
+        description: "Assessment data is not available. Please try again.",
+        variant: "destructive",
+      });
       navigate('/student');
     }
-  }, [assessment, assessmentCode, navigate]);
+  }, [assessment, assessmentCode, loading, navigate, toast]);
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-lg">Loading assessment details...</p>
+      </div>
+    );
+  }
   
   if (!assessment) {
     return null; // Don't render anything while redirecting

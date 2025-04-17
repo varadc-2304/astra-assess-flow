@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -97,30 +98,32 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     
     try {
-      console.log('Fetching assessment with code:', code);
+      // Normalize the input code by trimming whitespace and converting to lowercase
+      const normalizedCode = code.trim().toLowerCase();
+      console.log('Fetching assessment with normalized code:', normalizedCode);
       
-      // Fetch assessment data
+      // Fetch assessment data with detailed logging
       const { data: assessmentsData, error: assessmentError } = await supabase
         .from('assessments')
         .select('*')
-        .eq('code', code.trim().toLowerCase());
+        .eq('code', normalizedCode);
         
       if (assessmentError) {
         console.error('Error fetching assessment:', assessmentError);
-        throw new Error('Error fetching assessment');
+        throw new Error('Error fetching assessment data');
       }
       
-      console.log('Assessment data received:', assessmentsData);
+      console.log('Assessment query response:', assessmentsData);
       
       if (!assessmentsData || assessmentsData.length === 0) {
+        console.error(`No assessment found with code: ${normalizedCode}`);
         throw new Error('Invalid assessment code or assessment not found');
       }
       
       const assessmentData = assessmentsData[0];
-      console.log('Selected assessment:', assessmentData);
+      console.log('Selected assessment data:', assessmentData);
       
       // Fetch questions for this assessment
-      console.log('Fetching questions for assessment ID:', assessmentData.id);
       const { data: questionsData, error: questionsError } = await supabase
         .from('questions')
         .select('*')
@@ -132,13 +135,14 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('Failed to load questions');
       }
       
-      console.log('Questions data received:', questionsData);
+      console.log(`Found ${questionsData.length} questions for assessment ID:`, assessmentData.id);
       
       const questions: Question[] = [];
       
+      // Process each question
       for (const questionData of questionsData) {
         if (questionData.type === 'mcq') {
-          console.log('Loading MCQ options for question:', questionData.id);
+          // Fetch MCQ options
           const { data: optionsData, error: optionsError } = await supabase
             .from('mcq_options')
             .select('*')
@@ -149,6 +153,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             console.error('Failed to load options for question', questionData.id, optionsError);
             continue;
           }
+          
+          console.log(`Found ${optionsData.length} options for MCQ question ID:`, questionData.id);
           
           const mcqQuestion: MCQQuestion = {
             id: questionData.id,
@@ -166,7 +172,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           
           questions.push(mcqQuestion);
         } else if (questionData.type === 'code') {
-          console.log('Loading coding details for question:', questionData.id);
+          // Fetch coding question details
           const { data: codeData, error: codeError } = await supabase
             .from('coding_questions')
             .select('*')
@@ -178,7 +184,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
           
-          console.log('Loading examples for question:', questionData.id);
+          // Fetch examples
           const { data: examplesData, error: examplesError } = await supabase
             .from('coding_examples')
             .select('*')
@@ -190,7 +196,9 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
           
-          console.log('Loading test cases for question:', questionData.id);
+          console.log(`Found ${examplesData.length} examples for coding question ID:`, questionData.id);
+          
+          // Fetch test cases
           const { data: testCasesData, error: testCasesError } = await supabase
             .from('test_cases')
             .select('*')
@@ -201,6 +209,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             console.error('Failed to load test cases for question', questionData.id, testCasesError);
             continue;
           }
+          
+          console.log(`Found ${testCasesData.length} test cases for coding question ID:`, questionData.id);
           
           const solutionTemplate = codeData.solution_template ? 
             Object.fromEntries(
@@ -234,7 +244,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      console.log('Final questions array:', questions);
+      console.log(`Total questions processed: ${questions.length}`);
       
       const loadedAssessment: Assessment = {
         id: assessmentData.id,
@@ -251,8 +261,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       
       console.log('Setting assessment:', loadedAssessment);
       setAssessment(loadedAssessment);
-      
       setTimeRemaining(loadedAssessment.durationMinutes * 60);
+      return true; // Successfully loaded assessment
       
     } catch (error) {
       console.error('Error loading assessment:', error);
@@ -262,6 +272,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         description: error instanceof Error ? error.message : 'Failed to load assessment',
         variant: "destructive",
       });
+      return false; // Failed to load assessment
     } finally {
       setLoading(false);
     }
