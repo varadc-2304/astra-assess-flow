@@ -15,6 +15,7 @@ import { createSubmission, waitForSubmissionResult } from '@/services/judge0Serv
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { Submission, Answer } from '@/types/database';
 
 interface CodeEditorProps {
   question: CodeQuestion;
@@ -199,7 +200,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
           // Create a submission record
           const { data: submissionData, error: submissionError } = await supabase
             .from('submissions')
-            .insert({
+            .insert<Submission>({
               assessment_id: question.assessmentId || '',
               user_id: user.id,
               started_at: new Date().toISOString(),
@@ -210,18 +211,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
 
           if (submissionError) throw submissionError;
 
-          // Store answer details - Fix for the Json type issue
+          // Store answer details
           const { error: answerError } = await supabase
             .from('answers')
-            .insert({
+            .insert<Answer>({
               submission_id: submissionData.id,
               question_id: question.id,
               code_solution: currentCode,
               language: selectedLanguage,
               is_correct: allPassed,
               marks_obtained: allPassed ? question.marks || 1 : 0,
-              // Convert TestResult[] to Json explicitly
-              test_results: finalResults as unknown as Json
+              test_results: finalResults
             });
 
           if (answerError) throw answerError;
