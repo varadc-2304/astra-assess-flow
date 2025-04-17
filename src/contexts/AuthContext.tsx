@@ -10,6 +10,7 @@ type UserData = {
   name: string;
   email: string;
   role: UserRole;
+  prn?: string; // Added PRN field
 };
 
 interface AuthContextType {
@@ -44,6 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email: data.email,
           name: data.name,
           role: data.role as UserRole,
+          prn: data.prn || undefined,
         });
         
         toast({

@@ -271,8 +271,6 @@ export type Database = {
           total_marks: number
           total_score: number
           user_id: string
-          user_name: string
-          user_prn: string
         }
         Insert: {
           assessment_id: string
@@ -283,8 +281,6 @@ export type Database = {
           total_marks?: number
           total_score?: number
           user_id: string
-          user_name: string
-          user_prn: string
         }
         Update: {
           assessment_id?: string
@@ -295,8 +291,6 @@ export type Database = {
           total_marks?: number
           total_score?: number
           user_id?: string
-          user_name?: string
-          user_prn?: string
         }
         Relationships: [
           {

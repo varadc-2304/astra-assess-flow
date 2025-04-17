@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -19,7 +18,7 @@ const Login = () => {
 
     try {
       await login(email, password);
-      // Redirect happens via route protection in App.tsx
+      navigate('/student');
     } catch (error) {
       setError('Invalid email or password');
     }

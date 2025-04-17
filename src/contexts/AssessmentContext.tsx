@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -384,7 +385,9 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             total_score: totalMarksObtained,
             total_marks: totalPossibleMarks,
             percentage: percentage,
-            completed_at: new Date().toISOString()
+            completed_at: new Date().toISOString(),
+            user_name: user.name || '',
+            user_prn: user.prn || ''
           });
           
         if (resultError) {
