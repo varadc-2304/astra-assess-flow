@@ -47,14 +47,13 @@ const AppRoutes = () => (
     <Route path="/" element={<AuthRoute><Login /></AuthRoute>} />
     
     {/* Student Routes */}
-    <Route path="/student" element={<ProtectedRoute requiredRole="student"><StudentDashboard /></ProtectedRoute>} />
-    <Route path="/instructions" element={<ProtectedRoute requiredRole="student"><InstructionsPage /></ProtectedRoute>} />
-    <Route path="/assessment" element={<ProtectedRoute requiredRole="student"><AssessmentPage /></ProtectedRoute>} />
-    <Route path="/summary" element={<ProtectedRoute requiredRole="student"><SummaryPage /></ProtectedRoute>} />
+    <Route path="/student" element={<ProtectedRoute requiredRole="user"><StudentDashboard /></ProtectedRoute>} />
+    <Route path="/instructions" element={<ProtectedRoute requiredRole="user"><InstructionsPage /></ProtectedRoute>} />
+    <Route path="/assessment" element={<ProtectedRoute requiredRole="user"><AssessmentPage /></ProtectedRoute>} />
+    <Route path="/summary" element={<ProtectedRoute requiredRole="user"><SummaryPage /></ProtectedRoute>} />
     
     {/* Admin Routes */}
     <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
-    <Route path="/admin/results" element={<ProtectedRoute requiredRole="admin"><ResultsPage /></ProtectedRoute>} />
     
     {/* 404 Route */}
     <Route path="*" element={<NotFound />} />

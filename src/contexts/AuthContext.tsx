@@ -2,14 +2,15 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Session, User } from '@supabase/supabase-js';
+import { Session } from '@supabase/supabase-js';
 
-type UserRole = 'student' | 'admin';
+type UserRole = 'user' | 'admin';
 
 type UserData = {
   id: string;
   name: string;
   email: string;
+  prn: string | null;
   role: UserRole;
 };
 
@@ -29,141 +30,63 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const { toast } = useToast();
 
-  // Initialize auth state from supabase
-  useEffect(() => {
-    // First set up auth listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, currentSession) => {
-        setSession(currentSession);
-        
-        // Map Supabase user to our UserData type
-        if (currentSession?.user) {
-          // For demo, we're mapping specific emails to roles
-          // In production, this would come from a user_roles table
-          const email = currentSession.user.email || '';
-          const role: UserRole = email.includes('admin') ? 'admin' : 'student';
-          
-          setUser({
-            id: currentSession.user.id,
-            email: currentSession.user.email || '',
-            name: currentSession.user.user_metadata.name || email.split('@')[0],
-            role: role
-          });
-        } else {
-          setUser(null);
-        }
-      }
-    );
+  const fetchUserData = async (email: string) => {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
 
-    // Then check for existing session
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      setSession(currentSession);
-      
-      // Map Supabase user to our UserData type
-      if (currentSession?.user) {
-        // For demo, we're mapping specific emails to roles
-        // In production, this would come from a user_roles table
-        const email = currentSession.user.email || '';
-        const role: UserRole = email.includes('admin') ? 'admin' : 'student';
-        
-        setUser({
-          id: currentSession.user.id,
-          email: currentSession.user.email || '',
-          name: currentSession.user.user_metadata.name || email.split('@')[0],
-          role: role
-        });
-      }
-    });
+    if (error) throw error;
+    return data;
+  };
 
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  // Login function - handles both demo login and regular login
+  // Login function
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     
     try {
-      console.log("Attempting login with:", email, password);
+      // First check if user exists in our users table
+      const userData = await fetchUserData(email);
       
-      // Handle demo credentials specifically
-      if ((email === 'student@example.com' || email === 'admin@example.com') && password === 'password') {
-        console.log("Demo credentials detected");
-        
-        // First try to sign in
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-        
-        console.log("Sign in result:", { data, error });
-        
-        // If login fails for demo user, create the account first
-        if (error) {
-          console.log("Creating demo account");
-          // Create the demo user
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              data: {
-                name: email === 'admin@example.com' ? 'Admin User' : 'Student User',
-              }
-            }
-          });
-          
-          console.log("Sign up result:", { signUpData, signUpError });
-          
-          if (signUpError) {
-            throw signUpError;
-          }
-          
-          // Try to login again after account creation
-          const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-            email,
-            password
-          });
-          
-          console.log("Second sign in result:", { loginData, loginError });
-          
-          if (loginError) {
-            throw loginError;
-          }
-          
-          toast({
-            title: "Demo account created",
-            description: "Successfully created demo account and logged you in",
-          });
-          
-          return;
-        }
-        
-        toast({
-          title: "Demo login successful",
-          description: `Welcome to AstraAssessments, ${email === 'admin@example.com' ? 'Admin' : 'Student'}!`,
-        });
-        
-        return;
+      if (!userData) {
+        throw new Error('User not found');
       }
       
-      // Regular login for non-demo accounts
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
+      if (userData.password !== password) {
+        throw new Error('Invalid password');
+      }
+
+      setUser({
+        id: userData.id,
+        name: userData.name,
+        email: userData.email,
+        prn: userData.prn,
+        role: userData.role as UserRole
       });
-      
-      if (error) throw error;
-      
+
+      // Create a session 
+      const session = {
+        user: {
+          id: userData.id,
+          email: userData.email,
+          user_metadata: {
+            name: userData.name,
+            role: userData.role
+          }
+        }
+      };
+      setSession(session as Session);
+
       toast({
         title: "Login successful",
-        description: `Welcome back, ${data.user?.email}!`,
+        description: `Welcome back, ${userData.name}!`,
       });
     } catch (error: any) {
       console.error("Login error:", error);
       toast({
         title: "Login failed",
-        description: error.message || "Invalid email or password",
+        description: error.message || "Invalid credentials",
         variant: "destructive",
       });
       throw error;
@@ -176,7 +99,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     setIsLoading(true);
     try {
-      await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
       toast({
         title: "Logged out",
         description: "You have been logged out successfully",
