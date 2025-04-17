@@ -29,7 +29,6 @@ const Login = () => {
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h1 className="gradient-text text-5xl font-bold mb-2 tracking-tight">Yudh</h1>
-          <p className="text-gray-600 text-lg">Your secure assessment platform</p>
         </div>
 
         <Card className="glass-card">
@@ -83,13 +82,6 @@ const Login = () => {
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />
                 </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-gray-500">Demo Credentials</span>
-                </div>
-              </div>
-              <div className="text-center text-sm text-gray-500 space-y-1">
-                <p>Student: student@example.com / password</p>
-                <p>Admin: admin@example.com / password</p>
               </div>
             </div>
           </CardFooter>
