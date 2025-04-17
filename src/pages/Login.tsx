@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -26,80 +25,72 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-astra-red mb-2">Yudh</h1>
-          <p className="text-astra-darkGray">Your secure assessment platform</p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 animate-gradient py-12 px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md space-y-8">
+        <div className="text-center">
+          <h1 className="gradient-text text-5xl font-bold mb-2 tracking-tight">Yudh</h1>
+          <p className="text-gray-600 text-lg">Your secure assessment platform</p>
         </div>
 
-        <Card className="shadow-lg border-0">
-          <CardHeader>
-            <CardTitle className="text-2xl">Sign In</CardTitle>
-            <CardDescription>
+        <Card className="glass-card">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl text-center">Sign In</CardTitle>
+            <CardDescription className="text-center">
               Enter your credentials to access your account
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Email
-                  </label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="email@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="password" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      Password
-                    </label>
-                    <a href="#" className="text-sm text-astra-red hover:underline">
-                      Forgot password?
-                    </a>
-                  </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="email@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-white/50 backdrop-blur-sm border-gray-200 focus:border-astra-red focus:ring-astra-red/10"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
                   <Input
                     id="password"
                     type="password"
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full"
+                    className="w-full bg-white/50 backdrop-blur-sm border-gray-200 focus:border-astra-red focus:ring-astra-red/10"
                     required
                   />
                 </div>
-                {error && (
-                  <div className="text-red-500 text-sm">{error}</div>
-                )}
               </div>
+              {error && (
+                <div className="text-red-500 text-sm text-center">{error}</div>
+              )}
               <Button
                 type="submit"
-                className="w-full mt-6 bg-astra-red hover:bg-red-600 text-white"
+                className="w-full bg-gradient-to-r from-astra-red to-red-500 hover:from-red-600 hover:to-red-700 text-white shadow-lg transition-all duration-200 hover:shadow-xl disabled:opacity-50"
                 disabled={isLoading}
               >
                 {isLoading ? 'Signing in...' : 'Sign in'}
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <div className="text-center text-sm text-gray-500">
-              <p>
-                For demo purposes, use:
-              </p>
-              <p>
-                Student: student@example.com / password
-              </p>
-              <p>
-                Admin: admin@example.com / password
-              </p>
+          <CardFooter>
+            <div className="w-full space-y-4">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-white px-2 text-gray-500">Demo Credentials</span>
+                </div>
+              </div>
+              <div className="text-center text-sm text-gray-500 space-y-1">
+                <p>Student: student@example.com / password</p>
+                <p>Admin: admin@example.com / password</p>
+              </div>
             </div>
           </CardFooter>
         </Card>

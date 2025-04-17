@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -111,17 +111,23 @@ const StudentDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 animate-gradient py-12">
       <div className="max-w-xl mx-auto px-4">
         <header className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-astra-red">Yudh</h1>
+            <h1 className="gradient-text text-4xl font-bold mb-1">Yudh</h1>
             <p className="text-gray-600">Welcome back, {user?.name}</p>
           </div>
-          <Button variant="outline" onClick={logout}>Log out</Button>
+          <Button 
+            variant="outline" 
+            onClick={logout}
+            className="bg-white/50 backdrop-blur-sm hover:bg-white/80 transition-all duration-200"
+          >
+            Log out
+          </Button>
         </header>
         
-        <Card className="shadow-lg border-0">
+        <Card className="glass-card mb-8">
           <CardHeader>
             <CardTitle>Enter Assessment Code</CardTitle>
             <CardDescription>
@@ -134,12 +140,12 @@ const StudentDashboard = () => {
                 placeholder="Assessment Code (e.g., DEMO123)"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="text-center font-mono text-lg uppercase"
+                className="text-center font-mono text-lg uppercase bg-white/50 backdrop-blur-sm border-gray-200 focus:border-astra-red focus:ring-astra-red/10"
               />
               
               <Button 
                 type="submit" 
-                className="w-full bg-astra-red hover:bg-red-600 text-white"
+                className="w-full bg-gradient-to-r from-astra-red to-red-500 hover:from-red-600 hover:to-red-700 text-white shadow-lg transition-all duration-200 hover:shadow-xl disabled:opacity-50"
                 disabled={loading}
               >
                 {loading ? 'Loading...' : 'Continue'}
@@ -148,9 +154,9 @@ const StudentDashboard = () => {
           </CardContent>
         </Card>
         
-        <div className="mt-8">
-          <h2 className="text-lg font-semibold mb-2">Recent Assessments</h2>
-          <Card>
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Recent Assessments</h2>
+          <Card className="glass-card">
             <CardContent className="p-0">
               {recentAssessments.length > 0 ? (
                 <ScrollArea className="h-[300px]">
