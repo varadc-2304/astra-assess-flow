@@ -1,13 +1,24 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
+import { 
+  AlertDialog, 
+  AlertDialogContent, 
+  AlertDialogTitle, 
+  AlertDialogDescription, 
+  AlertDialogAction 
+} from '@/components/ui/alert-dialog';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 
 export const useFullscreen = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenExitTime, setFullscreenExitTime] = useState<number | null>(null);
-  const { fullscreenWarnings, addFullscreenWarning, endAssessment } = useAssessment();
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  const { fullscreenWarnings, addFullscreenWarning, endAssessment, assessment } = useAssessment();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const MAX_WARNINGS = 3;
   const MAX_FULLSCREEN_EXIT_TIME = 30; // seconds
@@ -40,6 +51,7 @@ export const useFullscreen = () => {
       
       setIsFullscreen(true);
       setFullscreenExitTime(null);
+      setShowExitDialog(false);
     } catch (error) {
       console.error('Failed to enter fullscreen mode:', error);
       toast({
@@ -69,6 +81,42 @@ export const useFullscreen = () => {
     }
   }, []);
 
+  // Record a fullscreen violation in the database
+  const recordFullscreenViolation = useCallback(async () => {
+    if (!assessment) return;
+    
+    try {
+      // Find the latest submission for this assessment
+      const { data: submissions, error: submissionError } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('assessment_id', assessment.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (submissionError || !submissions || submissions.length === 0) {
+        console.error('Error finding submission to update:', submissionError);
+        return;
+      }
+      
+      // Update the submission with a new fullscreen violation
+      const submission = submissions[0];
+      const { error: updateError } = await supabase
+        .from('submissions')
+        .update({ 
+          fullscreen_violations: (submission.fullscreen_violations || 0) + 1,
+          is_terminated: fullscreenWarnings + 1 >= MAX_WARNINGS
+        })
+        .eq('id', submission.id);
+      
+      if (updateError) {
+        console.error('Error updating submission with fullscreen violation:', updateError);
+      }
+    } catch (error) {
+      console.error('Error recording fullscreen violation:', error);
+    }
+  }, [assessment, fullscreenWarnings]);
+
   // Handle fullscreen change events
   const handleFullscreenChange = useCallback(() => {
     const fullscreenStatus = checkFullscreen();
@@ -78,6 +126,10 @@ export const useFullscreen = () => {
       // User exited fullscreen
       setFullscreenExitTime(Date.now());
       addFullscreenWarning();
+      recordFullscreenViolation();
+      
+      // Show exit dialog
+      setShowExitDialog(true);
       
       toast({
         title: `Warning ${fullscreenWarnings + 1}/${MAX_WARNINGS}`,
@@ -93,12 +145,14 @@ export const useFullscreen = () => {
           variant: "destructive",
         });
         endAssessment();
+        navigate('/summary');
       }
     } else {
       // User returned to fullscreen
       setFullscreenExitTime(null);
+      setShowExitDialog(false);
     }
-  }, [checkFullscreen, fullscreenWarnings, addFullscreenWarning, endAssessment, toast]);
+  }, [checkFullscreen, fullscreenWarnings, addFullscreenWarning, endAssessment, toast, recordFullscreenViolation, navigate]);
 
   // Monitor time spent outside fullscreen
   useEffect(() => {
@@ -115,6 +169,7 @@ export const useFullscreen = () => {
             variant: "destructive",
           });
           endAssessment();
+          navigate('/summary');
           clearInterval(timer);
         } else if (secondsOut % 10 === 0 && secondsOut > 0) {
           // Remind every 10 seconds
@@ -130,7 +185,7 @@ export const useFullscreen = () => {
     return () => {
       clearInterval(timer);
     };
-  }, [fullscreenExitTime, endAssessment, toast]);
+  }, [fullscreenExitTime, endAssessment, toast, navigate]);
 
   // Register event listeners
   useEffect(() => {
@@ -149,11 +204,38 @@ export const useFullscreen = () => {
       document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
   }, [handleFullscreenChange, checkFullscreen]);
+  
+  const handleReturnToHome = useCallback(() => {
+    endAssessment();
+    navigate('/summary');
+  }, [endAssessment, navigate]);
 
   return {
     isFullscreen,
     enterFullscreen,
     exitFullscreen,
     fullscreenWarnings,
+    ExitDialog: () => (
+      <AlertDialog open={showExitDialog}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Fullscreen Mode Exited</AlertDialogTitle>
+          <AlertDialogDescription>
+            You have exited fullscreen mode. This is violation {fullscreenWarnings}/{MAX_WARNINGS}.
+            Please return to fullscreen immediately or your test will be terminated.
+            <div className="mt-2 font-semibold text-red-600">
+              You have {MAX_FULLSCREEN_EXIT_TIME} seconds to return to fullscreen.
+            </div>
+          </AlertDialogDescription>
+          <div className="flex justify-between mt-4">
+            <AlertDialogAction onClick={() => enterFullscreen()}>
+              Return to Fullscreen
+            </AlertDialogAction>
+            <AlertDialogAction onClick={handleReturnToHome} className="bg-red-600 hover:bg-red-700">
+              End Test
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+    )
   };
 };

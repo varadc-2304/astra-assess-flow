@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,37 +8,188 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatDateTime } from '@/lib/utils';
-import { Download, ChevronLeft, FileText, Code, CheckCircle, XCircle } from 'lucide-react';
+import { Download, ChevronLeft, FileText, Code, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+
+interface AnswerResult {
+  questionId: string;
+  isCorrect: boolean;
+  mcqOptionId?: string;
+  codeSolution?: string;
+  language?: string;
+  marksObtained: number;
+  testResults?: Array<{
+    passed: boolean;
+    actualOutput?: string;
+  }>;
+}
+
+interface ReportData {
+  submissionId: string;
+  completedAt: string;
+  answers: AnswerResult[];
+  mcqQuestions: any[];
+  codeQuestions: any[];
+  totalMarks: number;
+  earnedMarks: number;
+  percentage: number;
+}
 
 const ReportPage = () => {
   const { assessment, assessmentEnded } = useAssessment();
   const { user } = useAuth();
   const navigate = useNavigate();
   const reportRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(true);
+  const [reportData, setReportData] = useState<ReportData | null>(null);
   
   useEffect(() => {
     if (!assessment || !assessmentEnded) {
       navigate('/student');
+      return;
     }
-  }, [assessment, assessmentEnded, navigate]);
+    
+    const fetchReportData = async () => {
+      if (!assessment || !user) return;
+      
+      try {
+        // Get the latest submission for this assessment
+        const { data: submissions, error: submissionError } = await supabase
+          .from('submissions')
+          .select('*')
+          .eq('assessment_id', assessment.id)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (submissionError || !submissions || submissions.length === 0) {
+          throw new Error('No submission found');
+        }
+        
+        const submission = submissions[0];
+        
+        // Get answers for this submission
+        const { data: answers, error: answersError } = await supabase
+          .from('answers')
+          .select('*')
+          .eq('submission_id', submission.id);
+        
+        if (answersError) {
+          throw new Error('Failed to load answers');
+        }
+        
+        // Get questions data
+        const { data: questions, error: questionsError } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('assessment_id', assessment.id)
+          .order('order_index', { ascending: true });
+        
+        if (questionsError) {
+          throw new Error('Failed to load questions');
+        }
+        
+        // Get MCQ options
+        const { data: mcqOptions, error: mcqOptionsError } = await supabase
+          .from('mcq_options')
+          .select('*')
+          .in('question_id', questions.filter(q => q.type === 'mcq').map(q => q.id));
+        
+        if (mcqOptionsError) {
+          throw new Error('Failed to load MCQ options');
+        }
+        
+        // Process MCQ questions with their options
+        const mcqQuestions = questions
+          .filter(q => q.type === 'mcq')
+          .map(q => ({
+            ...q,
+            options: mcqOptions.filter(o => o.question_id === q.id).sort((a, b) => a.order_index - b.order_index),
+            answer: answers.find(a => a.question_id === q.id)
+          }));
+        
+        // Get coding question details
+        const { data: codingDetails, error: codingError } = await supabase
+          .from('coding_questions')
+          .select('*')
+          .in('question_id', questions.filter(q => q.type === 'code').map(q => q.id));
+        
+        if (codingError) {
+          throw new Error('Failed to load coding details');
+        }
+        
+        // Get coding examples
+        const { data: codingExamples, error: examplesError } = await supabase
+          .from('coding_examples')
+          .select('*')
+          .in('question_id', questions.filter(q => q.type === 'code').map(q => q.id));
+        
+        if (examplesError) {
+          throw new Error('Failed to load coding examples');
+        }
+        
+        // Process code questions
+        const codeQuestions = questions
+          .filter(q => q.type === 'code')
+          .map(q => {
+            const details = codingDetails.find(c => c.question_id === q.id);
+            return {
+              ...q,
+              constraints: details?.constraints || [],
+              examples: codingExamples
+                .filter(e => e.question_id === q.id)
+                .sort((a, b) => a.order_index - b.order_index),
+              answer: answers.find(a => a.question_id === q.id)
+            };
+          });
+        
+        // Calculate report statistics
+        const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 1), 0);
+        const earnedMarks = answers.reduce((sum, a) => sum + (a.marks_obtained || 0), 0);
+        const percentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
+        
+        // Format answers for the report
+        const formattedAnswers: AnswerResult[] = answers.map(answer => ({
+          questionId: answer.question_id,
+          isCorrect: answer.is_correct || false,
+          mcqOptionId: answer.mcq_option_id,
+          codeSolution: answer.code_solution,
+          language: answer.language,
+          marksObtained: answer.marks_obtained || 0,
+          testResults: answer.test_results
+        }));
+        
+        setReportData({
+          submissionId: submission.id,
+          completedAt: submission.completed_at || submission.created_at,
+          answers: formattedAnswers,
+          mcqQuestions,
+          codeQuestions,
+          totalMarks,
+          earnedMarks,
+          percentage
+        });
+      } catch (error) {
+        console.error('Error fetching report data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchReportData();
+  }, [assessment, assessmentEnded, navigate, user]);
   
-  if (!assessment) {
-    return null;
+  if (!assessment || loading || !reportData) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-12 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-astra-red mx-auto mb-4" />
+          <h2 className="text-2xl font-bold">Generating your report...</h2>
+          <p className="text-gray-600 mt-2">Please wait while we prepare your detailed assessment report.</p>
+        </div>
+      </div>
+    );
   }
-
-  // Filter questions by type
-  const mcqQuestions = assessment.questions.filter(q => q.type === 'mcq');
-  const codeQuestions = assessment.questions.filter(q => q.type === 'code');
-  
-  // Calculate results
-  const attemptedMCQ = mcqQuestions.filter(q => q.selectedOption !== undefined).length;
-  const attemptedCode = codeQuestions.filter(q => 
-    Object.values(q.userSolution).some(solution => solution && solution.trim() !== '')
-  ).length;
-  
-  // Calculate score (mock for now)
-  const totalQuestions = assessment.questions.length;
-  const score = Math.floor(Math.random() * 51) + 50; // Random score between 50 and 100
   
   const handleDownloadReport = () => {
     if (!reportRef.current) return;
@@ -79,51 +230,59 @@ const ReportPage = () => {
             <p><strong>Assessment:</strong> ${assessment.name}</p>
             <p><strong>Code:</strong> ${assessment.code}</p>
             <p><strong>Student:</strong> ${user?.name}</p>
-            <p><strong>Date:</strong> ${formatDateTime(new Date().toISOString())}</p>
+            <p><strong>Date:</strong> ${formatDateTime(reportData.completedAt)}</p>
+            <p><strong>Score:</strong> ${reportData.earnedMarks}/${reportData.totalMarks} (${reportData.percentage}%)</p>
           </div>
           
           <div class="summary">
             <h2>Performance Summary</h2>
             <div class="summary-item">
               <span>Score:</span>
-              <span>${score}%</span>
+              <span>${reportData.percentage}%</span>
             </div>
             <div class="summary-item">
               <span>Total Questions:</span>
-              <span>${totalQuestions}</span>
+              <span>${reportData.mcqQuestions.length + reportData.codeQuestions.length}</span>
             </div>
             <div class="summary-item">
               <span>MCQs Attempted:</span>
-              <span>${attemptedMCQ}/${mcqQuestions.length}</span>
+              <span>${reportData.mcqQuestions.filter(q => q.answer).length}/${reportData.mcqQuestions.length}</span>
             </div>
             <div class="summary-item">
               <span>Coding Questions Attempted:</span>
-              <span>${attemptedCode}/${codeQuestions.length}</span>
+              <span>${reportData.codeQuestions.filter(q => q.answer).length}/${reportData.codeQuestions.length}</span>
             </div>
           </div>
           
           <h2>Multiple Choice Questions</h2>
-          ${mcqQuestions.map((q, i) => `
+          ${reportData.mcqQuestions.map((q, i) => `
             <div class="question">
               <h3>Question ${i+1}: ${q.title}</h3>
               <p>${q.description}</p>
-              ${q.imageUrl ? `<img src="${q.imageUrl}" alt="${q.title}" style="max-width: 100%; margin: 10px 0;">` : ''}
+              ${q.image_url ? `<img src="${q.image_url}" alt="${q.title}" style="max-width: 100%; margin: 10px 0;">` : ''}
               <h4>Options:</h4>
               <ul>
                 ${q.options.map(opt => `
                   <li>
-                    ${opt.id === q.selectedOption ? '✓ ' : ''}
+                    ${q.answer && opt.id === q.answer.mcq_option_id ? '✓ ' : ''}
                     ${opt.text}
-                    ${opt.id === q.selectedOption && opt.isCorrect ? ' <span class="correct">(Correct)</span>' : ''}
-                    ${opt.id === q.selectedOption && !opt.isCorrect ? ' <span class="incorrect">(Incorrect)</span>' : ''}
+                    ${q.answer && opt.id === q.answer.mcq_option_id && opt.is_correct ? ' <span class="correct">(Correct)</span>' : ''}
+                    ${q.answer && opt.id === q.answer.mcq_option_id && !opt.is_correct ? ' <span class="incorrect">(Incorrect)</span>' : ''}
+                    ${!q.answer && opt.is_correct ? ' <span class="correct">(Correct Answer)</span>' : ''}
                   </li>
                 `).join('')}
               </ul>
+              ${q.answer ? 
+                q.answer.is_correct ?
+                  `<p class="correct">You answered correctly and earned ${q.answer.marks_obtained} mark(s).</p>` :
+                  `<p class="incorrect">You answered incorrectly and earned 0 mark(s).</p>` :
+                `<p class="incorrect">Question not attempted.</p>`
+              }
             </div>
           `).join('')}
           
           <h2>Coding Questions</h2>
-          ${codeQuestions.map((q, i) => `
+          ${reportData.codeQuestions.map((q, i) => `
             <div class="question">
               <h3>Question ${i+1}: ${q.title}</h3>
               <p>${q.description}</p>
@@ -137,14 +296,18 @@ const ReportPage = () => {
                 </div>
               `).join('')}
               <h4>Your Solution:</h4>
-              <div class="code">
-                ${Object.entries(q.userSolution)
-                  .filter(([_, code]) => code && code.trim() !== '')
-                  .map(([lang, code]) => `
-                    <p><strong>Language: ${lang}</strong></p>
-                    <pre>${code}</pre>
-                  `).join('') || 'No solution submitted'}
-              </div>
+              ${q.answer ? `
+                <div class="code">
+                  <p><strong>Language: ${q.answer.language}</strong></p>
+                  <pre>${q.answer.code_solution}</pre>
+                </div>
+                <p>Test Results: ${q.answer.is_correct ? 
+                  `<span class="correct">All tests passed!</span>` : 
+                  `<span class="incorrect">Some tests failed.</span>`
+                }</p>
+                <p>Marks earned: ${q.answer.marks_obtained} out of ${q.marks || 1}</p>` : 
+                `<p class="incorrect">No solution submitted.</p>`
+              }
             </div>
           `).join('')}
           
@@ -228,19 +391,19 @@ const ReportPage = () => {
                 <h3 className="text-lg font-medium mb-3">Performance</h3>
                 <div className="grid grid-cols-4 gap-4">
                   <div className="bg-gray-50 p-4 rounded-md text-center">
-                    <p className="text-2xl font-bold text-astra-red">{score}%</p>
+                    <p className="text-2xl font-bold text-astra-red">{reportData.percentage}%</p>
                     <p className="text-xs text-gray-500">Score</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-md text-center">
-                    <p className="text-2xl font-bold">{totalQuestions}</p>
+                    <p className="text-2xl font-bold">{reportData.mcqQuestions.length + reportData.codeQuestions.length}</p>
                     <p className="text-xs text-gray-500">Total Questions</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-md text-center">
-                    <p className="text-2xl font-bold">{attemptedMCQ}/{mcqQuestions.length}</p>
+                    <p className="text-2xl font-bold">{reportData.mcqQuestions.filter(q => q.answer).length}/{reportData.mcqQuestions.length}</p>
                     <p className="text-xs text-gray-500">MCQs Attempted</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-md text-center">
-                    <p className="text-2xl font-bold">{attemptedCode}/{codeQuestions.length}</p>
+                    <p className="text-2xl font-bold">{reportData.codeQuestions.filter(q => q.answer).length}/{reportData.codeQuestions.length}</p>
                     <p className="text-xs text-gray-500">Coding Questions</p>
                   </div>
                 </div>
@@ -252,35 +415,37 @@ const ReportPage = () => {
             <TabsList className="mb-4">
               <TabsTrigger value="mcq" className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                Multiple Choice ({mcqQuestions.length})
+                Multiple Choice ({reportData.mcqQuestions.length})
               </TabsTrigger>
               <TabsTrigger value="code" className="flex items-center gap-2">
                 <Code className="h-4 w-4" />
-                Coding Questions ({codeQuestions.length})
+                Coding Questions ({reportData.codeQuestions.length})
               </TabsTrigger>
             </TabsList>
             
             <TabsContent value="mcq">
               <div className="space-y-6">
-                {mcqQuestions.map((question, index) => {
-                  const selectedOption = question.options.find(opt => opt.id === question.selectedOption);
-                  const isCorrect = selectedOption?.isCorrect;
+                {reportData.mcqQuestions.map((question, index) => {
+                  const answer = question.answer;
+                  const selectedOption = question.options.find(opt => answer && opt.id === answer.mcq_option_id);
+                  const correctOption = question.options.find(opt => opt.is_correct);
+                  const isCorrect = answer && answer.is_correct;
                   
                   return (
                     <Card key={question.id} className="overflow-hidden">
                       <CardHeader className="bg-gray-50">
                         <CardTitle className="flex justify-between items-center">
                           <div>Question {index + 1}: {question.title}</div>
-                          {question.selectedOption ? (
+                          {answer ? (
                             isCorrect ? (
                               <div className="flex items-center text-green-500">
                                 <CheckCircle className="h-5 w-5 mr-2" />
-                                Correct
+                                Correct ({answer.marks_obtained} mark{answer.marks_obtained !== 1 ? 's' : ''})
                               </div>
                             ) : (
                               <div className="flex items-center text-red-500">
                                 <XCircle className="h-5 w-5 mr-2" />
-                                Incorrect
+                                Incorrect (0 marks)
                               </div>
                             )
                           ) : (
@@ -291,10 +456,10 @@ const ReportPage = () => {
                       <CardContent className="pt-4">
                         <div className="mb-4 whitespace-pre-line">{question.description}</div>
                         
-                        {question.imageUrl && (
+                        {question.image_url && (
                           <div className="mb-4">
                             <img 
-                              src={question.imageUrl} 
+                              src={question.image_url} 
                               alt={question.title}
                               className="max-w-full h-auto rounded-md border border-gray-200"
                             />
@@ -307,19 +472,19 @@ const ReportPage = () => {
                             <li 
                               key={option.id}
                               className={`p-3 rounded-md border ${
-                                option.id === question.selectedOption
-                                  ? option.isCorrect
+                                answer && option.id === answer.mcq_option_id
+                                  ? option.is_correct
                                     ? 'border-green-500 bg-green-50'
                                     : 'border-red-500 bg-red-50'
-                                  : option.isCorrect
+                                  : option.is_correct
                                     ? 'border-green-500 bg-green-50' 
                                     : 'border-gray-200'
                               }`}
                             >
                               <div className="flex items-center">
-                                {option.id === question.selectedOption && (
+                                {answer && option.id === answer.mcq_option_id && (
                                   <div className="mr-2">
-                                    {option.isCorrect ? (
+                                    {option.is_correct ? (
                                       <CheckCircle className="h-4 w-4 text-green-500" />
                                     ) : (
                                       <XCircle className="h-4 w-4 text-red-500" />
@@ -327,7 +492,7 @@ const ReportPage = () => {
                                   </div>
                                 )}
                                 <span>{option.text}</span>
-                                {option.isCorrect && option.id !== question.selectedOption && (
+                                {option.is_correct && (!answer || option.id !== answer.mcq_option_id) && (
                                   <span className="ml-2 text-sm text-green-600">(Correct Answer)</span>
                                 )}
                               </div>
@@ -343,8 +508,12 @@ const ReportPage = () => {
             
             <TabsContent value="code">
               <div className="space-y-6">
-                {codeQuestions.map((question, index) => {
-                  const hasSubmission = Object.values(question.userSolution).some(sol => sol && sol.trim() !== '');
+                {reportData.codeQuestions.map((question, index) => {
+                  const answer = question.answer;
+                  const hasSubmission = answer && answer.code_solution;
+                  const testResults = answer?.test_results || [];
+                  const passedTests = testResults.filter(t => t.passed).length;
+                  const totalTests = testResults.length;
                   
                   return (
                     <Card key={question.id}>
@@ -352,7 +521,18 @@ const ReportPage = () => {
                         <CardTitle className="flex justify-between items-center">
                           <div>Question {index + 1}: {question.title}</div>
                           {hasSubmission ? (
-                            <div className="text-blue-500">Submitted</div>
+                            answer.is_correct ? (
+                              <div className="flex items-center text-green-500">
+                                <CheckCircle className="h-5 w-5 mr-2" />
+                                Correct ({answer.marks_obtained} mark{answer.marks_obtained !== 1 ? 's' : ''})
+                              </div>
+                            ) : (
+                              <div className="flex items-center text-orange-500">
+                                <div>
+                                  {passedTests}/{totalTests} Tests Passed ({answer.marks_obtained} mark{answer.marks_obtained !== 1 ? 's' : ''})
+                                </div>
+                              </div>
+                            )
                           ) : (
                             <div className="text-gray-500">Not Attempted</div>
                           )}
@@ -386,18 +566,41 @@ const ReportPage = () => {
                         <h4 className="font-medium mb-2">Your Submission:</h4>
                         {hasSubmission ? (
                           <div>
-                            {Object.entries(question.userSolution)
-                              .filter(([_, code]) => code && code.trim() !== '')
-                              .map(([lang, code]) => (
-                                <div key={lang} className="mb-4">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <h5 className="font-medium">Language: {lang}</h5>
-                                  </div>
-                                  <pre className="bg-gray-100 p-3 rounded-md font-mono text-sm overflow-x-auto whitespace-pre-wrap">
-                                    {code}
-                                  </pre>
+                            <div className="mb-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <h5 className="font-medium">Language: {answer.language}</h5>
+                              </div>
+                              <pre className="bg-gray-100 p-3 rounded-md font-mono text-sm overflow-x-auto whitespace-pre-wrap">
+                                {answer.code_solution}
+                              </pre>
+                            </div>
+                            
+                            {testResults.length > 0 && (
+                              <div>
+                                <h5 className="font-medium mb-2">Test Results:</h5>
+                                <div className="space-y-2">
+                                  {testResults.map((test, idx) => (
+                                    <div key={idx} className={`p-2 rounded-md ${test.passed ? 'bg-green-50 border border-green-100' : 'bg-red-50 border border-red-100'}`}>
+                                      <div className="flex items-start gap-2">
+                                        {test.passed ? (
+                                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                                        ) : (
+                                          <XCircle className="h-4 w-4 text-red-500 mt-0.5" />
+                                        )}
+                                        <div>
+                                          <p className="text-sm font-medium">
+                                            Test Case {idx + 1}: {test.passed ? 'Passed' : 'Failed'}
+                                          </p>
+                                          {!test.passed && test.actualOutput && (
+                                            <p className="text-xs mt-1">Your Output: {test.actualOutput}</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="text-gray-500 italic">No submission</div>

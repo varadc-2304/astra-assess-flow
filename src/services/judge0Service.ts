@@ -120,7 +120,7 @@ export const getSubmissionResult = async (token: string): Promise<SubmissionResu
   }
 };
 
-// Wait for submission to complete
+// Wait for submission to complete with proper sequential processing
 export const waitForSubmissionResult = async (token: string): Promise<SubmissionResult> => {
   let result: SubmissionResult | null = null;
   let attempts = 0;

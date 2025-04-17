@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -7,11 +7,24 @@ import { Separator } from '@/components/ui/separator';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { CheckCircle, FileCog, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+
+interface SubmissionSummary {
+  totalQuestions: number;
+  attemptedMCQ: number;
+  attemptedCode: number;
+  correctMCQ: number;
+  correctCode: number;
+  totalScore: number;
+  percentage: number;
+}
 
 const SummaryPage = () => {
   const { assessment, assessmentEnded } = useAssessment();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState<SubmissionSummary | null>(null);
   
   useEffect(() => {
     if (!assessment || !assessmentEnded) {
@@ -19,29 +32,97 @@ const SummaryPage = () => {
       return;
     }
     
+    const fetchSummary = async () => {
+      if (!assessment || !user) return;
+      
+      try {
+        // Get the latest submission for this assessment
+        const { data: submissions, error: submissionError } = await supabase
+          .from('submissions')
+          .select('*')
+          .eq('assessment_id', assessment.id)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (submissionError || !submissions || submissions.length === 0) {
+          throw new Error('No submission found');
+        }
+        
+        const submission = submissions[0];
+        
+        // Get answers for this submission
+        const { data: answers, error: answersError } = await supabase
+          .from('answers')
+          .select('*, question_id')
+          .eq('submission_id', submission.id);
+        
+        if (answersError) {
+          throw new Error('Failed to load answers');
+        }
+        
+        // Get questions data to calculate scores
+        const { data: questions, error: questionsError } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('assessment_id', assessment.id);
+        
+        if (questionsError) {
+          throw new Error('Failed to load questions');
+        }
+        
+        // Calculate summary statistics
+        const mcqQuestions = questions.filter(q => q.type === 'mcq');
+        const codeQuestions = questions.filter(q => q.type === 'code');
+        
+        const mcqAnswers = answers.filter(a => mcqQuestions.some(q => q.id === a.question_id));
+        const codeAnswers = answers.filter(a => codeQuestions.some(q => q.id === a.question_id));
+        
+        const correctMCQ = mcqAnswers.filter(a => a.is_correct).length;
+        const correctCode = codeAnswers.filter(a => a.is_correct).length;
+        
+        const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 1), 0);
+        const earnedMarks = answers.reduce((sum, a) => sum + (a.marks_obtained || 0), 0);
+        
+        const percentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
+        
+        setSummary({
+          totalQuestions: questions.length,
+          attemptedMCQ: mcqAnswers.length,
+          attemptedCode: codeAnswers.length,
+          correctMCQ,
+          correctCode,
+          totalScore: earnedMarks,
+          percentage
+        });
+      } catch (error) {
+        console.error('Error fetching summary:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchSummary();
+    
     // Auto-redirect to the detailed report page after 3 seconds
     const timer = setTimeout(() => {
       navigate('/report');
     }, 3000);
     
     return () => clearTimeout(timer);
-  }, [assessment, assessmentEnded, navigate]);
+  }, [assessment, assessmentEnded, navigate, user]);
   
-  if (!assessment) {
-    return null;
+  if (loading || !assessment || !summary) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-12 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-astra-red mx-auto mb-4" />
+          <h2 className="text-2xl font-bold">Processing your results...</h2>
+          <p className="text-gray-600 mt-2">Please wait while we calculate your assessment summary.</p>
+        </div>
+      </div>
+    );
   }
-  
-  // Calculate dummy results for demo purposes
-  const totalQuestions = assessment.questions.length;
-  const attemptedMCQ = assessment.questions
-    .filter(q => q.type === 'mcq' && (q.selectedOption !== undefined))
-    .length;
-  
-  const attemptedCode = assessment.questions
-    .filter(q => q.type === 'code' && Object.values(q.userSolution).some(solution => solution && solution.trim() !== ''))
-    .length;
-  
-  const score = Math.floor(Math.random() * 51) + 50; // Random score between 50 and 100 for demo
   
   return (
     <div className="min-h-screen bg-gray-50 py-12">
@@ -87,19 +168,19 @@ const SummaryPage = () => {
               <h3 className="text-lg font-medium mb-3">Performance</h3>
               <div className="grid grid-cols-4 gap-4">
                 <div className="bg-gray-50 p-4 rounded-md text-center">
-                  <p className="text-2xl font-bold text-astra-red">{score}%</p>
+                  <p className="text-2xl font-bold text-astra-red">{summary.percentage}%</p>
                   <p className="text-xs text-gray-500">Score</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-md text-center">
-                  <p className="text-2xl font-bold">{totalQuestions}</p>
+                  <p className="text-2xl font-bold">{summary.totalQuestions}</p>
                   <p className="text-xs text-gray-500">Total Questions</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-md text-center">
-                  <p className="text-2xl font-bold">{attemptedMCQ}</p>
+                  <p className="text-2xl font-bold">{summary.attemptedMCQ}</p>
                   <p className="text-xs text-gray-500">MCQs Attempted</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-md text-center">
-                  <p className="text-2xl font-bold">{attemptedCode}</p>
+                  <p className="text-2xl font-bold">{summary.attemptedCode}</p>
                   <p className="text-xs text-gray-500">Coding Questions</p>
                 </div>
               </div>

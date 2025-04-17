@@ -17,6 +17,8 @@ import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 const AssessmentPage = () => {
   const { 
@@ -33,8 +35,9 @@ const AssessmentPage = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [isEndingAssessment, setIsEndingAssessment] = useState(false);
   const navigate = useNavigate();
-  const { enterFullscreen, isFullscreen } = useFullscreen();
+  const { enterFullscreen, isFullscreen, ExitDialog } = useFullscreen();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   // Ensure we have an assessment
   useEffect(() => {
@@ -49,6 +52,47 @@ const AssessmentPage = () => {
       enterFullscreen();
     }
   }, [assessmentStarted, isFullscreen, enterFullscreen]);
+
+  // Create submission record when assessment starts
+  useEffect(() => {
+    const createSubmissionRecord = async () => {
+      if (assessment && assessmentStarted && user) {
+        try {
+          // Check if a submission already exists
+          const { data: existingSubmissions } = await supabase
+            .from('submissions')
+            .select('*')
+            .eq('assessment_id', assessment.id)
+            .eq('user_id', user.id)
+            .is('completed_at', null);
+            
+          if (existingSubmissions && existingSubmissions.length > 0) {
+            // Submission already exists
+            console.log('Submission record already exists');
+            return;
+          }
+          
+          // Create new submission
+          const { data, error } = await supabase
+            .from('submissions')
+            .insert({
+              assessment_id: assessment.id,
+              user_id: user.id,
+              started_at: new Date().toISOString(),
+              fullscreen_violations: 0
+            });
+            
+          if (error) {
+            console.error('Error creating submission record:', error);
+          }
+        } catch (error) {
+          console.error('Error creating submission record:', error);
+        }
+      }
+    };
+    
+    createSubmissionRecord();
+  }, [assessment, assessmentStarted, user]);
   
   if (!assessment) {
     return null;
@@ -82,18 +126,53 @@ const AssessmentPage = () => {
     setShowExitDialog(true);
   };
   
-  const confirmEndAssessment = () => {
+  const confirmEndAssessment = async () => {
     setIsEndingAssessment(true);
     
-    // Simulate API submission
-    setTimeout(() => {
-      endAssessment();
+    try {
+      // Find the latest submission for this assessment
+      const { data: submissions, error: submissionError } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('assessment_id', assessment.id)
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (submissionError || !submissions || submissions.length === 0) {
+        console.error('Error finding submission to update:', submissionError);
+      } else {
+        // Mark the submission as completed
+        const { error: updateError } = await supabase
+          .from('submissions')
+          .update({ 
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', submissions[0].id);
+        
+        if (updateError) {
+          console.error('Error updating submission completion status:', updateError);
+        }
+      }
+      
+      // End the assessment
+      await endAssessment();
+      
       toast({
         title: "Assessment Submitted",
         description: "Your answers have been submitted successfully!",
       });
-      navigate('/report');
-    }, 1500);
+      
+      navigate('/summary');
+    } catch (error) {
+      console.error('Error ending assessment:', error);
+      toast({
+        title: "Error",
+        description: "There was an error submitting your assessment. Please try again.",
+        variant: "destructive",
+      });
+      setIsEndingAssessment(false);
+    }
   };
   
   return (
@@ -323,6 +402,9 @@ const AssessmentPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      {/* Fullscreen Exit Dialog */}
+      <ExitDialog />
     </div>
   );
 };

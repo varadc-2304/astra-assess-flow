@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CodeQuestion } from '@/contexts/AssessmentContext';
 import { Terminal, Play, Check, Loader2 } from 'lucide-react';
-import { createSubmission, getSubmissionResult, waitForSubmissionResult } from '@/services/judge0Service';
+import { createSubmission, waitForSubmissionResult } from '@/services/judge0Service';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,7 +32,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [currentTestCaseIndex, setCurrentTestCaseIndex] = useState<number>(0);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -116,7 +115,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
     }
   };
 
-  // Process one test case at a time
+  // Process test cases sequentially one by one
   const processTestCase = async (index: number, allResults: TestResult[] = []): Promise<TestResult[]> => {
     if (index >= question.testCases.length) {
       return allResults;
@@ -161,14 +160,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
       
       setOutput(prev => `${prev}\n${testResultOutput}`);
       
-      // If this was the last test case, we're done
-      if (index === question.testCases.length - 1) {
-        const allPassed = updatedResults.every(r => r.passed);
-        setOutput(prev => `${prev}\n${allPassed ? 'All test cases passed!' : 'Some test cases failed.'}\n`);
-        return updatedResults;
-      }
-      
-      // Process the next test case
+      // Process the next test case after this one completes
       return processTestCase(index + 1, updatedResults);
     } catch (error) {
       console.error(`Error processing test case ${index + 1}:`, error);
@@ -179,7 +171,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
       const updatedResults = [...allResults, newResult];
       setTestResults(updatedResults);
       
-      return updatedResults;
+      return processTestCase(index + 1, updatedResults);
     }
   };
 
@@ -196,16 +188,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
     setIsSubmitting(true);
     setOutput('Submitting solution...\n');
     setTestResults([]);
-    setCurrentTestCaseIndex(0);
     
     try {
-      // Process all test cases one by one
+      // Process all test cases sequentially
       const finalResults = await processTestCase(0);
       const allPassed = finalResults.every(r => r.passed);
+      const correctPercentage = (finalResults.filter(r => r.passed).length / finalResults.length) * 100;
       
       // Store results if user is logged in
       if (user) {
         try {
+          // Create a submission record
           const { data: submissionData, error: submissionError } = await supabase
             .from('submissions')
             .insert({
@@ -219,6 +212,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
 
           if (submissionError) throw submissionError;
 
+          // Store answer details
           const { error: answerError } = await supabase
             .from('answers')
             .insert({
@@ -227,6 +221,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
               code_solution: currentCode,
               language: selectedLanguage,
               is_correct: allPassed,
+              marks_obtained: allPassed ? question.marks || 1 : 0,
               test_results: finalResults
             });
 
@@ -236,7 +231,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
             title: allPassed ? "Success!" : "Test Cases Failed",
             description: allPassed 
               ? "Your solution passed all test cases and has been submitted!" 
-              : "Some test cases failed. Check the output for details.",
+              : `Some test cases failed. You passed ${finalResults.filter(r => r.passed).length}/${finalResults.length} test cases (${correctPercentage.toFixed(1)}%).`,
             variant: allPassed ? "default" : "destructive",
           });
         } catch (dbError) {
