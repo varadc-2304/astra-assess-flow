@@ -119,3 +119,34 @@ export const getSubmissionResult = async (token: string): Promise<SubmissionResu
     throw new Error('Failed to get submission result');
   }
 };
+
+// Wait for submission to complete
+export const waitForSubmissionResult = async (token: string): Promise<SubmissionResult> => {
+  let result: SubmissionResult | null = null;
+  let attempts = 0;
+  const maxAttempts = 30; // Maximum number of attempts (30 × 2 seconds = 60 seconds timeout)
+  
+  while (attempts < maxAttempts) {
+    attempts++;
+    
+    try {
+      result = await getSubmissionResult(token);
+      
+      // If still in queue or processing, wait and try again
+      if (result.status.id <= 2) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+        continue;
+      }
+      
+      // If we got a final status, return the result
+      return result;
+    } catch (error) {
+      if (attempts >= maxAttempts) {
+        throw error; // Only throw if we've hit max attempts
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retrying
+    }
+  }
+  
+  throw new Error('Timed out waiting for submission result');
+};
