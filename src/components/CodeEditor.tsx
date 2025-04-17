@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -409,7 +410,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             />
           </TabsContent>
           <TabsContent value="output" className="flex-1 h-full m-0">
-            <div className="h-full bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto max-h-[calc(100vh-300px)]">
+            <div className="h-[calc(100vh-280px)] bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto">
               <div className="flex items-center mb-2">
                 <Terminal className="h-4 w-4 mr-2" />
                 <span>Output</span>
