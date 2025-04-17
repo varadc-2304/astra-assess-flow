@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -115,7 +114,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
     }
   };
 
-  // Process test cases sequentially one by one
   const processTestCase = async (index: number, allResults: TestResult[] = []): Promise<TestResult[]> => {
     if (index >= question.testCases.length) {
       return allResults;
@@ -212,7 +210,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
 
           if (submissionError) throw submissionError;
 
-          // Store answer details
+          // Store answer details - Fix for the Json type issue
           const { error: answerError } = await supabase
             .from('answers')
             .insert({
@@ -222,7 +220,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
               language: selectedLanguage,
               is_correct: allPassed,
               marks_obtained: allPassed ? question.marks || 1 : 0,
-              test_results: finalResults as Json
+              // Convert TestResult[] to Json explicitly
+              test_results: finalResults as unknown as Json
             });
 
           if (answerError) throw answerError;

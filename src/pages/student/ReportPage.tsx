@@ -217,7 +217,7 @@ const ReportPage = () => {
             try {
               testResults = typeof answer.test_results === 'string' 
                 ? JSON.parse(answer.test_results) 
-                : answer.test_results;
+                : (answer.test_results as unknown as TestResult[]);
             } catch (error) {
               console.error('Error parsing test results:', error);
             }

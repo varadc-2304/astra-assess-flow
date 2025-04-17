@@ -39,5 +39,5 @@ type Json =
 interface TestResult {
   passed: boolean;
   actualOutput?: string;
-  [key: string]: any; // Allow additional properties
+  [key: string]: any; // Add index signature to make TypeScript happy
 }
