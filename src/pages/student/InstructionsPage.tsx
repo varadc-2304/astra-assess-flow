@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
@@ -9,13 +9,19 @@ import { Separator } from '@/components/ui/separator';
 import { ClipboardList, Clock, Code } from 'lucide-react';
 
 const InstructionsPage = () => {
-  const { assessment, startAssessment } = useAssessment();
+  const { assessment, startAssessment, assessmentCode } = useAssessment();
   const navigate = useNavigate();
   const [countdownEnded, setCountdownEnded] = useState(false);
   
+  // Check if assessment exists and redirect if not
+  useEffect(() => {
+    if (!assessment && assessmentCode) {
+      navigate('/student');
+    }
+  }, [assessment, assessmentCode, navigate]);
+  
   if (!assessment) {
-    navigate('/student');
-    return null;
+    return null; // Don't render anything while redirecting
   }
   
   const handleStartAssessment = () => {

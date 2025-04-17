@@ -38,6 +38,7 @@ const StudentDashboard = () => {
       await loadAssessment(code);
       
       console.log("Navigating to instructions page");
+      // Only navigate after successful assessment loading
       navigate('/instructions');
     } catch (error: any) {
       console.error("Error loading assessment:", error);
@@ -46,6 +47,7 @@ const StudentDashboard = () => {
         description: "The assessment code you entered is invalid. Please try again.",
         variant: "destructive",
       });
+      // Do not navigate if there was an error
     } finally {
       setLoading(false);
     }

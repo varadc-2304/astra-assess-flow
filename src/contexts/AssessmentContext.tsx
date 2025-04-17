@@ -97,21 +97,30 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     
     try {
+      console.log('Fetching assessment with code:', code);
+      
+      // Fetch assessment data
       const { data: assessmentsData, error: assessmentError } = await supabase
         .from('assessments')
         .select('*')
-        .eq('code', code);
+        .eq('code', code.trim().toLowerCase());
         
       if (assessmentError) {
+        console.error('Error fetching assessment:', assessmentError);
         throw new Error('Error fetching assessment');
       }
+      
+      console.log('Assessment data received:', assessmentsData);
       
       if (!assessmentsData || assessmentsData.length === 0) {
         throw new Error('Invalid assessment code or assessment not found');
       }
       
       const assessmentData = assessmentsData[0];
+      console.log('Selected assessment:', assessmentData);
       
+      // Fetch questions for this assessment
+      console.log('Fetching questions for assessment ID:', assessmentData.id);
       const { data: questionsData, error: questionsError } = await supabase
         .from('questions')
         .select('*')
@@ -119,13 +128,17 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         .order('order_index', { ascending: true });
         
       if (questionsError) {
+        console.error('Failed to load questions:', questionsError);
         throw new Error('Failed to load questions');
       }
+      
+      console.log('Questions data received:', questionsData);
       
       const questions: Question[] = [];
       
       for (const questionData of questionsData) {
         if (questionData.type === 'mcq') {
+          console.log('Loading MCQ options for question:', questionData.id);
           const { data: optionsData, error: optionsError } = await supabase
             .from('mcq_options')
             .select('*')
@@ -133,7 +146,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .order('order_index', { ascending: true });
             
           if (optionsError) {
-            console.error('Failed to load options for question', questionData.id);
+            console.error('Failed to load options for question', questionData.id, optionsError);
             continue;
           }
           
@@ -153,6 +166,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           
           questions.push(mcqQuestion);
         } else if (questionData.type === 'code') {
+          console.log('Loading coding details for question:', questionData.id);
           const { data: codeData, error: codeError } = await supabase
             .from('coding_questions')
             .select('*')
@@ -160,10 +174,11 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .single();
             
           if (codeError) {
-            console.error('Failed to load coding details for question', questionData.id);
+            console.error('Failed to load coding details for question', questionData.id, codeError);
             continue;
           }
           
+          console.log('Loading examples for question:', questionData.id);
           const { data: examplesData, error: examplesError } = await supabase
             .from('coding_examples')
             .select('*')
@@ -171,10 +186,11 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .order('order_index', { ascending: true });
             
           if (examplesError) {
-            console.error('Failed to load examples for question', questionData.id);
+            console.error('Failed to load examples for question', questionData.id, examplesError);
             continue;
           }
           
+          console.log('Loading test cases for question:', questionData.id);
           const { data: testCasesData, error: testCasesError } = await supabase
             .from('test_cases')
             .select('*')
@@ -182,7 +198,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .order('order_index', { ascending: true });
             
           if (testCasesError) {
-            console.error('Failed to load test cases for question', questionData.id);
+            console.error('Failed to load test cases for question', questionData.id, testCasesError);
             continue;
           }
           
@@ -218,6 +234,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
+      console.log('Final questions array:', questions);
+      
       const loadedAssessment: Assessment = {
         id: assessmentData.id,
         code: assessmentData.code,
@@ -231,6 +249,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         questions: questions
       };
       
+      console.log('Setting assessment:', loadedAssessment);
       setAssessment(loadedAssessment);
       
       setTimeRemaining(loadedAssessment.durationMinutes * 60);
