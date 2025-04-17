@@ -18,7 +18,7 @@ const Login = () => {
 
     try {
       await login(email, password);
-      navigate('/student');
+      // Redirect happens via route protection in App.tsx
     } catch (error) {
       setError('Invalid email or password');
     }
