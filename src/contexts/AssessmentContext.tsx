@@ -97,15 +97,20 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     
     try {
-      const { data: assessmentData, error: assessmentError } = await supabase
+      const { data: assessmentsData, error: assessmentError } = await supabase
         .from('assessments')
         .select('*')
-        .eq('code', code)
-        .single();
+        .eq('code', code);
         
       if (assessmentError) {
+        throw new Error('Error fetching assessment');
+      }
+      
+      if (!assessmentsData || assessmentsData.length === 0) {
         throw new Error('Invalid assessment code or assessment not found');
       }
+      
+      const assessmentData = assessmentsData[0];
       
       const { data: questionsData, error: questionsError } = await supabase
         .from('questions')
@@ -181,6 +186,13 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
           
+          const solutionTemplate = codeData.solution_template ? 
+            Object.fromEntries(
+              Object.entries(codeData.solution_template as Record<string, any>)
+                .map(([key, value]) => [key, String(value)])
+            ) : 
+            {};
+            
           const codeQuestion: CodeQuestion = {
             id: questionData.id,
             assessmentId: assessmentData.id,
@@ -193,12 +205,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
               explanation: example.explanation
             })),
             constraints: codeData.constraints || [],
-            solutionTemplate: codeData.solution_template ? 
-              Object.fromEntries(
-                Object.entries(codeData.solution_template as Record<string, any>)
-                  .map(([key, value]) => [key, String(value)])
-              ) : 
-              {},
+            solutionTemplate: solutionTemplate,
             userSolution: {},
             testCases: testCasesData.map(testCase => ({
               input: testCase.input,

@@ -32,7 +32,7 @@ const InstructionsPage = () => {
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-3xl mx-auto px-4">
         <header className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-astra-red">Assessment Instructions</h1>
+          <h1 className="text-3xl font-bold text-astra-red">Yudh</h1>
           <p className="text-gray-600">{assessment.name}</p>
         </header>
         
