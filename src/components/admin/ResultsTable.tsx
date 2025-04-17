@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -74,12 +73,10 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
   const startIndex = (currentPage - 1) * pageSize;
   const visibleStudents = students.slice(startIndex, startIndex + pageSize);
 
-  // Fetch results from the database
   useEffect(() => {
     const fetchResults = async () => {
       setIsLoading(true);
       try {
-        // Fetch submissions with related assessment data
         const { data: submissionsData, error: submissionsError } = await supabase
           .from('submissions')
           .select(`
@@ -116,39 +113,29 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           return;
         }
         
-        // Transform the data into the format we need
         let transformedData: Student[] = submissionsData.map((submission) => {
-          // Calculate score from answers
           const answers = submission.answers || [];
           const totalObtained = answers.reduce((sum, answer) => sum + (answer.marks_obtained || 0), 0);
           
-          // We'll need to fetch total marks available for the assessment separately
-          // For now, we'll just use a placeholder
           const totalMarks = 100;
           
-          // Determine if the submission should be flagged
           const isFlagged = submission.is_terminated || submission.fullscreen_violations > 1;
           
-          // Safely handle user_id which might be null
-          const userId = typeof submission.user_id === 'object' ? submission.user_id?.id || 'unknown' : 'unknown';
+          const userObj = submission.user_id || { id: 'unknown', email: 'Unknown', name: 'Unknown' };
+          const userId = typeof userObj === 'object' ? userObj.id || 'unknown' : 'unknown';
           
-          // Use the student's email as the name if no name is available
-          const userEmail = typeof submission.user_id === 'object' ? submission.user_id?.email || 'Unknown' : 'Unknown';
-          const userName = typeof submission.user_id === 'object' ? 
-                          submission.user_id?.name || userEmail.split('@')[0] : 
+          const userEmail = typeof userObj === 'object' ? userObj.email || 'Unknown' : 'Unknown';
+          const userName = typeof userObj === 'object' ? 
+                          userObj.name || (userEmail !== 'Unknown' ? userEmail.split('@')[0] : 'Unknown') : 
                           'Unknown';
           
-          // Get assessment details
           const assessment = typeof submission.assessments === 'object' ? submission.assessments : null;
           const assessmentName = assessment?.name || 'Unknown Assessment';
           
-          // For demo purposes, assign random division, batch, and year
-          // In a real app, this would come from student profile data
           const divisions = ['A', 'B', 'C'];
           const batches = ['B1', 'B2', 'B3'];
           const years = ['2023', '2024', '2025'];
           
-          // Use hash of the user ID for consistent "random" assignments
           const hash = userId.split('').reduce((a, b) => {
             a = ((a << 5) - a) + b.charCodeAt(0);
             return a & a;
@@ -159,7 +146,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           const batch = batches[absHash % batches.length];
           const year = years[absHash % years.length];
           
-          // Calculate percentage score
           const percentage = totalMarks > 0 ? Math.round((totalObtained / totalMarks) * 100) : 0;
           
           return {
@@ -179,7 +165,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           };
         });
         
-        // Apply filters
         if (filters.year) {
           transformedData = transformedData.filter(s => s.year === filters.year);
         }
@@ -241,8 +226,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     if (!studentToDelete) return;
     
     try {
-      // In a real app, this would delete from Supabase
-      // For now, we'll just update the UI
       setStudents(students.filter(student => student.id !== studentToDelete));
       
       toast({
@@ -262,7 +245,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
   };
   
   const handleDownloadReport = (studentId: string) => {
-    // In a real app, this would generate a PDF report for the specific student
     toast({
       title: "Downloading Report",
       description: `Generating report for Student ${studentId}`,
@@ -349,7 +331,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             </Table>
           </div>
           
-          {/* Pagination */}
           {totalPages > 1 && (
             <Pagination>
               <PaginationContent>
@@ -386,7 +367,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         </>
       )}
       
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
