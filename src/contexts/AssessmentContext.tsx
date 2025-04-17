@@ -156,8 +156,11 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       }
 
       const formattedQuestions: Question[] = [];
+      let possibleMarks = 0;
 
       for (const question of questionData || []) {
+        possibleMarks += question.marks;
+
         if (question.type === 'mcq') {
           const { data: optionsData, error: optionsError } = await supabase
             .from('mcq_options')
@@ -209,15 +212,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
 
-          const solutionTemplate: Record<string, string> = {};
-          if (codingData.solution_template && typeof codingData.solution_template === 'object') {
-            Object.entries(codingData.solution_template).forEach(([key, value]) => {
-              if (typeof value === 'string') {
-                solutionTemplate[key] = value;
-              }
-            });
-          }
-
+          const solutionTemplate = codingData.solution_template as Record<string, string>;
           const existingAnswer = answers[question.id];
           const userSolution: Record<string, string> = {};
           
@@ -236,8 +231,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
               explanation: ex.explanation
             })),
             constraints: codingData.constraints || [],
-            solutionTemplate: solutionTemplate,
-            userSolution: userSolution,
+            solutionTemplate,
+            userSolution,
             marks: question.marks,
             assessmentId: question.assessment_id
           };
@@ -246,8 +241,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      console.log("Formatted questions:", formattedQuestions);
       setQuestions(formattedQuestions);
+      setTotalPossibleMarks(possibleMarks);
       
       const mcq = formattedQuestions.filter(q => q.type === 'mcq').length;
       const coding = formattedQuestions.filter(q => q.type === 'code').length;
@@ -266,7 +261,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           };
         });
       }
-      
+
       if (user && submission) {
         try {
           const { data: existingAnswers, error: answersError } = await supabase
@@ -276,12 +271,15 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             
           if (!answersError && existingAnswers && existingAnswers.length > 0) {
             const answersObj: { [questionId: string]: Answer } = {};
+            let marksObtained = 0;
             
             existingAnswers.forEach(answer => {
               answersObj[answer.question_id] = answer;
+              marksObtained += answer.marks_obtained || 0;
             });
             
             setAnswers(answersObj);
+            setTotalMarksObtained(marksObtained);
             console.log("Loaded existing answers:", answersObj);
           }
         } catch (error) {
@@ -289,7 +287,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      setCurrentQuestionIndex(0);
       return true;
     } catch (error: any) {
       console.error("Error in loadQuestions:", error);
@@ -372,7 +369,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateCodeSolution = (questionId: string, language: string, code: string) => {
+  const updateCodeSolution = async (questionId: string, language: string, code: string) => {
     console.log(`Updating code solution for question ${questionId}, language: ${language}`);
     
     setAnswers(prevAnswers => ({
@@ -403,6 +400,38 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       });
       
       setQuestions(updatedQuestions);
+    }
+
+    if (submission) {
+      try {
+        const { data: existingAnswer } = await supabase
+          .from('answers')
+          .select('id')
+          .eq('submission_id', submission.id)
+          .eq('question_id', questionId)
+          .maybeSingle();
+
+        if (existingAnswer) {
+          await supabase
+            .from('answers')
+            .update({
+              code_solution: code,
+              language
+            })
+            .eq('id', existingAnswer.id);
+        } else {
+          await supabase
+            .from('answers')
+            .insert({
+              question_id: questionId,
+              submission_id: submission.id,
+              code_solution: code,
+              language
+            });
+        }
+      } catch (error) {
+        console.error('Error saving code solution:', error);
+      }
     }
   };
 
