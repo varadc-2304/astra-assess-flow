@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -200,12 +201,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
           // Create a submission record
           const { data: submissionData, error: submissionError } = await supabase
             .from('submissions')
-            .insert<Submission>({
+            .insert({
               assessment_id: question.assessmentId || '',
               user_id: user.id,
               started_at: new Date().toISOString(),
               completed_at: new Date().toISOString()
-            })
+            } as Submission)
             .select()
             .single();
 
@@ -214,7 +215,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
           // Store answer details
           const { error: answerError } = await supabase
             .from('answers')
-            .insert<Answer>({
+            .insert({
               submission_id: submissionData.id,
               question_id: question.id,
               code_solution: currentCode,
@@ -222,7 +223,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
               is_correct: allPassed,
               marks_obtained: allPassed ? question.marks || 1 : 0,
               test_results: finalResults
-            });
+            } as Answer);
 
           if (answerError) throw answerError;
           

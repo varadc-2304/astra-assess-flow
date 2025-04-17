@@ -41,25 +41,26 @@ export interface CodingQuestion {
 }
 
 export interface Submission {
-  id: string;
+  id?: string;
   user_id: string;
   assessment_id: string;
   started_at: string;
   completed_at: string | null;
-  is_terminated: boolean | null;
-  fullscreen_violations: number | null;
-  created_at: string | null;
+  is_terminated?: boolean | null;
+  fullscreen_violations?: number | null;
+  created_at?: string | null;
 }
 
 export interface Answer {
-  id: string;
+  id?: string;
   submission_id: string;
   question_id: string;
-  mcq_option_id: string | null;
-  code_solution: string | null;
-  language: string | null;
+  mcq_option_id?: string | null;
+  code_solution?: string | null;
+  language?: string | null;
   marks_obtained: number;
   is_correct: boolean | null;
-  test_results: any;
-  created_at: string | null;
+  test_results?: any;
+  created_at?: string | null;
 }
+

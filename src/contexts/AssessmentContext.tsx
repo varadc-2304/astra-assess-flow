@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -69,7 +68,7 @@ interface AssessmentContextType {
   error: string | null;
   
   setAssessmentCode: (code: string) => void;
-  loadAssessment: (code: string) => Promise<void>;
+  loadAssessment: (code: string) => Promise<boolean>;
   startAssessment: () => void;
   endAssessment: () => Promise<void>;
   setCurrentQuestionIndex: (index: number) => void;
@@ -93,7 +92,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const loadAssessment = async (code: string) => {
+  const loadAssessment = async (code: string): Promise<boolean> => {
     setLoading(true);
     setError(null);
     
