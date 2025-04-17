@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -112,7 +113,7 @@ const SummaryPage = () => {
                   </div>
                   <div>
                     <h3 className="text-sm text-gray-500">Duration</h3>
-                    <p className="font-medium">{assessment.durationMinutes} minutes</p>
+                    <p className="font-medium">{assessment.duration_minutes} minutes</p>
                   </div>
                 </div>
                 <Separator />

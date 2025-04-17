@@ -1,10 +1,10 @@
 
-import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
 
-type UserRole = 'user' | 'admin';
+type UserRole = 'student' | 'admin';
 
 type UserData = {
   id: string;
@@ -57,26 +57,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('Invalid password');
       }
 
+      // Map the database role (user/admin) to our app roles (student/admin)
+      const appRole: UserRole = userData.role === 'user' ? 'student' : 'admin';
+
       setUser({
         id: userData.id,
         name: userData.name,
         email: userData.email,
         prn: userData.prn,
-        role: userData.role as UserRole
+        role: appRole
       });
 
-      // Create a session 
-      const session = {
+      // Create a mock session that matches the Session type
+      const mockSession = {
+        access_token: `mock_token_${userData.id}`,
+        refresh_token: `mock_refresh_${userData.id}`,
+        expires_in: 3600,
+        token_type: 'bearer',
         user: {
           id: userData.id,
           email: userData.email,
           user_metadata: {
             name: userData.name,
-            role: userData.role
+            role: appRole
           }
         }
-      };
-      setSession(session as Session);
+      } as unknown as Session;
+      
+      setSession(mockSession);
 
       toast({
         title: "Login successful",

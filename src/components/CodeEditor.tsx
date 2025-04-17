@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CodeQuestion } from '@/contexts/AssessmentContext';
+import { CodeQuestion } from '@/types/question';
 import { Terminal, Play, Check, Loader2 } from 'lucide-react';
 import { createSubmission, waitForSubmissionResult } from '@/services/judge0Service';
 import { useToast } from '@/hooks/use-toast';
