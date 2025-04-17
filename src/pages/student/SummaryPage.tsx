@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -8,6 +7,7 @@ import { useAssessment } from '@/contexts/AssessmentContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { CheckCircle, FileCog, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/components/ui/use-toast';
 
 interface SubmissionSummary {
   totalQuestions: number;
@@ -23,6 +23,7 @@ const SummaryPage = () => {
   const { assessment, assessmentEnded } = useAssessment();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<SubmissionSummary | null>(null);
   
@@ -51,16 +52,6 @@ const SummaryPage = () => {
         
         const submission = submissions[0];
         
-        // Get answers for this submission
-        const { data: answers, error: answersError } = await supabase
-          .from('answers')
-          .select('*, question_id')
-          .eq('submission_id', submission.id);
-        
-        if (answersError) {
-          throw new Error('Failed to load answers');
-        }
-        
         // Get questions data to calculate scores
         const { data: questions, error: questionsError } = await supabase
           .from('questions')
@@ -69,6 +60,16 @@ const SummaryPage = () => {
         
         if (questionsError) {
           throw new Error('Failed to load questions');
+        }
+        
+        // Get answers for this submission
+        const { data: answers, error: answersError } = await supabase
+          .from('answers')
+          .select('*')
+          .eq('submission_id', submission.id);
+        
+        if (answersError) {
+          throw new Error('Failed to load answers');
         }
         
         // Calculate summary statistics
@@ -86,6 +87,27 @@ const SummaryPage = () => {
         
         const percentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
         
+        // Store results in the new results table
+        const { error: resultsError } = await supabase
+          .from('results')
+          .insert({
+            user_id: user.id,
+            assessment_id: assessment.id,
+            total_score: earnedMarks,
+            total_marks: totalMarks,
+            percentage,
+            completed_at: submission.completed_at || submission.created_at
+          });
+        
+        if (resultsError) {
+          console.error('Error storing results:', resultsError);
+          toast({
+            title: "Warning",
+            description: "Your results were calculated but there was an error saving them.",
+            variant: "destructive"
+          });
+        }
+        
         setSummary({
           totalQuestions: questions.length,
           attemptedMCQ: mcqAnswers.length,
@@ -97,6 +119,11 @@ const SummaryPage = () => {
         });
       } catch (error) {
         console.error('Error fetching summary:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load assessment summary",
+          variant: "destructive"
+        });
       } finally {
         setLoading(false);
       }
@@ -110,7 +137,7 @@ const SummaryPage = () => {
     }, 3000);
     
     return () => clearTimeout(timer);
-  }, [assessment, assessmentEnded, navigate, user]);
+  }, [assessment, assessmentEnded, navigate, user, toast]);
   
   if (loading || !assessment || !summary) {
     return (

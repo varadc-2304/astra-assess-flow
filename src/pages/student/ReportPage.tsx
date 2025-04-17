@@ -97,6 +97,17 @@ const ReportPage = () => {
         
         const submission = submissions[0];
         
+        const { data: results, error: resultsError } = await supabase
+          .from('results')
+          .select('*')
+          .eq('assessment_id', assessment.id)
+          .eq('user_id', user.id)
+          .single();
+        
+        if (resultsError) {
+          console.error('Error fetching results:', resultsError);
+        }
+        
         const { data: answers, error: answersError } = await supabase
           .from('answers')
           .select('*')
@@ -224,17 +235,22 @@ const ReportPage = () => {
         
         setReportData({
           submissionId: submission.id,
-          completedAt: submission.completed_at || submission.created_at,
+          completedAt: results?.completed_at || submission.completed_at || submission.created_at,
           answers: formattedAnswers,
           mcqQuestions,
           codeQuestions,
-          totalMarks,
-          earnedMarks,
-          percentage,
+          totalMarks: results?.total_marks || 0,
+          earnedMarks: results?.total_score || 0,
+          percentage: results?.percentage || 0,
           totalQuestionsSolved
         });
       } catch (error) {
         console.error('Error fetching report data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load report data",
+          variant: "destructive"
+        });
       } finally {
         setLoading(false);
       }

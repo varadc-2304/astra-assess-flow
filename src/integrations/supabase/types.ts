@@ -9,64 +9,6 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      answers: {
-        Row: {
-          code_solution: string | null
-          created_at: string
-          id: string
-          is_correct: boolean | null
-          language: string | null
-          marks_obtained: number | null
-          mcq_option_id: string | null
-          question_id: string
-          submission_id: string
-        }
-        Insert: {
-          code_solution?: string | null
-          created_at?: string
-          id?: string
-          is_correct?: boolean | null
-          language?: string | null
-          marks_obtained?: number | null
-          mcq_option_id?: string | null
-          question_id: string
-          submission_id: string
-        }
-        Update: {
-          code_solution?: string | null
-          created_at?: string
-          id?: string
-          is_correct?: boolean | null
-          language?: string | null
-          marks_obtained?: number | null
-          mcq_option_id?: string | null
-          question_id?: string
-          submission_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "answers_mcq_option_id_fkey"
-            columns: ["mcq_option_id"]
-            isOneToOne: false
-            referencedRelation: "mcq_options"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "answers_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "questions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "answers_submission_id_fkey"
-            columns: ["submission_id"]
-            isOneToOne: false
-            referencedRelation: "submissions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       assessments: {
         Row: {
           code: string
