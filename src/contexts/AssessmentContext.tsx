@@ -1,9 +1,9 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Assessment, Question as DBQuestion, Submission, Answer, TestCase } from '@/types/database';
-import { MCQQuestion, CodeQuestion, Question } from '@/types/question';
+import { MCQQuestion, CodeQuestion, Question, TestResult } from '@/types/question';
 import { useAuth } from './AuthContext';
 
 interface AssessmentContextType {
@@ -218,6 +218,13 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             });
           }
 
+          const existingAnswer = answers[question.id];
+          const userSolution: Record<string, string> = {};
+          
+          if (existingAnswer && existingAnswer.code_solution && existingAnswer.language) {
+            userSolution[existingAnswer.language] = existingAnswer.code_solution;
+          }
+
           const codeQuestion: CodeQuestion = {
             id: question.id,
             type: 'code',
@@ -230,7 +237,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             })),
             constraints: codingData.constraints || [],
             solutionTemplate: solutionTemplate,
-            userSolution: {},
+            userSolution: userSolution,
             marks: question.marks,
             assessmentId: question.assessment_id
           };
@@ -239,6 +246,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
+      console.log("Formatted questions:", formattedQuestions);
       setQuestions(formattedQuestions);
       
       const mcq = formattedQuestions.filter(q => q.type === 'mcq').length;
@@ -259,6 +267,28 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         });
       }
       
+      if (user && submission) {
+        try {
+          const { data: existingAnswers, error: answersError } = await supabase
+            .from('answers')
+            .select('*')
+            .eq('submission_id', submission.id);
+            
+          if (!answersError && existingAnswers && existingAnswers.length > 0) {
+            const answersObj: { [questionId: string]: Answer } = {};
+            
+            existingAnswers.forEach(answer => {
+              answersObj[answer.question_id] = answer;
+            });
+            
+            setAnswers(answersObj);
+            console.log("Loaded existing answers:", answersObj);
+          }
+        } catch (error) {
+          console.error("Error loading existing answers:", error);
+        }
+      }
+      
       setCurrentQuestionIndex(0);
       return true;
     } catch (error: any) {
@@ -274,6 +304,29 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const calculateTotalMarks = () => {
+    let obtained = 0;
+    let possible = 0;
+    
+    if (questions) {
+      questions.forEach(q => {
+        possible += q.marks;
+        if (answers[q.id]) {
+          obtained += answers[q.id].marks_obtained || 0;
+        }
+      });
+    }
+    
+    setTotalMarksObtained(obtained);
+    setTotalPossibleMarks(possible);
+    
+    console.log(`Calculated marks: ${obtained}/${possible}`);
+  };
+
+  useEffect(() => {
+    calculateTotalMarks();
+  }, [answers]);
+
   const goToNextQuestion = () => {
     if (questions && currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
@@ -287,20 +340,41 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const answerMCQ = (questionId: string, optionId: string) => {
+    const question = questions?.find(q => q.id === questionId && q.type === 'mcq') as MCQQuestion | undefined;
+    const option = question?.options.find(o => o.id === optionId);
+    const isCorrect = option?.is_correct || false;
+    const marksObtained = isCorrect ? question?.marks || 0 : 0;
+    
     setAnswers(prevAnswers => ({
       ...prevAnswers,
       [questionId]: {
         ...prevAnswers[questionId],
-        mcq_option_id: optionId,
         question_id: questionId,
         submission_id: submission?.id || '',
-        marks_obtained: 0,
-        is_correct: false
+        mcq_option_id: optionId,
+        marks_obtained: marksObtained,
+        is_correct: isCorrect
       }
     }));
+    
+    if (questions) {
+      const updatedQuestions = questions.map(q => {
+        if (q.id === questionId && q.type === 'mcq') {
+          return {
+            ...q,
+            selectedOption: optionId
+          };
+        }
+        return q;
+      });
+      
+      setQuestions(updatedQuestions);
+    }
   };
 
   const updateCodeSolution = (questionId: string, language: string, code: string) => {
+    console.log(`Updating code solution for question ${questionId}, language: ${language}`);
+    
     setAnswers(prevAnswers => ({
       ...prevAnswers,
       [questionId]: {
@@ -313,9 +387,28 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         is_correct: prevAnswers[questionId]?.is_correct || false
       }
     }));
+    
+    if (questions) {
+      const updatedQuestions = questions.map(q => {
+        if (q.id === questionId && q.type === 'code') {
+          return {
+            ...q,
+            userSolution: {
+              ...q.userSolution,
+              [language]: code
+            }
+          };
+        }
+        return q;
+      });
+      
+      setQuestions(updatedQuestions);
+    }
   };
 
   const updateMarksObtained = (questionId: string, marks: number) => {
+    console.log(`Updating marks for question ${questionId}: ${marks}`);
+    
     setAnswers(prevAnswers => ({
       ...prevAnswers,
       [questionId]: {
@@ -324,23 +417,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         is_correct: marks > 0
       }
     }));
-    
-    calculateTotalMarks();
-  };
-
-  const calculateTotalMarks = () => {
-    let obtained = 0;
-    let possible = 0;
-    
-    questions?.forEach(q => {
-      possible += q.marks;
-      if (answers[q.id]) {
-        obtained += answers[q.id].marks_obtained || 0;
-      }
-    });
-    
-    setTotalMarksObtained(obtained);
-    setTotalPossibleMarks(possible);
   };
 
   const submitAnswer = (questionId: string, answer: Answer) => {
@@ -351,12 +427,51 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const submitAssessment = async () => {
-    if (!assessment || !answers || !user) return;
+    if (!assessment || !user) return;
     
     try {
       setIsLoading(true);
 
       calculateTotalMarks();
+
+      for (const questionId in answers) {
+        const answer = answers[questionId];
+        
+        if (submission) {
+          answer.submission_id = submission.id;
+          
+          try {
+            const { data: existingAnswerData, error: existingAnswerError } = await supabase
+              .from('answers')
+              .select('id')
+              .eq('submission_id', submission.id)
+              .eq('question_id', questionId)
+              .maybeSingle();
+              
+            if (existingAnswerError) throw existingAnswerError;
+            
+            if (existingAnswerData) {
+              await supabase
+                .from('answers')
+                .update({
+                  mcq_option_id: answer.mcq_option_id,
+                  code_solution: answer.code_solution,
+                  language: answer.language,
+                  marks_obtained: answer.marks_obtained,
+                  is_correct: answer.is_correct,
+                  test_results: answer.test_results
+                })
+                .eq('id', existingAnswerData.id);
+            } else {
+              await supabase
+                .from('answers')
+                .insert(answer);
+            }
+          } catch (error) {
+            console.error('Error saving answer:', error);
+          }
+        }
+      }
 
       const percentage = totalPossibleMarks > 0 ? (totalMarksObtained / totalPossibleMarks) * 100 : 0;
 
@@ -376,6 +491,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           .from('submissions')
           .update({
             completed_at: new Date().toISOString(),
+            fullscreen_violations: fullscreenWarnings
           })
           .eq('id', submission.id);
       }
@@ -400,22 +516,64 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     try {
       if (!user || !assessment) return;
       
-      const { data, error } = await supabase
+      const { data: existingSubmissions, error: existingError } = await supabase
         .from('submissions')
-        .insert({
-          assessment_id: assessmentId,
-          user_id: user.id,
-          started_at: new Date().toISOString()
-        })
-        .select()
-        .single();
+        .select('*')
+        .eq('assessment_id', assessmentId)
+        .eq('user_id', user.id)
+        .is('completed_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1);
         
-      if (error) {
-        console.error("Error creating submission:", error);
-        return;
+      if (existingError) {
+        console.error('Error checking existing submissions:', existingError);
       }
       
-      setSubmission(data);
+      let currentSubmission;
+      
+      if (existingSubmissions && existingSubmissions.length > 0) {
+        currentSubmission = existingSubmissions[0];
+        console.log('Resuming existing submission:', currentSubmission);
+      } else {
+        const { data: newSubmission, error: submissionError } = await supabase
+          .from('submissions')
+          .insert({
+            assessment_id: assessmentId,
+            user_id: user.id,
+            started_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+          
+        if (submissionError) {
+          console.error("Error creating submission:", submissionError);
+          return;
+        }
+        
+        currentSubmission = newSubmission;
+        console.log('Created new submission:', currentSubmission);
+      }
+      
+      setSubmission(currentSubmission);
+      
+      if (currentSubmission) {
+        const { data: existingAnswers, error: answersError } = await supabase
+          .from('answers')
+          .select('*')
+          .eq('submission_id', currentSubmission.id);
+          
+        if (!answersError && existingAnswers && existingAnswers.length > 0) {
+          const answersObj: { [questionId: string]: Answer } = {};
+          
+          existingAnswers.forEach(answer => {
+            answersObj[answer.question_id] = answer;
+          });
+          
+          setAnswers(answersObj);
+          console.log("Loaded existing answers:", answersObj);
+        }
+      }
+      
       setTimeRemaining(assessment.duration_minutes * 60);
     } catch (error) {
       console.error("Error starting assessment:", error);

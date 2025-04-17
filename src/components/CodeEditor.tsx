@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -10,25 +10,18 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CodeQuestion } from '@/types/question';
+import { CodeQuestion, TestResult } from '@/types/question';
 import { Terminal, Play, Check, Loader2 } from 'lucide-react';
 import { createSubmission, waitForSubmissionResult } from '@/services/judge0Service';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Submission, Answer, TestCase } from '@/types/database';
+import { TestCase } from '@/types/database';
 
 interface CodeEditorProps {
   question: CodeQuestion;
   onCodeChange: (language: string, code: string) => void;
   onMarksUpdate?: (questionId: string, marks: number) => void;
-}
-
-interface TestResult {
-  passed: boolean;
-  actualOutput?: string;
-  marks?: number;
-  isHidden?: boolean;
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarksUpdate }) => {
@@ -39,6 +32,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
+
+  // Initialize the editor with the user's previous solution or the template
+  useEffect(() => {
+    if (question?.userSolution && Object.keys(question.userSolution).length > 0) {
+      // If there is a user solution for the current language, use it
+      if (question.userSolution[selectedLanguage]) {
+        // No need to call onCodeChange here as we're just initializing
+        console.log("Loading user solution for language:", selectedLanguage);
+      }
+    }
+  }, [question?.id, selectedLanguage]);
 
   const currentCode = question.userSolution[selectedLanguage] || question.solutionTemplate[selectedLanguage] || '';
 
@@ -264,40 +268,16 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
       setOutput(prev => `${prev}\n\nTotal marks earned: ${totalMarksEarned}/${totalPossibleMarks} (${correctPercentage.toFixed(1)}%)`);
       
+      // Update marks in the parent component
       if (onMarksUpdate) {
+        console.log("Updating marks for question:", question.id, "marks:", totalMarksEarned);
         onMarksUpdate(question.id, totalMarksEarned);
       }
       
-      if (user) {
-        try {
-          const submissionData: Submission = {
-            assessment_id: question.assessmentId || '',
-            user_id: user.id,
-            started_at: new Date().toISOString(),
-            completed_at: new Date().toISOString()
-          };
-
-          console.log('Creating submission with data:', submissionData);
-
-          const { data: submissionResult, error: submissionError } = await supabase
-            .from('submissions')
-            .insert(submissionData)
-            .select()
-            .single();
-
-          if (submissionError) {
-            console.error('Error creating submission:', submissionError);
-            throw submissionError;
-          }
-
-          if (!submissionResult) {
-            throw new Error('No submission result returned');
-          }
-
-          console.log('Submission created:', submissionResult);
-
-          const answerData: Answer = {
-            submission_id: submissionResult.id,
+      // Store the test results
+      try {
+        if (user) {
+          const answerData = {
             question_id: question.id,
             code_solution: currentCode,
             language: selectedLanguage,
@@ -306,34 +286,25 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             test_results: finalResults
           };
 
-          console.log('Creating answer with data:', answerData);
-
-          const { error: answerError } = await supabase
-            .from('answers')
-            .insert(answerData);
-
-          if (answerError) {
-            console.error('Error storing answer:', answerError);
-            throw answerError;
-          }
+          console.log('Updating answer data:', answerData);
           
           toast({
             title: allPassed ? "Success!" : "Test Cases Evaluation Complete",
             description: `You earned ${totalMarksEarned} out of ${totalPossibleMarks} marks (${correctPercentage.toFixed(1)}%).`,
             variant: allPassed ? "default" : "destructive",
           });
-        } catch (dbError) {
-          console.error('Error storing results:', dbError);
+        } else {
           toast({
-            title: "Warning",
-            description: "Your solution was evaluated but there was an error saving your submission.",
+            title: "Authentication Warning",
+            description: "Your solution was evaluated but not saved. You must be logged in to submit solutions.",
             variant: "destructive",
           });
         }
-      } else {
+      } catch (dbError) {
+        console.error('Error storing results:', dbError);
         toast({
-          title: "Authentication Warning",
-          description: "Your solution was evaluated but not saved. You must be logged in to submit solutions.",
+          title: "Warning",
+          description: "Your solution was evaluated but there was an error saving your submission.",
           variant: "destructive",
         });
       }

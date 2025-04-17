@@ -23,6 +23,13 @@ export interface CodeExample {
   explanation?: string;
 }
 
+export interface TestResult {
+  passed: boolean;
+  actualOutput?: string;
+  marks?: number;
+  isHidden?: boolean;
+}
+
 export interface CodeQuestion {
   id: string;
   type: 'code';
@@ -34,6 +41,7 @@ export interface CodeQuestion {
   userSolution: Record<string, string>;
   marks: number;
   assessmentId: string;
+  testResults?: TestResult[];
 }
 
 export type Question = MCQQuestion | CodeQuestion;
