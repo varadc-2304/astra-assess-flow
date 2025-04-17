@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -28,7 +27,10 @@ const AssessmentPage = () => {
     setCurrentQuestionIndex,
     answerMCQ,
     updateCodeSolution,
-    endAssessment
+    updateMarksObtained,
+    endAssessment,
+    totalMarksObtained,
+    totalPossibleMarks
   } = useAssessment();
 
   const [showExitDialog, setShowExitDialog] = useState(false);
@@ -39,26 +41,22 @@ const AssessmentPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   
-  // Ensure we have an assessment
   useEffect(() => {
     if (!assessment || !assessmentStarted) {
       navigate('/student');
     }
   }, [assessment, assessmentStarted, navigate]);
 
-  // Enter fullscreen on mount
   useEffect(() => {
     if (assessmentStarted && !isFullscreen) {
       enterFullscreen();
     }
   }, [assessmentStarted, isFullscreen, enterFullscreen]);
 
-  // Create submission record when assessment starts
   useEffect(() => {
     const createSubmissionRecord = async () => {
       if (assessment && assessmentStarted && user) {
         try {
-          // Check if a submission already exists
           const { data: existingSubmissions } = await supabase
             .from('submissions')
             .select('*')
@@ -67,12 +65,9 @@ const AssessmentPage = () => {
             .is('completed_at', null);
             
           if (existingSubmissions && existingSubmissions.length > 0) {
-            // Submission already exists
-            console.log('Submission record already exists');
             return;
           }
           
-          // Create new submission
           const { data, error } = await supabase
             .from('submissions')
             .insert({
@@ -100,7 +95,6 @@ const AssessmentPage = () => {
   
   const currentQuestion = assessment.questions[currentQuestionIndex];
   
-  // Calculate question status (answered/not answered)
   const questionStatus = assessment.questions.map(q => {
     if (q.type === 'mcq') {
       return !!q.selectedOption;
@@ -130,7 +124,6 @@ const AssessmentPage = () => {
     setIsEndingAssessment(true);
     
     try {
-      // Find the latest submission for this assessment
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
@@ -142,7 +135,6 @@ const AssessmentPage = () => {
       if (submissionError || !submissions || submissions.length === 0) {
         console.error('Error finding submission to update:', submissionError);
       } else {
-        // Mark the submission as completed
         const { error: updateError } = await supabase
           .from('submissions')
           .update({ 
@@ -155,7 +147,6 @@ const AssessmentPage = () => {
         }
       }
       
-      // End the assessment
       await endAssessment();
       
       toast({
@@ -175,82 +166,81 @@ const AssessmentPage = () => {
     }
   };
   
+  const handleUpdateMarks = (questionId: string, marks: number) => {
+    updateMarksObtained(questionId, marks);
+  };
+  
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      {/* Top Bar */}
       <header className="bg-white border-b border-gray-200 py-2 px-4 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="mr-4">
-                <MenuIcon className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-72 overflow-y-auto">
-              <SheetHeader>
-                <SheetTitle>Questions</SheetTitle>
-              </SheetHeader>
-              <div className="py-4 space-y-4">
-                <div className="grid grid-cols-5 gap-2">
-                  {assessment.questions.map((q, index) => (
-                    <Button
-                      key={q.id}
-                      variant="outline"
-                      size="sm"
-                      className={`relative ${
-                        currentQuestionIndex === index ? 'border-astra-red' : ''
-                      }`}
-                      onClick={() => setCurrentQuestionIndex(index)}
-                    >
-                      {index + 1}
-                      {questionStatus[index] && (
-                        <span className="absolute -top-1 -right-1">
-                          <CheckCircle className="h-3 w-3 text-green-500" />
-                        </span>
-                      )}
-                    </Button>
-                  ))}
-                </div>
-                
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Assessment Summary</p>
-                  <div className="flex items-center justify-between text-xs">
-                    <span>Total Questions:</span>
-                    <span>{assessment.questions.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span>Answered:</span>
-                    <span>{questionStatus.filter(Boolean).length}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span>Not Answered:</span>
-                    <span>{questionStatus.filter(status => !status).length}</span>
-                  </div>
-                </div>
-                
-                <Button 
-                  onClick={handleEndAssessment}
-                  className="w-full mt-4"
-                  variant="destructive"
-                >
-                  End Assessment
-                </Button>
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="icon" className="mr-4">
+              <MenuIcon className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-72 overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Questions</SheetTitle>
+            </SheetHeader>
+            <div className="py-4 space-y-4">
+              <div className="grid grid-cols-5 gap-2">
+                {assessment.questions.map((q, index) => (
+                  <Button
+                    key={q.id}
+                    variant="outline"
+                    size="sm"
+                    className={`relative ${
+                      currentQuestionIndex === index ? 'border-astra-red' : ''
+                    }`}
+                    onClick={() => setCurrentQuestionIndex(index)}
+                  >
+                    {index + 1}
+                    {questionStatus[index] && (
+                      <span className="absolute -top-1 -right-1">
+                        <CheckCircle className="h-3 w-3 text-green-500" />
+                      </span>
+                    )}
+                  </Button>
+                ))}
               </div>
-            </SheetContent>
-          </Sheet>
-          
-          <div>
-            <h1 className="text-lg font-semibold">{assessment.name}</h1>
-            <p className="text-sm text-gray-500">
-              Question {currentQuestionIndex + 1} of {assessment.questions.length}
-            </p>
-          </div>
-        </div>
+              
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Assessment Summary</p>
+                <div className="flex items-center justify-between text-xs">
+                  <span>Total Questions:</span>
+                  <span>{assessment.questions.length}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span>Answered:</span>
+                  <span>{questionStatus.filter(Boolean).length}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span>Not Answered:</span>
+                  <span>{questionStatus.filter(status => !status).length}</span>
+                </div>
+              </div>
+              
+              <Button 
+                onClick={handleEndAssessment}
+                className="w-full mt-4"
+                variant="destructive"
+              >
+                End Assessment
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
         
-        <Timer variant="assessment" />
+        <div className="flex items-center gap-4">
+          <div className="text-sm font-medium">
+            <span>Score: </span>
+            <span className="text-astra-red">{totalMarksObtained}/{totalPossibleMarks}</span>
+          </div>
+          <Timer variant="assessment" />
+        </div>
       </header>
       
-      {/* Main Content - SCROLLABLE */}
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-6xl mx-auto">
           {currentQuestion.type === 'mcq' ? (
@@ -262,7 +252,6 @@ const AssessmentPage = () => {
             </div>
           ) : (
             <div className="flex flex-col md:flex-row gap-4 h-full">
-              {/* Problem Description - SCROLLABLE */}
               <div className="md:w-1/2 bg-white p-6 rounded-lg shadow overflow-y-auto max-h-[calc(100vh-180px)]">
                 <h3 className="text-lg font-medium mb-3">{currentQuestion.title}</h3>
                 <p className="text-gray-700 whitespace-pre-line mb-4">{currentQuestion.description}</p>
@@ -305,12 +294,12 @@ const AssessmentPage = () => {
                 )}
               </div>
               
-              {/* Code Editor - SCROLLABLE CONTAINER */}
               <div className="md:w-1/2 bg-white rounded-lg shadow flex flex-col overflow-hidden">
                 <div className="p-4 flex-1 overflow-hidden">
                   <CodeEditor 
                     question={currentQuestion}
                     onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
+                    onMarksUpdate={handleUpdateMarks}
                   />
                 </div>
               </div>
@@ -319,7 +308,6 @@ const AssessmentPage = () => {
         </div>
       </div>
       
-      {/* Bottom Navigation - STICKY */}
       <div className="bg-white border-t border-gray-200 py-3 px-6 flex items-center justify-between sticky bottom-0 z-10">
         <Button
           variant="outline"
@@ -365,7 +353,6 @@ const AssessmentPage = () => {
         </div>
       </div>
 
-      {/* End Assessment Dialog */}
       <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -403,7 +390,6 @@ const AssessmentPage = () => {
         </AlertDialogContent>
       </AlertDialog>
       
-      {/* Fullscreen Exit Dialog */}
       <ExitDialog />
     </div>
   );

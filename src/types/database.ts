@@ -40,6 +40,17 @@ export interface CodingQuestion {
   created_at: string | null;
 }
 
+export interface TestCase {
+  id: string;
+  question_id: string;
+  input: string;
+  output: string;
+  order_index: number;
+  marks: number; // Added marks field
+  is_hidden: boolean; // Added is_hidden field
+  created_at: string | null;
+}
+
 // Make sure required fields match Supabase schema
 export interface Submission {
   id?: string;

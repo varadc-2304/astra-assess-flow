@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CheckCircle, FileCog, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
-import { Submission, Result } from '@/types/database';
+import { Result } from '@/types/database';
 
 interface SubmissionSummary {
   totalQuestions: number;
@@ -18,11 +18,12 @@ interface SubmissionSummary {
   correctMCQ: number;
   correctCode: number;
   totalScore: number;
+  totalMarks: number;
   percentage: number;
 }
 
 const SummaryPage = () => {
-  const { assessment, assessmentEnded } = useAssessment();
+  const { assessment, assessmentEnded, totalMarksObtained, totalPossibleMarks } = useAssessment();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -41,29 +42,29 @@ const SummaryPage = () => {
       try {
         console.log('Fetching summary for assessment:', assessment.id, 'and user:', user.id);
         
-        // Get the latest submission for this assessment
-        const { data: submissions, error: submissionError } = await supabase
-          .from('submissions')
+        // Get the latest result for this assessment
+        const { data: results, error: resultsError } = await supabase
+          .from('results')
           .select('*')
           .eq('assessment_id', assessment.id)
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(1);
         
-        if (submissionError) {
-          console.error('Error fetching submissions:', submissionError);
-          throw new Error('No submission found');
+        if (resultsError) {
+          console.error('Error fetching results:', resultsError);
+          throw new Error('No results found');
         }
         
-        if (!submissions || submissions.length === 0) {
-          console.error('No submissions found');
-          throw new Error('No submission found');
+        if (!results || results.length === 0) {
+          console.error('No results found');
+          throw new Error('No results found');
         }
         
-        console.log('Found submission:', submissions[0]);
-        const submission = submissions[0];
+        console.log('Found result:', results[0]);
+        const result = results[0];
         
-        // Get questions data to calculate scores
+        // Get questions data
         const { data: questions, error: questionsError } = await supabase
           .from('questions')
           .select('*')
@@ -76,11 +77,26 @@ const SummaryPage = () => {
         
         console.log('Found questions:', questions?.length || 0);
         
-        // Get answers for this submission
+        // Get answers for this assessment
+        const { data: submissions, error: submissionsError } = await supabase
+          .from('submissions')
+          .select('*')
+          .eq('assessment_id', assessment.id)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+          
+        if (submissionsError || !submissions || submissions.length === 0) {
+          console.error('Error fetching submissions:', submissionsError);
+          throw new Error('No submission found');
+        }
+        
+        const latestSubmission = submissions[0];
+        
         const { data: answers, error: answersError } = await supabase
           .from('answers')
           .select('*')
-          .eq('submission_id', submission.id);
+          .eq('submission_id', latestSubmission.id);
         
         if (answersError) {
           console.error('Error fetching answers:', answersError);
@@ -99,60 +115,56 @@ const SummaryPage = () => {
         const correctMCQ = mcqAnswers.filter(a => a.is_correct).length;
         const correctCode = codeAnswers.filter(a => a.is_correct).length;
         
-        const totalMarks = questions?.reduce((sum, q) => sum + (q.marks || 1), 0) || 0;
-        const earnedMarks = answers?.reduce((sum, a) => sum + (a.marks_obtained || 0), 0) || 0;
-        
-        const percentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
-        
-        console.log('Calculated results:', {
-          totalMarks,
-          earnedMarks,
-          percentage
-        });
-        
-        // Store results in the results table
-        const resultData: Result = {
-          user_id: user.id,
-          assessment_id: assessment.id,
-          total_score: earnedMarks,
-          total_marks: totalMarks,
-          percentage,
-          completed_at: submission.completed_at || submission.created_at || new Date().toISOString()
-        };
-        
-        console.log('Inserting result data:', resultData);
-        
-        const { error: resultsError } = await supabase
-          .from('results')
-          .insert(resultData);
-        
-        if (resultsError) {
-          console.error('Error storing results:', resultsError);
-          toast({
-            title: "Warning",
-            description: "Your results were calculated but there was an error saving them.",
-            variant: "destructive"
-          });
-        } else {
-          console.log('Results stored successfully');
-        }
-        
         setSummary({
           totalQuestions: questions?.length || 0,
           attemptedMCQ: mcqAnswers.length,
           attemptedCode: codeAnswers.length,
           correctMCQ,
           correctCode,
-          totalScore: earnedMarks,
-          percentage
+          totalScore: result.total_score,
+          totalMarks: result.total_marks,
+          percentage: result.percentage
         });
+        
+        console.log('Summary data set:', {
+          totalScore: result.total_score,
+          totalMarks: result.total_marks,
+          percentage: result.percentage
+        });
+        
       } catch (error) {
         console.error('Error fetching summary:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load assessment summary",
-          variant: "destructive"
-        });
+        
+        // Fall back to context values if database fetch fails
+        if (assessment) {
+          const mcqCount = assessment.questions.filter(q => q.type === 'mcq').length;
+          const codeCount = assessment.questions.filter(q => q.type === 'code').length;
+          const attemptedMCQ = assessment.questions.filter(q => q.type === 'mcq' && 'selectedOption' in q && q.selectedOption).length;
+          const attemptedCode = assessment.questions.filter(q => q.type === 'code' && 'userSolution' in q && Object.values(q.userSolution).some(sol => sol && sol.trim() !== '')).length;
+          
+          setSummary({
+            totalQuestions: assessment.questions.length,
+            attemptedMCQ,
+            attemptedCode,
+            correctMCQ: 0, // We don't know this without database
+            correctCode: 0, // We don't know this without database
+            totalScore: totalMarksObtained,
+            totalMarks: totalPossibleMarks,
+            percentage: totalPossibleMarks > 0 ? Math.round((totalMarksObtained / totalPossibleMarks) * 100) : 0
+          });
+          
+          toast({
+            title: "Warning",
+            description: "Could not load complete results from database, showing partial data.",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to load assessment summary",
+            variant: "destructive"
+          });
+        }
       } finally {
         setLoading(false);
       }
@@ -160,13 +172,13 @@ const SummaryPage = () => {
     
     fetchSummary();
     
-    // Auto-redirect to the detailed report page after 3 seconds
+    // Auto-redirect to the detailed report page after 5 seconds
     const timer = setTimeout(() => {
       navigate('/report');
-    }, 3000);
+    }, 5000);
     
     return () => clearTimeout(timer);
-  }, [assessment, assessmentEnded, navigate, user, toast]);
+  }, [assessment, assessmentEnded, navigate, user, toast, totalMarksObtained, totalPossibleMarks]);
   
   if (loading || !assessment || !summary) {
     return (
@@ -228,8 +240,8 @@ const SummaryPage = () => {
                   <p className="text-xs text-gray-500">Score</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-md text-center">
-                  <p className="text-2xl font-bold">{summary.totalQuestions}</p>
-                  <p className="text-xs text-gray-500">Total Questions</p>
+                  <p className="text-2xl font-bold">{summary.totalScore}/{summary.totalMarks}</p>
+                  <p className="text-xs text-gray-500">Marks</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-md text-center">
                   <p className="text-2xl font-bold">{summary.attemptedMCQ}</p>

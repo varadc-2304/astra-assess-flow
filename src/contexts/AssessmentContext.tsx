@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
 
 // Define types
 export type QuestionOption = {
@@ -37,8 +38,11 @@ export type CodeQuestion = {
   testCases: Array<{
     input: string;
     output: string;
+    marks?: number;
+    is_hidden?: boolean;
   }>;
   marks?: number;
+  marksObtained?: number;
 };
 
 export type Question = MCQQuestion | CodeQuestion;
@@ -66,14 +70,17 @@ interface AssessmentContextType {
   timeRemaining: number;
   loading: boolean;
   error: string | null;
+  totalMarksObtained: number;
+  totalPossibleMarks: number;
   
   setAssessmentCode: (code: string) => void;
   loadAssessment: (code: string) => Promise<boolean>;
   startAssessment: () => void;
-  endAssessment: () => Promise<void>;
+  endAssessment: () => Promise<boolean>;
   setCurrentQuestionIndex: (index: number) => void;
   answerMCQ: (questionId: string, optionId: string) => void;
   updateCodeSolution: (questionId: string, language: string, code: string) => void;
+  updateMarksObtained: (questionId: string, marks: number) => void;
   addFullscreenWarning: () => void;
   setTimeRemaining: (seconds: number) => void;
 }
@@ -90,7 +97,10 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [totalMarksObtained, setTotalMarksObtained] = useState<number>(0);
+  const [totalPossibleMarks, setTotalPossibleMarks] = useState<number>(0);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const loadAssessment = async (code: string): Promise<boolean> => {
     setLoading(true);
@@ -278,16 +288,128 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
 
   const startAssessment = () => {
     setAssessmentStarted(true);
+    
+    // Calculate total possible marks
+    if (assessment) {
+      let totalMarks = 0;
+      assessment.questions.forEach(q => {
+        if (q.marks) {
+          totalMarks += q.marks;
+        } else {
+          totalMarks += 1; // Default mark if not specified
+        }
+      });
+      setTotalPossibleMarks(totalMarks);
+    }
   };
 
-  const endAssessment = async (): Promise<void> => {
+  const endAssessment = async (): Promise<boolean> => {
     try {
-      if (assessment && !assessmentEnded) {
+      if (assessment && !assessmentEnded && user) {
         setAssessmentEnded(true);
         setAssessmentStarted(false);
         
         console.log('Assessment ended successfully');
+        console.log(`Total marks obtained: ${totalMarksObtained}/${totalPossibleMarks}`);
+        
+        // Find the latest submission for this assessment
+        const { data: submissions, error: submissionError } = await supabase
+          .from('submissions')
+          .select('*')
+          .eq('assessment_id', assessment.id)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+          
+        if (submissionError) {
+          console.error('Error finding submission:', submissionError);
+          toast({
+            title: "Error",
+            description: "There was an error finding your submission.",
+            variant: "destructive",
+          });
+          return false;
+        }
+        
+        if (!submissions || submissions.length === 0) {
+          // Create a new submission
+          const { data: newSubmission, error: newSubmissionError } = await supabase
+            .from('submissions')
+            .insert({
+              assessment_id: assessment.id,
+              user_id: user.id,
+              started_at: new Date().toISOString(),
+              completed_at: new Date().toISOString(),
+              fullscreen_violations: fullscreenWarnings
+            })
+            .select()
+            .single();
+            
+          if (newSubmissionError) {
+            console.error('Error creating submission:', newSubmissionError);
+            toast({
+              title: "Error",
+              description: "There was an error creating your submission.",
+              variant: "destructive",
+            });
+            return false;
+          }
+        } else {
+          // Update existing submission
+          const { error: updateError } = await supabase
+            .from('submissions')
+            .update({ 
+              completed_at: new Date().toISOString(),
+              fullscreen_violations: fullscreenWarnings
+            })
+            .eq('id', submissions[0].id);
+            
+          if (updateError) {
+            console.error('Error updating submission:', updateError);
+            toast({
+              title: "Error",
+              description: "There was an error updating your submission.",
+              variant: "destructive",
+            });
+            return false;
+          }
+        }
+        
+        // Calculate percentage
+        const percentage = totalPossibleMarks > 0
+          ? Math.round((totalMarksObtained / totalPossibleMarks) * 100)
+          : 0;
+        
+        // Store results
+        const { error: resultError } = await supabase
+          .from('results')
+          .insert({
+            user_id: user.id,
+            assessment_id: assessment.id,
+            total_score: totalMarksObtained,
+            total_marks: totalPossibleMarks,
+            percentage: percentage,
+            completed_at: new Date().toISOString()
+          });
+          
+        if (resultError) {
+          console.error('Error storing results:', resultError);
+          toast({
+            title: "Warning",
+            description: "There was an error saving your results.",
+            variant: "destructive",
+          });
+          return false;
+        }
+        
+        toast({
+          title: "Assessment Completed",
+          description: `Your results have been saved. You scored ${totalMarksObtained}/${totalPossibleMarks} (${percentage}%).`,
+        });
+        
+        return true;
       }
+      return false;
     } catch (error) {
       console.error('Error ending assessment:', error);
       toast({
@@ -295,6 +417,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         description: "There was an error finalizing your assessment. Your answers may not have been saved.",
         variant: "destructive",
       });
+      return false;
     }
   };
 
@@ -313,6 +436,36 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return q;
       })
     });
+    
+    // Update marks obtained for MCQs
+    const updatedAssessment = {
+      ...assessment,
+      questions: assessment.questions.map(q => {
+        if (q.id === questionId && q.type === 'mcq') {
+          return {
+            ...q,
+            selectedOption: optionId
+          };
+        }
+        return q;
+      })
+    };
+    
+    // Calculate total marks for MCQs
+    let newTotalMarksObtained = 0;
+    
+    updatedAssessment.questions.forEach(q => {
+      if (q.type === 'mcq' && q.selectedOption) {
+        const option = q.options.find(opt => opt.id === q.selectedOption);
+        if (option?.isCorrect) {
+          newTotalMarksObtained += q.marks || 1;
+        }
+      } else if (q.type === 'code' && q.marksObtained) {
+        newTotalMarksObtained += q.marksObtained;
+      }
+    });
+    
+    setTotalMarksObtained(newTotalMarksObtained);
   };
 
   const updateCodeSolution = (questionId: string, language: string, code: string) => {
@@ -333,6 +486,45 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return q;
       })
     });
+  };
+
+  const updateMarksObtained = (questionId: string, marks: number) => {
+    if (!assessment) return;
+    
+    setAssessment({
+      ...assessment,
+      questions: assessment.questions.map(q => {
+        if (q.id === questionId) {
+          if (q.type === 'code') {
+            return {
+              ...q,
+              marksObtained: marks
+            };
+          }
+        }
+        return q;
+      })
+    });
+    
+    // Recalculate total marks obtained
+    let newTotalMarksObtained = 0;
+    
+    assessment.questions.forEach(q => {
+      if (q.type === 'mcq' && q.selectedOption) {
+        const option = q.options.find(opt => opt.id === q.selectedOption);
+        if (option?.isCorrect) {
+          newTotalMarksObtained += q.marks || 1;
+        }
+      } else if (q.type === 'code') {
+        if (q.id === questionId) {
+          newTotalMarksObtained += marks;
+        } else if (q.marksObtained) {
+          newTotalMarksObtained += q.marksObtained;
+        }
+      }
+    });
+    
+    setTotalMarksObtained(newTotalMarksObtained);
   };
 
   const addFullscreenWarning = () => {
@@ -359,6 +551,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         timeRemaining,
         loading,
         error,
+        totalMarksObtained,
+        totalPossibleMarks,
         
         setAssessmentCode,
         loadAssessment,
@@ -367,6 +561,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         setCurrentQuestionIndex,
         answerMCQ,
         updateCodeSolution,
+        updateMarksObtained,
         addFullscreenWarning,
         setTimeRemaining
       }}
