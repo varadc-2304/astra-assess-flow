@@ -51,6 +51,14 @@ export interface SubmissionResult {
   };
 }
 
+// Interface for test result that will be stored in the database
+export interface TestResult {
+  passed: boolean;
+  actualOutput?: string;
+  expectedOutput?: string;
+  errorMessage?: string;
+}
+
 // Create a new submission
 export const createSubmission = async (code: string, language: string, input: string): Promise<string> => {
   try {

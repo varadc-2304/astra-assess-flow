@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,11 @@ import { formatDateTime } from '@/lib/utils';
 import { Download, ChevronLeft, FileText, Code, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
+interface TestResult {
+  passed: boolean;
+  actualOutput?: string;
+}
+
 interface AnswerResult {
   questionId: string;
   isCorrect: boolean;
@@ -18,10 +22,7 @@ interface AnswerResult {
   codeSolution?: string;
   language?: string;
   marksObtained: number;
-  testResults?: Array<{
-    passed: boolean;
-    actualOutput?: string;
-  }>;
+  testResults?: TestResult[];
 }
 
 interface ReportData {
@@ -53,7 +54,6 @@ const ReportPage = () => {
       if (!assessment || !user) return;
       
       try {
-        // Get the latest submission for this assessment
         const { data: submissions, error: submissionError } = await supabase
           .from('submissions')
           .select('*')
@@ -68,7 +68,6 @@ const ReportPage = () => {
         
         const submission = submissions[0];
         
-        // Get answers for this submission
         const { data: answers, error: answersError } = await supabase
           .from('answers')
           .select('*')
@@ -78,7 +77,6 @@ const ReportPage = () => {
           throw new Error('Failed to load answers');
         }
         
-        // Get questions data
         const { data: questions, error: questionsError } = await supabase
           .from('questions')
           .select('*')
@@ -89,7 +87,6 @@ const ReportPage = () => {
           throw new Error('Failed to load questions');
         }
         
-        // Get MCQ options
         const { data: mcqOptions, error: mcqOptionsError } = await supabase
           .from('mcq_options')
           .select('*')
@@ -99,7 +96,6 @@ const ReportPage = () => {
           throw new Error('Failed to load MCQ options');
         }
         
-        // Process MCQ questions with their options
         const mcqQuestions = questions
           .filter(q => q.type === 'mcq')
           .map(q => ({
@@ -108,7 +104,6 @@ const ReportPage = () => {
             answer: answers.find(a => a.question_id === q.id)
           }));
         
-        // Get coding question details
         const { data: codingDetails, error: codingError } = await supabase
           .from('coding_questions')
           .select('*')
@@ -118,7 +113,6 @@ const ReportPage = () => {
           throw new Error('Failed to load coding details');
         }
         
-        // Get coding examples
         const { data: codingExamples, error: examplesError } = await supabase
           .from('coding_examples')
           .select('*')
@@ -128,7 +122,6 @@ const ReportPage = () => {
           throw new Error('Failed to load coding examples');
         }
         
-        // Process code questions
         const codeQuestions = questions
           .filter(q => q.type === 'code')
           .map(q => {
@@ -143,21 +136,25 @@ const ReportPage = () => {
             };
           });
         
-        // Calculate report statistics
         const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 1), 0);
         const earnedMarks = answers.reduce((sum, a) => sum + (a.marks_obtained || 0), 0);
         const percentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
         
-        // Format answers for the report
-        const formattedAnswers: AnswerResult[] = answers.map(answer => ({
-          questionId: answer.question_id,
-          isCorrect: answer.is_correct || false,
-          mcqOptionId: answer.mcq_option_id,
-          codeSolution: answer.code_solution,
-          language: answer.language,
-          marksObtained: answer.marks_obtained || 0,
-          testResults: answer.test_results
-        }));
+        const formattedAnswers: AnswerResult[] = answers.map(answer => {
+          const answerData = answer as any;
+          return {
+            questionId: answer.question_id,
+            isCorrect: answer.is_correct || false,
+            mcqOptionId: answer.mcq_option_id,
+            codeSolution: answer.code_solution,
+            language: answer.language,
+            marksObtained: answer.marks_obtained || 0,
+            testResults: answerData.test_results ? 
+              (typeof answerData.test_results === 'string' ? 
+                JSON.parse(answerData.test_results) : answerData.test_results) : 
+              undefined
+          };
+        });
         
         setReportData({
           submissionId: submission.id,

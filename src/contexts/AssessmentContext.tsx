@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -93,13 +92,11 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Load assessment data based on code
   const loadAssessment = async (code: string) => {
     setLoading(true);
     setError(null);
     
     try {
-      // Fetch assessment data from Supabase
       const { data: assessmentData, error: assessmentError } = await supabase
         .from('assessments')
         .select('*')
@@ -110,7 +107,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('Invalid assessment code or assessment not found');
       }
       
-      // Fetch questions for this assessment
       const { data: questionsData, error: questionsError } = await supabase
         .from('questions')
         .select('*')
@@ -123,10 +119,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       
       const questions: Question[] = [];
       
-      // Process each question based on type
       for (const questionData of questionsData) {
         if (questionData.type === 'mcq') {
-          // Fetch options for MCQ
           const { data: optionsData, error: optionsError } = await supabase
             .from('mcq_options')
             .select('*')
@@ -154,7 +148,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           
           questions.push(mcqQuestion);
         } else if (questionData.type === 'code') {
-          // Fetch coding question details
           const { data: codeData, error: codeError } = await supabase
             .from('coding_questions')
             .select('*')
@@ -166,7 +159,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
           
-          // Fetch examples
           const { data: examplesData, error: examplesError } = await supabase
             .from('coding_examples')
             .select('*')
@@ -178,7 +170,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
           
-          // Fetch test cases
           const { data: testCasesData, error: testCasesError } = await supabase
             .from('test_cases')
             .select('*')
@@ -202,7 +193,12 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
               explanation: example.explanation
             })),
             constraints: codeData.constraints || [],
-            solutionTemplate: codeData.solution_template || {},
+            solutionTemplate: codeData.solution_template ? 
+              Object.fromEntries(
+                Object.entries(codeData.solution_template as Record<string, any>)
+                  .map(([key, value]) => [key, String(value)])
+              ) : 
+              {},
             userSolution: {},
             testCases: testCasesData.map(testCase => ({
               input: testCase.input,
@@ -215,7 +211,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      // Create assessment object
       const loadedAssessment: Assessment = {
         id: assessmentData.id,
         code: assessmentData.code,
@@ -231,7 +226,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       
       setAssessment(loadedAssessment);
       
-      // Set initial time remaining
       setTimeRemaining(loadedAssessment.durationMinutes * 60);
       
     } catch (error) {
@@ -254,10 +248,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   const endAssessment = async () => {
     try {
       if (assessment && !assessmentEnded) {
-        // Save any final state to the database here
-        // For example, recording that the assessment was completed
-        // and storing the final answers
-        
         setAssessmentEnded(true);
         setAssessmentStarted(false);
       }
@@ -312,12 +302,9 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     setFullscreenWarnings(prev => prev + 1);
   };
   
-  // Clean up when component unmounts
   useEffect(() => {
     return () => {
-      // If assessment is still ongoing, save progress
       if (assessment && assessmentStarted && !assessmentEnded) {
-        // Implement saving progress to database here
         console.log('Saving assessment progress on unmount');
       }
     };
