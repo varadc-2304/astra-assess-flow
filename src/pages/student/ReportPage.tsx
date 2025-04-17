@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -30,12 +29,13 @@ interface AnswerFromDB {
   is_correct: boolean | null;
   marks_obtained: number | null;
   created_at: string;
-  test_results?: string | any[];
+  test_results?: any;
 }
 
 interface TestResult {
   passed: boolean;
   actualOutput?: string;
+  [key: string]: any;
 }
 
 interface AnswerResult {
@@ -98,7 +98,6 @@ const ReportPage = () => {
         
         const submission = submissions[0];
         
-        // Get results data
         const { data: resultsData, error: resultsError } = await supabase
           .from('results')
           .select('*')
@@ -110,7 +109,6 @@ const ReportPage = () => {
           console.error('Error fetching results:', resultsError);
         }
         
-        // Get answers data
         const { data: answersData, error: answersError } = await supabase
           .from('answers')
           .select('*')
@@ -125,7 +123,6 @@ const ReportPage = () => {
           throw new Error('Failed to load answers');
         }
         
-        // Get questions data
         const { data: questions, error: questionsError } = await supabase
           .from('questions')
           .select('*')
@@ -141,7 +138,6 @@ const ReportPage = () => {
           throw new Error('Failed to load questions');
         }
         
-        // Get MCQ options
         const { data: mcqOptions, error: mcqOptionsError } = await supabase
           .from('mcq_options')
           .select('*')
@@ -156,16 +152,14 @@ const ReportPage = () => {
           throw new Error('Failed to load MCQ options');
         }
         
-        // Process MCQ questions
         const mcqQuestions = questions
           .filter(q => q.type === 'mcq')
           .map(q => ({
             ...q,
             options: mcqOptions.filter(o => o.question_id === q.id).sort((a, b) => a.order_index - b.order_index),
-            answer: answersData.find((a: AnswerFromDB) => a.question_id === q.id)
+            answer: answersData.find((a: any) => a.question_id === q.id)
           }));
         
-        // Get coding question details
         const { data: codingDetails, error: codingError } = await supabase
           .from('coding_questions')
           .select('*')
@@ -180,7 +174,6 @@ const ReportPage = () => {
           throw new Error('Failed to load coding details');
         }
         
-        // Get coding examples
         const { data: codingExamples, error: examplesError } = await supabase
           .from('coding_examples')
           .select('*')
@@ -195,7 +188,6 @@ const ReportPage = () => {
           throw new Error('Failed to load coding examples');
         }
         
-        // Process coding questions
         const codeQuestions = questions
           .filter(q => q.type === 'code')
           .map(q => {
@@ -211,15 +203,14 @@ const ReportPage = () => {
           });
         
         const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 1), 0);
-        const earnedMarks = answersData.reduce((sum, a: AnswerFromDB) => sum + (a.marks_obtained || 0), 0);
+        const earnedMarks = answersData.reduce((sum, a: any) => sum + (a.marks_obtained || 0), 0);
         const percentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
         
         const mcqSolved = mcqQuestions.filter(q => q.answer && q.answer.mcq_option_id).length;
         const codeSolved = codeQuestions.filter(q => q.answer && q.answer.code_solution).length;
         const totalQuestionsSolved = mcqSolved + codeSolved;
         
-        // Format answers for display
-        const formattedAnswers: AnswerResult[] = answersData.map((answer: AnswerFromDB) => {
+        const formattedAnswers: AnswerResult[] = answersData.map((answer: any) => {
           let testResults: TestResult[] | undefined = undefined;
           
           if (answer.test_results) {
@@ -243,7 +234,6 @@ const ReportPage = () => {
           };
         });
         
-        // Set report data
         setReportData({
           submissionId: submission.id,
           completedAt: resultsData?.completed_at || submission.completed_at || submission.created_at,

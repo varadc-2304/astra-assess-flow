@@ -214,7 +214,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
 
           // Store answer details
           const { error: answerError } = await supabase
-            .from('answers') // Using the new answers table
+            .from('answers')
             .insert({
               submission_id: submissionData.id,
               question_id: question.id,
@@ -222,7 +222,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
               language: selectedLanguage,
               is_correct: allPassed,
               marks_obtained: allPassed ? question.marks || 1 : 0,
-              test_results: finalResults
+              test_results: finalResults as Json
             });
 
           if (answerError) throw answerError;

@@ -26,3 +26,18 @@ interface ResultDB {
   created_at: string;
 }
 
+// Adding Json type to match Supabase's Json type
+type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
+// Interface for TestResult that matches what we use in the application
+interface TestResult {
+  passed: boolean;
+  actualOutput?: string;
+  [key: string]: any; // Allow additional properties
+}
