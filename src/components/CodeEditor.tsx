@@ -198,13 +198,15 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
       // Store results if user is logged in
       if (user) {
         try {
-          // Create a submission record with only the required fields
-          const submissionData: Partial<Submission> = {
+          // Create a submission record with the required fields
+          const submissionData: Submission = {
             assessment_id: question.assessmentId || '',
             user_id: user.id,
             started_at: new Date().toISOString(),
             completed_at: new Date().toISOString()
           };
+
+          console.log('Creating submission with data:', submissionData);
 
           const { data: submissionResult, error: submissionError } = await supabase
             .from('submissions')
@@ -221,8 +223,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
             throw new Error('No submission result returned');
           }
 
-          // Store answer details with only the required fields
-          const answerData: Partial<Answer> = {
+          console.log('Submission created:', submissionResult);
+
+          // Store answer details with the required fields
+          const answerData: Answer = {
             submission_id: submissionResult.id,
             question_id: question.id,
             code_solution: currentCode,
@@ -231,6 +235,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
             marks_obtained: allPassed ? question.marks || 1 : 0,
             test_results: finalResults
           };
+
+          console.log('Creating answer with data:', answerData);
 
           const { error: answerError } = await supabase
             .from('answers')

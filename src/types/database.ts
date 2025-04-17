@@ -40,21 +40,23 @@ export interface CodingQuestion {
   created_at: string | null;
 }
 
+// Make sure required fields match Supabase schema
 export interface Submission {
   id?: string;
   user_id: string;
-  assessment_id: string;
+  assessment_id: string; // Required field
   started_at: string;
-  completed_at: string | null;
+  completed_at?: string | null;
   is_terminated?: boolean | null;
   fullscreen_violations?: number | null;
   created_at?: string | null;
 }
 
+// Make sure required fields match Supabase schema
 export interface Answer {
   id?: string;
-  submission_id: string;
-  question_id: string;
+  submission_id: string; // Required field
+  question_id: string; // Required field
   mcq_option_id?: string | null;
   code_solution?: string | null;
   language?: string | null;
@@ -64,14 +66,14 @@ export interface Answer {
   created_at?: string | null;
 }
 
-// Add interface for the Results table
+// Make sure required fields match Supabase schema
 export interface Result {
   id?: string;
-  user_id: string;
-  assessment_id: string;
+  user_id: string; // Required field
+  assessment_id: string; // Required field
   total_score: number;
   total_marks: number;
   percentage: number;
-  completed_at: string;
+  completed_at: string; // Required field
   created_at?: string | null;
 }

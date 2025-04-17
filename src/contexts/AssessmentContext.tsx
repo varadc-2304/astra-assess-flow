@@ -97,11 +97,9 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     
     try {
-      // Normalize the input code by trimming whitespace and converting to uppercase
       const normalizedCode = code.trim().toUpperCase();
       console.log('Fetching assessment with normalized code:', normalizedCode);
       
-      // Fetch assessment data with detailed logging
       const { data: assessmentsData, error: assessmentError } = await supabase
         .from('assessments')
         .select('*')
@@ -122,7 +120,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       const assessmentData = assessmentsData[0];
       console.log('Selected assessment data:', assessmentData);
       
-      // Fetch questions for this assessment
       const { data: questionsData, error: questionsError } = await supabase
         .from('questions')
         .select('*')
@@ -142,10 +139,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       
       const questions: Question[] = [];
       
-      // Process each question
       for (const questionData of questionsData || []) {
         if (questionData.type === 'mcq') {
-          // Fetch MCQ options
           const { data: optionsData, error: optionsError } = await supabase
             .from('mcq_options')
             .select('*')
@@ -175,7 +170,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           
           questions.push(mcqQuestion);
         } else if (questionData.type === 'code') {
-          // Fetch coding question details
           const { data: codeData, error: codeError } = await supabase
             .from('coding_questions')
             .select('*')
@@ -187,7 +181,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
           
-          // Fetch examples
           const { data: examplesData, error: examplesError } = await supabase
             .from('coding_examples')
             .select('*')
@@ -201,7 +194,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           
           console.log(`Found ${examplesData?.length || 0} examples for coding question ID:`, questionData.id);
           
-          // Fetch test cases
           const { data: testCasesData, error: testCasesError } = await supabase
             .from('test_cases')
             .select('*')
@@ -212,8 +204,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             console.error('Failed to load test cases for question', questionData.id, testCasesError);
             continue;
           }
-          
-          console.log(`Found ${testCasesData?.length || 0} test cases for coding question ID:`, questionData.id);
           
           const solutionTemplate = codeData?.solution_template ? 
             Object.fromEntries(
@@ -271,8 +261,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         description: `Assessment "${loadedAssessment.name}" loaded successfully`,
       });
       
-      return true; // Successfully loaded assessment
-      
+      return true;
     } catch (error) {
       console.error('Error loading assessment:', error);
       setError(error instanceof Error ? error.message : 'Failed to load assessment');
@@ -281,7 +270,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         description: error instanceof Error ? error.message : 'Failed to load assessment',
         variant: "destructive",
       });
-      return false; // Failed to load assessment
+      return false;
     } finally {
       setLoading(false);
     }
@@ -291,16 +280,14 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     setAssessmentStarted(true);
   };
 
-  const endAssessment = async () => {
+  const endAssessment = async (): Promise<void> => {
     try {
       if (assessment && !assessmentEnded) {
         setAssessmentEnded(true);
         setAssessmentStarted(false);
         
         console.log('Assessment ended successfully');
-        return true;
       }
-      return false;
     } catch (error) {
       console.error('Error ending assessment:', error);
       toast({
@@ -308,7 +295,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         description: "There was an error finalizing your assessment. Your answers may not have been saved.",
         variant: "destructive",
       });
-      return false;
     }
   };
 

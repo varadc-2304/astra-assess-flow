@@ -111,7 +111,7 @@ const SummaryPage = () => {
         });
         
         // Store results in the results table
-        const resultData: Partial<Result> = {
+        const resultData: Result = {
           user_id: user.id,
           assessment_id: assessment.id,
           total_score: earnedMarks,
@@ -119,6 +119,8 @@ const SummaryPage = () => {
           percentage,
           completed_at: submission.completed_at || submission.created_at || new Date().toISOString()
         };
+        
+        console.log('Inserting result data:', resultData);
         
         const { error: resultsError } = await supabase
           .from('results')
