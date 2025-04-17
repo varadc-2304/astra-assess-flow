@@ -63,4 +63,3 @@ export interface Answer {
   test_results?: any;
   created_at?: string | null;
 }
-

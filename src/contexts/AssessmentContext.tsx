@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -97,8 +98,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     
     try {
-      // Normalize the input code by trimming whitespace and converting to lowercase
-      const normalizedCode = code.trim().toLowerCase();
+      // Normalize the input code by trimming whitespace and converting to uppercase
+      const normalizedCode = code.trim().toUpperCase();
       console.log('Fetching assessment with normalized code:', normalizedCode);
       
       // Fetch assessment data with detailed logging
@@ -109,14 +110,14 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         
       if (assessmentError) {
         console.error('Error fetching assessment:', assessmentError);
-        throw new Error('Error fetching assessment data');
+        throw new Error(`Error fetching assessment data: ${assessmentError.message}`);
       }
       
       console.log('Assessment query response:', assessmentsData);
       
       if (!assessmentsData || assessmentsData.length === 0) {
         console.error(`No assessment found with code: ${normalizedCode}`);
-        throw new Error('Invalid assessment code or assessment not found');
+        throw new Error(`Invalid assessment code or assessment not found: ${normalizedCode}`);
       }
       
       const assessmentData = assessmentsData[0];
@@ -131,15 +132,15 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         
       if (questionsError) {
         console.error('Failed to load questions:', questionsError);
-        throw new Error('Failed to load questions');
+        throw new Error(`Failed to load questions: ${questionsError.message}`);
       }
       
-      console.log(`Found ${questionsData.length} questions for assessment ID:`, assessmentData.id);
+      console.log(`Found ${questionsData?.length || 0} questions for assessment ID:`, assessmentData.id);
       
       const questions: Question[] = [];
       
       // Process each question
-      for (const questionData of questionsData) {
+      for (const questionData of questionsData || []) {
         if (questionData.type === 'mcq') {
           // Fetch MCQ options
           const { data: optionsData, error: optionsError } = await supabase
@@ -153,7 +154,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
           
-          console.log(`Found ${optionsData.length} options for MCQ question ID:`, questionData.id);
+          console.log(`Found ${optionsData?.length || 0} options for MCQ question ID:`, questionData.id);
           
           const mcqQuestion: MCQQuestion = {
             id: questionData.id,
@@ -161,11 +162,11 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             title: questionData.title,
             description: questionData.description,
             imageUrl: questionData.image_url,
-            options: optionsData.map(option => ({
+            options: optionsData?.map(option => ({
               id: option.id,
               text: option.text,
               isCorrect: option.is_correct
-            })),
+            })) || [],
             marks: questionData.marks
           };
           
@@ -195,7 +196,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
           
-          console.log(`Found ${examplesData.length} examples for coding question ID:`, questionData.id);
+          console.log(`Found ${examplesData?.length || 0} examples for coding question ID:`, questionData.id);
           
           // Fetch test cases
           const { data: testCasesData, error: testCasesError } = await supabase
@@ -209,9 +210,9 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
           
-          console.log(`Found ${testCasesData.length} test cases for coding question ID:`, questionData.id);
+          console.log(`Found ${testCasesData?.length || 0} test cases for coding question ID:`, questionData.id);
           
-          const solutionTemplate = codeData.solution_template ? 
+          const solutionTemplate = codeData?.solution_template ? 
             Object.fromEntries(
               Object.entries(codeData.solution_template as Record<string, any>)
                 .map(([key, value]) => [key, String(value)])
@@ -224,18 +225,18 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             type: 'code',
             title: questionData.title,
             description: questionData.description,
-            examples: examplesData.map(example => ({
+            examples: examplesData?.map(example => ({
               input: example.input,
               output: example.output,
               explanation: example.explanation
-            })),
-            constraints: codeData.constraints || [],
+            })) || [],
+            constraints: codeData?.constraints || [],
             solutionTemplate: solutionTemplate,
             userSolution: {},
-            testCases: testCasesData.map(testCase => ({
+            testCases: testCasesData?.map(testCase => ({
               input: testCase.input,
               output: testCase.output
-            })),
+            })) || [],
             marks: questionData.marks
           };
           
@@ -261,6 +262,12 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       console.log('Setting assessment:', loadedAssessment);
       setAssessment(loadedAssessment);
       setTimeRemaining(loadedAssessment.durationMinutes * 60);
+      
+      toast({
+        title: "Success",
+        description: `Assessment "${loadedAssessment.name}" loaded successfully`,
+      });
+      
       return true; // Successfully loaded assessment
       
     } catch (error) {
