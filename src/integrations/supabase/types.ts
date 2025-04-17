@@ -80,6 +80,7 @@ export type Database = {
           id: string
           instructions: string | null
           name: string
+          reattempt: boolean
           start_time: string
         }
         Insert: {
@@ -91,6 +92,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           name: string
+          reattempt?: boolean
           start_time: string
         }
         Update: {
@@ -102,6 +104,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           name?: string
+          reattempt?: boolean
           start_time?: string
         }
         Relationships: []
@@ -383,10 +386,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      calculate_coding_question_marks: {
-        Args: { p_question_id: string }
-        Returns: number
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never

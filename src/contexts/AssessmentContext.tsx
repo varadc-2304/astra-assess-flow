@@ -1,8 +1,8 @@
-
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 // Define types
 export type QuestionOption = {
@@ -84,6 +84,7 @@ interface AssessmentContextType {
   updateMarksObtained: (questionId: string, marks: number) => void;
   addFullscreenWarning: () => void;
   setTimeRemaining: (seconds: number) => void;
+  checkReattemptAvailability: (assessmentId: string) => Promise<boolean>;
 }
 
 const AssessmentContext = createContext<AssessmentContextType | undefined>(undefined);
@@ -102,6 +103,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   const [totalPossibleMarks, setTotalPossibleMarks] = useState<number>(0);
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const loadAssessment = async (code: string): Promise<boolean> => {
     setLoading(true);
@@ -532,6 +534,48 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     setFullscreenWarnings(prev => prev + 1);
   };
   
+  const checkReattemptAvailability = async (assessmentId: string) => {
+    try {
+      const { data: existingResults, error: resultsError } = await supabase
+        .from('results')
+        .select('*')
+        .eq('assessment_id', assessmentId)
+        .eq('user_id', user?.id);
+
+      if (resultsError) {
+        console.error('Error checking previous attempts:', resultsError);
+        return false;
+      }
+
+      const { data: assessmentData, error: assessmentError } = await supabase
+        .from('assessments')
+        .select('reattempt')
+        .eq('id', assessmentId)
+        .single();
+
+      if (assessmentError || !assessmentData) {
+        console.error('Error fetching assessment data:', assessmentError);
+        return false;
+      }
+
+      // If reattempt is false and user has previous results, block reattempt
+      if (!assessmentData.reattempt && existingResults.length > 0) {
+        toast({
+          title: "Reattempt Not Allowed",
+          description: "You are not allowed to reattempt this assessment.",
+          variant: "destructive"
+        });
+        navigate('/student');
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error in checkReattemptAvailability:', error);
+      return false;
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (assessment && assessmentStarted && !assessmentEnded) {
@@ -564,7 +608,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         updateCodeSolution,
         updateMarksObtained,
         addFullscreenWarning,
-        setTimeRemaining
+        setTimeRemaining,
+        checkReattemptAvailability
       }}
     >
       {children}

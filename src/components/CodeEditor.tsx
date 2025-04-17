@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -249,7 +248,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     setTestResults([]);
     
     try {
-      // Fetch test cases with marks information
+      // Fetch ALL test cases (visible and hidden)
       const testCases = await fetchTestCases(question.id);
       console.log('Fetched test cases:', testCases);
       
