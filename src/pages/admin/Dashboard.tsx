@@ -14,6 +14,7 @@ const AdminDashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [stats, setStats] = useState({
     activeAssessments: 0,
     students: 0,
@@ -46,9 +47,17 @@ const AdminDashboard = () => {
           return now > endTime;
         }).length || 0;
         
-        // For student count, we would typically query a students or users table
-        // Since we don't have direct access to auth.users table, we'll set this to 0
-        const students = 0;
+        // For student count, fetch from results table to get unique users
+        const { data: results, error: resultsError } = await supabase
+          .from('results')
+          .select('user_id');
+          
+        if (resultsError) throw resultsError;
+        
+        // Count unique user IDs
+        const uniqueUserIds = new Set();
+        results?.forEach(result => uniqueUserIds.add(result.user_id));
+        const students = uniqueUserIds.size;
         
         setStats({
           activeAssessments,
@@ -89,13 +98,12 @@ const AdminDashboard = () => {
               <TabsList>
                 <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
                 <TabsTrigger value="assessments">Assessments</TabsTrigger>
-                <TabsTrigger value="create">Create New</TabsTrigger>
                 <TabsTrigger value="results" onClick={() => navigate('/admin/results')}>Results</TabsTrigger>
               </TabsList>
               
-              {activeTab === 'assessments' && (
+              {activeTab === 'assessments' && !showCreateForm && (
                 <Button 
-                  onClick={() => setActiveTab('create')}
+                  onClick={() => setShowCreateForm(true)}
                   className="bg-astra-red hover:bg-red-600 text-white"
                 >
                   <PlusCircle className="h-4 w-4 mr-2" /> Create Assessment
@@ -124,7 +132,7 @@ const AdminDashboard = () => {
                   </CardHeader>
                   <CardContent>
                     <p className="text-3xl font-bold">{stats.students}</p>
-                    <p className="text-xs text-gray-500">Total registered students</p>
+                    <p className="text-xs text-gray-500">Total students who took assessments</p>
                   </CardContent>
                 </Card>
                 
@@ -169,12 +177,25 @@ const AdminDashboard = () => {
 
             {/* Assessments Tab */}
             <TabsContent value="assessments">
-              <AssessmentList />
-            </TabsContent>
-
-            {/* Create New Tab */}
-            <TabsContent value="create">
-              <AssessmentForm />
+              {showCreateForm ? (
+                <div>
+                  <div className="mb-4 flex justify-between items-center">
+                    <h2 className="text-xl font-semibold">Create New Assessment</h2>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowCreateForm(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  <AssessmentForm onComplete={() => {
+                    setShowCreateForm(false);
+                    // Refetch assessments after creating a new one
+                  }} />
+                </div>
+              ) : (
+                <AssessmentList />
+              )}
             </TabsContent>
           </Tabs>
         </div>
