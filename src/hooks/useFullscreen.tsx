@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 import { 
   AlertDialog, 
   AlertDialogContent, 
@@ -9,7 +10,6 @@ import {
   AlertDialogDescription, 
   AlertDialogAction 
 } from '@/components/ui/alert-dialog';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
 export const useFullscreen = () => {
@@ -156,7 +156,7 @@ export const useFullscreen = () => {
 
   // Monitor time spent outside fullscreen
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: NodeJS.Timeout | undefined;
     
     if (fullscreenExitTime !== null) {
       timer = setInterval(() => {
@@ -183,7 +183,7 @@ export const useFullscreen = () => {
     }
     
     return () => {
-      clearInterval(timer);
+      if (timer) clearInterval(timer);
     };
   }, [fullscreenExitTime, endAssessment, toast, navigate]);
 
