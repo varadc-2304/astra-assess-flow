@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,27 @@ import { formatDateTime } from '@/lib/utils';
 import { Download, ChevronLeft, FileText, Code, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+
+interface AnswerFromDB {
+  id: string;
+  question_id: string;
+  submission_id: string;
+  code_solution: string | null;
+  language: string | null;
+  mcq_option_id: string | null;
+  is_correct: boolean | null;
+  marks_obtained: number | null;
+  created_at: string;
+  test_results?: string | any[];
+}
 
 interface TestResult {
   passed: boolean;
@@ -174,22 +194,18 @@ const ReportPage = () => {
         const earnedMarks = answers.reduce((sum, a) => sum + (a.marks_obtained || 0), 0);
         const percentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
         
-        // Calculate attempted questions (count if any answer provided)
         const mcqSolved = mcqQuestions.filter(q => q.answer && q.answer.mcq_option_id).length;
         const codeSolved = codeQuestions.filter(q => q.answer && q.answer.code_solution).length;
         const totalQuestionsSolved = mcqSolved + codeSolved;
         
-        const formattedAnswers: AnswerResult[] = answers.map(answer => {
+        const formattedAnswers: AnswerResult[] = answers.map((answer: AnswerFromDB) => {
           let testResults: TestResult[] | undefined = undefined;
           
-          // Safely parse test results if they exist
           if (answer.test_results) {
             try {
-              // TypeScript doesn't know about test_results, so we use a type assertion here
-              const rawTestResults = (answer as any).test_results;
-              testResults = typeof rawTestResults === 'string' 
-                ? JSON.parse(rawTestResults) 
-                : rawTestResults;
+              testResults = typeof answer.test_results === 'string' 
+                ? JSON.parse(answer.test_results) 
+                : answer.test_results;
             } catch (error) {
               console.error('Error parsing test results:', error);
             }
@@ -226,18 +242,6 @@ const ReportPage = () => {
     
     fetchReportData();
   }, [assessment, assessmentEnded, navigate, user, toast]);
-  
-  if (!assessment || loading || !reportData) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-12 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-astra-red mx-auto mb-4" />
-          <h2 className="text-2xl font-bold">Generating your report...</h2>
-          <p className="text-gray-600 mt-2">Please wait while we prepare your detailed assessment report.</p>
-        </div>
-      </div>
-    );
-  }
   
   const handleDownloadReport = () => {
     if (!reportRef.current) return;
@@ -439,19 +443,22 @@ const ReportPage = () => {
                 <h3 className="text-lg font-medium mb-3">Performance</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-gray-50 p-4 rounded-md text-center">
-                    <p className="text-2xl font-bold text-astra-red">{reportData.percentage}%</p>
+                    <p className="text-2xl font-bold text-astra-red">{reportData?.percentage || 0}%</p>
                     <p className="text-xs text-gray-500">Score</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-md text-center">
-                    <p className="text-2xl font-bold">{reportData.earnedMarks}/{reportData.totalMarks}</p>
+                    <p className="text-2xl font-bold">{reportData?.earnedMarks || 0}/{reportData?.totalMarks || 0}</p>
                     <p className="text-xs text-gray-500">Marks</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-md text-center">
-                    <p className="text-2xl font-bold">{reportData.totalQuestionsSolved}/{reportData.mcqQuestions.length + reportData.codeQuestions.length}</p>
+                    <p className="text-2xl font-bold">
+                      {reportData?.totalQuestionsSolved || 0}/
+                      {reportData ? (reportData.mcqQuestions.length + reportData.codeQuestions.length) : 0}
+                    </p>
                     <p className="text-xs text-gray-500">Questions Solved</p>
                   </div>
                   <div className="bg-gray-50 p-4 rounded-md text-center">
-                    <p className="text-2xl font-bold">{formatDateTime(reportData.completedAt)}</p>
+                    <p className="text-2xl font-bold">{reportData?.completedAt ? formatDateTime(reportData.completedAt) : '-'}</p>
                     <p className="text-xs text-gray-500">Completed</p>
                   </div>
                 </div>
@@ -466,23 +473,23 @@ const ReportPage = () => {
                         <div className="flex justify-between text-sm">
                           <span>Attempted:</span>
                           <span className="font-medium">
-                            {reportData.mcqQuestions.filter(q => q.answer && q.answer.mcq_option_id).length}/
-                            {reportData.mcqQuestions.length}
+                            {reportData?.mcqQuestions.filter(q => q.answer && q.answer.mcq_option_id).length || 0}/
+                            {reportData?.mcqQuestions.length || 0}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span>Correct Answers:</span>
                           <span className="font-medium">
-                            {reportData.mcqQuestions.filter(q => q.answer && q.answer.is_correct).length}/
-                            {reportData.mcqQuestions.length}
+                            {reportData?.mcqQuestions.filter(q => q.answer && q.answer.is_correct).length || 0}/
+                            {reportData?.mcqQuestions.length || 0}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span>Marks Obtained:</span>
                           <span className="font-medium">
-                            {reportData.mcqQuestions.reduce((total, q) => 
-                              total + (q.answer ? (q.answer.marks_obtained || 0) : 0), 0)}/
-                            {reportData.mcqQuestions.reduce((total, q) => total + (q.marks || 1), 0)}
+                            {reportData?.mcqQuestions.reduce((total, q) => 
+                              total + (q.answer ? (q.answer.marks_obtained || 0) : 0), 0) || 0}/
+                            {reportData?.mcqQuestions.reduce((total, q) => total + (q.marks || 1), 0) || 0}
                           </span>
                         </div>
                       </div>
@@ -498,23 +505,23 @@ const ReportPage = () => {
                         <div className="flex justify-between text-sm">
                           <span>Attempted:</span>
                           <span className="font-medium">
-                            {reportData.codeQuestions.filter(q => q.answer && q.answer.code_solution).length}/
-                            {reportData.codeQuestions.length}
+                            {reportData?.codeQuestions.filter(q => q.answer && q.answer.code_solution).length || 0}/
+                            {reportData?.codeQuestions.length || 0}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span>Fully Correct:</span>
                           <span className="font-medium">
-                            {reportData.codeQuestions.filter(q => q.answer && q.answer.is_correct).length}/
-                            {reportData.codeQuestions.length}
+                            {reportData?.codeQuestions.filter(q => q.answer && q.answer.is_correct).length || 0}/
+                            {reportData?.codeQuestions.length || 0}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
                           <span>Marks Obtained:</span>
                           <span className="font-medium">
-                            {reportData.codeQuestions.reduce((total, q) => 
-                              total + (q.answer ? (q.answer.marks_obtained || 0) : 0), 0)}/
-                            {reportData.codeQuestions.reduce((total, q) => total + (q.marks || 1), 0)}
+                            {reportData?.codeQuestions.reduce((total, q) => 
+                              total + (q.answer ? (q.answer.marks_obtained || 0) : 0), 0) || 0}/
+                            {reportData?.codeQuestions.reduce((total, q) => total + (q.marks || 1), 0) || 0}
                           </span>
                         </div>
                       </div>
@@ -529,17 +536,17 @@ const ReportPage = () => {
             <TabsList className="mb-4">
               <TabsTrigger value="mcq" className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                Multiple Choice ({reportData.mcqQuestions.length})
+                Multiple Choice ({reportData?.mcqQuestions.length || 0})
               </TabsTrigger>
               <TabsTrigger value="code" className="flex items-center gap-2">
                 <Code className="h-4 w-4" />
-                Coding Questions ({reportData.codeQuestions.length})
+                Coding Questions ({reportData?.codeQuestions.length || 0})
               </TabsTrigger>
             </TabsList>
             
             <TabsContent value="mcq">
               <div className="space-y-6">
-                {reportData.mcqQuestions.length === 0 ? (
+                {!reportData || reportData.mcqQuestions.length === 0 ? (
                   <p className="text-center text-gray-500 py-12">No multiple choice questions in this assessment</p>
                 ) : (
                   reportData.mcqQuestions.map((question, index) => {
@@ -632,7 +639,7 @@ const ReportPage = () => {
             
             <TabsContent value="code">
               <div className="space-y-6">
-                {reportData.codeQuestions.length === 0 ? (
+                {!reportData || reportData.codeQuestions.length === 0 ? (
                   <p className="text-center text-gray-500 py-12">No coding questions in this assessment</p>
                 ) : (
                   reportData.codeQuestions.map((question, index) => {
@@ -649,7 +656,7 @@ const ReportPage = () => {
                             <div>Question {index + 1}: {question.title}</div>
                             <div className="flex items-center gap-2">
                               {hasSubmission ? (
-                                answer.isCorrect ? (
+                                answer.is_correct ? (
                                   <div className="flex items-center text-green-500">
                                     <CheckCircle className="h-5 w-5 mr-2" />
                                     All Tests Passed
@@ -665,7 +672,7 @@ const ReportPage = () => {
                                 <div className="text-gray-500">Not Attempted</div>
                               )}
                               <div className="bg-gray-200 px-2 py-1 rounded text-xs">
-                                {hasSubmission ? `${answer.marksObtained}/${question.marks || 1}` : `0/${question.marks || 1}`} marks
+                                {hasSubmission ? `${answer.marks_obtained || 0}/${question.marks || 1}` : `0/${question.marks || 1}`} marks
                               </div>
                             </div>
                           </CardTitle>
@@ -703,7 +710,7 @@ const ReportPage = () => {
                                   <h5 className="font-medium">Language: {answer.language}</h5>
                                 </div>
                                 <pre className="bg-gray-100 p-3 rounded-md font-mono text-sm overflow-x-auto whitespace-pre-wrap">
-                                  {answer.codeSolution}
+                                  {answer.code_solution}
                                 </pre>
                               </div>
                               
