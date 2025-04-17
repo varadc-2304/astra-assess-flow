@@ -20,10 +20,10 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({ question, onAnswerSelect }) =
         <h3 className="text-lg font-medium">{question.title}</h3>
         <p className="text-gray-700 whitespace-pre-line">{question.description}</p>
         
-        {question.image_url && (
+        {question.imageUrl && (
           <div className="my-4">
             <img 
-              src={question.image_url} 
+              src={question.imageUrl} 
               alt={question.title} 
               className="max-w-full h-auto rounded-md border border-gray-200"
             />

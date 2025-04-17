@@ -275,7 +275,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         try {
           // Create a submission record with the required fields
           const submissionData: Submission = {
-            assessment_id: question.assessment_id || '',
+            assessment_id: question.assessmentId || '',
             user_id: user.id,
             started_at: new Date().toISOString(),
             completed_at: new Date().toISOString()

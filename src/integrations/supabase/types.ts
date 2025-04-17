@@ -383,10 +383,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      calculate_coding_question_marks: {
-        Args: { p_question_id: string }
-        Returns: number
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never
