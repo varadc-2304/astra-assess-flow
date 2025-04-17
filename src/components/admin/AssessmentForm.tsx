@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -32,9 +31,10 @@ type FormSchema = z.infer<typeof formSchema>;
 
 interface AssessmentFormProps {
   assessmentId?: string;
+  onComplete?: () => void;
 }
 
-const AssessmentForm: React.FC<AssessmentFormProps> = ({ assessmentId }) => {
+const AssessmentForm: React.FC<AssessmentFormProps> = ({ assessmentId, onComplete }) => {
   const [activeTab, setActiveTab] = useState('details');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [assessmentCreated, setAssessmentCreated] = useState(false);
@@ -43,7 +43,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({ assessmentId }) => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Initialize form
   const form = useForm<FormSchema>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -56,7 +55,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({ assessmentId }) => {
     },
   });
 
-  // Load assessment data if editing
   React.useEffect(() => {
     const fetchAssessment = async () => {
       if (!assessmentId) return;
@@ -98,7 +96,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({ assessmentId }) => {
     setIsSubmitting(true);
     
     try {
-      // Validate date range
       if (data.endTime <= data.startTime) {
         toast({
           title: "Invalid date range",
@@ -109,7 +106,6 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({ assessmentId }) => {
         return;
       }
       
-      // Format data for Supabase
       const assessmentData = {
         name: data.name,
         code: data.code.toUpperCase(),
@@ -123,13 +119,11 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({ assessmentId }) => {
       let response;
       
       if (currentAssessmentId) {
-        // Update existing assessment
         response = await supabase
           .from('assessments')
           .update(assessmentData)
           .eq('id', currentAssessmentId);
       } else {
-        // Insert new assessment
         response = await supabase
           .from('assessments')
           .insert(assessmentData)
@@ -149,6 +143,10 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({ assessmentId }) => {
         setCurrentAssessmentId(responseData[0].id);
         setAssessmentCreated(true);
         setActiveTab('questions');
+      }
+      
+      if (onComplete) {
+        onComplete();
       }
     } catch (error: any) {
       toast({
