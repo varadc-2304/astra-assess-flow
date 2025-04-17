@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -87,7 +88,7 @@ const SummaryPage = () => {
         
         const percentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
         
-        // Store results in the new results table
+        // Store results in the results table
         const { error: resultsError } = await supabase
           .from('results')
           .insert({

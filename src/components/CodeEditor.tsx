@@ -214,7 +214,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange }) => {
 
           // Store answer details
           const { error: answerError } = await supabase
-            .from('answers')
+            .from('answers') // Using the new answers table
             .insert({
               submission_id: submissionData.id,
               question_id: question.id,

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -97,7 +98,8 @@ const ReportPage = () => {
         
         const submission = submissions[0];
         
-        const { data: results, error: resultsError } = await supabase
+        // Get results data
+        const { data: resultsData, error: resultsError } = await supabase
           .from('results')
           .select('*')
           .eq('assessment_id', assessment.id)
@@ -108,7 +110,8 @@ const ReportPage = () => {
           console.error('Error fetching results:', resultsError);
         }
         
-        const { data: answers, error: answersError } = await supabase
+        // Get answers data
+        const { data: answersData, error: answersError } = await supabase
           .from('answers')
           .select('*')
           .eq('submission_id', submission.id);
@@ -122,6 +125,7 @@ const ReportPage = () => {
           throw new Error('Failed to load answers');
         }
         
+        // Get questions data
         const { data: questions, error: questionsError } = await supabase
           .from('questions')
           .select('*')
@@ -137,6 +141,7 @@ const ReportPage = () => {
           throw new Error('Failed to load questions');
         }
         
+        // Get MCQ options
         const { data: mcqOptions, error: mcqOptionsError } = await supabase
           .from('mcq_options')
           .select('*')
@@ -151,14 +156,16 @@ const ReportPage = () => {
           throw new Error('Failed to load MCQ options');
         }
         
+        // Process MCQ questions
         const mcqQuestions = questions
           .filter(q => q.type === 'mcq')
           .map(q => ({
             ...q,
             options: mcqOptions.filter(o => o.question_id === q.id).sort((a, b) => a.order_index - b.order_index),
-            answer: answers.find(a => a.question_id === q.id)
+            answer: answersData.find((a: AnswerFromDB) => a.question_id === q.id)
           }));
         
+        // Get coding question details
         const { data: codingDetails, error: codingError } = await supabase
           .from('coding_questions')
           .select('*')
@@ -173,6 +180,7 @@ const ReportPage = () => {
           throw new Error('Failed to load coding details');
         }
         
+        // Get coding examples
         const { data: codingExamples, error: examplesError } = await supabase
           .from('coding_examples')
           .select('*')
@@ -187,6 +195,7 @@ const ReportPage = () => {
           throw new Error('Failed to load coding examples');
         }
         
+        // Process coding questions
         const codeQuestions = questions
           .filter(q => q.type === 'code')
           .map(q => {
@@ -197,19 +206,20 @@ const ReportPage = () => {
               examples: codingExamples
                 .filter(e => e.question_id === q.id)
                 .sort((a, b) => a.order_index - b.order_index),
-              answer: answers.find(a => a.question_id === q.id)
+              answer: answersData.find((a: AnswerFromDB) => a.question_id === q.id)
             };
           });
         
         const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 1), 0);
-        const earnedMarks = answers.reduce((sum, a) => sum + (a.marks_obtained || 0), 0);
+        const earnedMarks = answersData.reduce((sum, a: AnswerFromDB) => sum + (a.marks_obtained || 0), 0);
         const percentage = totalMarks > 0 ? Math.round((earnedMarks / totalMarks) * 100) : 0;
         
         const mcqSolved = mcqQuestions.filter(q => q.answer && q.answer.mcq_option_id).length;
         const codeSolved = codeQuestions.filter(q => q.answer && q.answer.code_solution).length;
         const totalQuestionsSolved = mcqSolved + codeSolved;
         
-        const formattedAnswers: AnswerResult[] = answers.map((answer: AnswerFromDB) => {
+        // Format answers for display
+        const formattedAnswers: AnswerResult[] = answersData.map((answer: AnswerFromDB) => {
           let testResults: TestResult[] | undefined = undefined;
           
           if (answer.test_results) {
@@ -225,23 +235,24 @@ const ReportPage = () => {
           return {
             questionId: answer.question_id,
             isCorrect: answer.is_correct || false,
-            mcqOptionId: answer.mcq_option_id,
-            codeSolution: answer.code_solution,
-            language: answer.language,
+            mcqOptionId: answer.mcq_option_id || undefined,
+            codeSolution: answer.code_solution || undefined,
+            language: answer.language || undefined,
             marksObtained: answer.marks_obtained || 0,
             testResults
           };
         });
         
+        // Set report data
         setReportData({
           submissionId: submission.id,
-          completedAt: results?.completed_at || submission.completed_at || submission.created_at,
+          completedAt: resultsData?.completed_at || submission.completed_at || submission.created_at,
           answers: formattedAnswers,
           mcqQuestions,
           codeQuestions,
-          totalMarks: results?.total_marks || 0,
-          earnedMarks: results?.total_score || 0,
-          percentage: results?.percentage || 0,
+          totalMarks: resultsData?.total_marks || 0,
+          earnedMarks: resultsData?.total_score || 0,
+          percentage: resultsData?.percentage || 0,
           totalQuestionsSolved
         });
       } catch (error) {

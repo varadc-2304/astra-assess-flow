@@ -77,66 +77,56 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     const fetchResults = async () => {
       setIsLoading(true);
       try {
-        const { data: submissionsData, error: submissionsError } = await supabase
-          .from('submissions')
+        const { data: resultsData, error: resultsError } = await supabase
+          .from('results')
           .select(`
             id,
-            created_at,
-            started_at,
+            user_id,
+            assessment_id,
+            total_score,
+            total_marks,
+            percentage,
             completed_at,
-            fullscreen_violations,
-            is_terminated,
             assessments:assessment_id (
               id,
               name,
-              code,
-              duration_minutes
-            ),
-            user_id:user_id (
-              id,
-              email,
-              name:email
-            ),
-            answers (
-              question_id,
-              is_correct,
-              marks_obtained
+              code
             )
           `)
           .order('completed_at', { ascending: false });
         
-        if (submissionsError) throw submissionsError;
+        if (resultsError) throw resultsError;
         
-        if (!submissionsData || submissionsData.length === 0) {
+        if (!resultsData || resultsData.length === 0) {
           setStudents([]);
           setIsLoading(false);
           return;
         }
         
-        let transformedData: Student[] = submissionsData.map((submission) => {
-          const answers = submission.answers || [];
-          const totalObtained = answers.reduce((sum, answer) => sum + (answer.marks_obtained || 0), 0);
+        const { data: submissions, error: submissionsError } = await supabase
+          .from('submissions')
+          .select('user_id, assessment_id, is_terminated, fullscreen_violations');
+        
+        if (submissionsError) {
+          console.error('Error fetching submissions:', submissionsError);
+        }
+        
+        let transformedData: Student[] = resultsData.map((result) => {
+          const matchingSubmission = submissions?.find(
+            s => s.user_id === result.user_id && s.assessment_id === result.assessment_id
+          );
           
-          const totalMarks = 100;
+          const isFlagged = matchingSubmission ? 
+            (matchingSubmission.is_terminated || matchingSubmission.fullscreen_violations > 1) : false;
           
-          const isFlagged = submission.is_terminated || submission.fullscreen_violations > 1;
-          
-          const userObj = submission.user_id || { id: 'unknown', email: 'Unknown', name: 'Unknown' };
-          const userId = typeof userObj === 'object' ? userObj.id || 'unknown' : 'unknown';
-          
-          const userEmail = typeof userObj === 'object' ? userObj.email || 'Unknown' : 'Unknown';
-          const userName = typeof userObj === 'object' ? 
-                          userObj.name || (userEmail !== 'Unknown' ? userEmail.split('@')[0] : 'Unknown') : 
-                          'Unknown';
-          
-          const assessment = typeof submission.assessments === 'object' ? submission.assessments : null;
+          const assessment = typeof result.assessments === 'object' ? result.assessments : null;
           const assessmentName = assessment?.name || 'Unknown Assessment';
           
           const divisions = ['A', 'B', 'C'];
           const batches = ['B1', 'B2', 'B3'];
           const years = ['2023', '2024', '2025'];
           
-          const hash = userId.split('').reduce((a, b) => {
+          const hash = result.user_id.split('').reduce((a, b) => {
             a = ((a << 5) - a) + b.charCodeAt(0);
             return a & a;
           }, 0);
@@ -146,18 +136,20 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           const batch = batches[absHash % batches.length];
           const year = years[absHash % years.length];
           
-          const percentage = totalMarks > 0 ? Math.round((totalObtained / totalMarks) * 100) : 0;
+          const userId = result.user_id;
+          const email = userId + '@example.com';
+          const userName = userId.split('-')[0];
           
           return {
             id: userId,
             name: userName,
-            email: userEmail,
-            assessmentId: assessment?.id || '',
+            email: email,
+            assessmentId: result.assessment_id,
             assessmentName,
-            score: totalObtained,
-            totalMarks,
-            percentage,
-            completedAt: submission.completed_at || submission.created_at,
+            score: result.total_score,
+            totalMarks: result.total_marks,
+            percentage: result.percentage,
+            completedAt: result.completed_at,
             isFlagged,
             division,
             batch,

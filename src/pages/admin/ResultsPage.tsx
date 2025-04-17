@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -33,7 +32,6 @@ const ResultsPage = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [assessmentCodes, setAssessmentCodes] = useState<{code: string, name: string}[]>([]);
   
-  // Fetch assessment codes on component mount
   useEffect(() => {
     const fetchAssessmentCodes = async () => {
       try {
@@ -73,25 +71,23 @@ const ResultsPage = () => {
     try {
       setIsExporting(true);
 
-      // Fetch results data based on current filters
-      const { data: submissions, error } = await supabase
-        .from('submissions')
+      const { data: results, error } = await supabase
+        .from('results')
         .select(`
           id,
-          started_at,
+          user_id,
+          assessment_id,
+          total_score,
+          total_marks,
+          percentage,
           completed_at,
-          assessments(name, code),
-          answers(
-            question_id,
-            marks_obtained,
-            is_correct
-          )
+          assessments(name, code)
         `)
         .order('completed_at', { ascending: false });
 
       if (error) throw error;
 
-      if (!submissions || submissions.length === 0) {
+      if (!results || results.length === 0) {
         toast({
           title: "No Data",
           description: "There are no results to export.",
@@ -101,29 +97,26 @@ const ResultsPage = () => {
         return;
       }
 
-      // Process data for CSV format
-      const csvData = submissions.map(submission => {
-        const assessment = submission.assessments;
-        const totalObtained = submission.answers?.reduce((sum: number, answer: any) => sum + (answer.marks_obtained || 0), 0) || 0;
+      const csvData = results.map(result => {
+        const assessment = result.assessments;
         
         return {
+          "User ID": result.user_id,
           "Assessment": assessment?.name || "Unknown",
           "Code": assessment?.code || "N/A",
-          "Start Time": new Date(submission.started_at).toLocaleString(),
-          "Completion Time": submission.completed_at ? new Date(submission.completed_at).toLocaleString() : "Incomplete",
-          "Score": totalObtained,
-          "Questions Answered": submission.answers?.length || 0
+          "Score": result.total_score,
+          "Total Marks": result.total_marks,
+          "Percentage": result.percentage,
+          "Completion Time": new Date(result.completed_at).toLocaleString()
         };
       });
 
-      // Convert to CSV
       const headers = Object.keys(csvData[0]);
       const csvContent = [
         headers.join(','),
         ...csvData.map(row => headers.map(header => JSON.stringify(row[header as keyof typeof row])).join(','))
       ].join('\n');
 
-      // Generate and download the file
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -152,7 +145,6 @@ const ResultsPage = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      {/* Header */}
       <header className="bg-white border-b border-gray-200 py-4 px-6 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-4">
@@ -170,7 +162,6 @@ const ResultsPage = () => {
         </div>
       </header>
 
-      {/* Main Content */}
       <div className="flex-1 p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
