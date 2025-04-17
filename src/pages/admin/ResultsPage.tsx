@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,9 +7,16 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, Download, Filter } from 'lucide-react';
+import { ArrowLeft, Download, FileDown, Filter } from 'lucide-react';
 import ResultsTable from '@/components/admin/ResultsTable';
 import { useToast } from '@/components/ui/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import { supabase } from '@/integrations/supabase/client';
 
 const ResultsPage = () => {
   const navigate = useNavigate();
@@ -23,6 +30,7 @@ const ResultsPage = () => {
     assessment: '',
     searchQuery: '',
   });
+  const [isExporting, setIsExporting] = useState(false);
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters({
@@ -36,6 +44,87 @@ const ResultsPage = () => {
       title: "PDF Download",
       description: "The PDF report is being generated and will download shortly.",
     });
+  };
+
+  const exportToCSV = async () => {
+    try {
+      setIsExporting(true);
+
+      // Fetch results data based on current filters
+      const { data: submissions, error } = await supabase
+        .from('submissions')
+        .select(`
+          id,
+          started_at,
+          completed_at,
+          assessments(name, code),
+          answers(
+            question_id,
+            marks_obtained,
+            is_correct
+          )
+        `)
+        .order('completed_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (!submissions || submissions.length === 0) {
+        toast({
+          title: "No Data",
+          description: "There are no results to export.",
+          variant: "destructive",
+        });
+        setIsExporting(false);
+        return;
+      }
+
+      // Process data for CSV format
+      const csvData = submissions.map(submission => {
+        const assessment = submission.assessments;
+        const totalObtained = submission.answers?.reduce((sum: number, answer: any) => sum + (answer.marks_obtained || 0), 0) || 0;
+        
+        return {
+          "Assessment": assessment?.name || "Unknown",
+          "Code": assessment?.code || "N/A",
+          "Start Time": new Date(submission.started_at).toLocaleString(),
+          "Completion Time": submission.completed_at ? new Date(submission.completed_at).toLocaleString() : "Incomplete",
+          "Score": totalObtained,
+          "Questions Answered": submission.answers?.length || 0
+        };
+      });
+
+      // Convert to CSV
+      const headers = Object.keys(csvData[0]);
+      const csvContent = [
+        headers.join(','),
+        ...csvData.map(row => headers.map(header => JSON.stringify(row[header as keyof typeof row])).join(','))
+      ].join('\n');
+
+      // Generate and download the file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `assessment_results_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: "Export Successful",
+        description: "Assessment results have been exported to CSV.",
+      });
+    } catch (error) {
+      console.error("CSV export error:", error);
+      toast({
+        title: "Export Failed",
+        description: "There was an error exporting the data. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -63,9 +152,23 @@ const ResultsPage = () => {
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
             <h2 className="text-xl font-bold">Student Assessment Results</h2>
-            <Button onClick={handleDownloadPDF} className="bg-astra-red hover:bg-red-600 text-white">
-              <Download className="h-4 w-4 mr-2" /> Download Report
-            </Button>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="bg-astra-red hover:bg-red-600 text-white">
+                  <Download className="h-4 w-4 mr-2" /> Export Data
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleDownloadPDF}>
+                  <Download className="h-4 w-4 mr-2" /> PDF Report
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToCSV} disabled={isExporting}>
+                  <FileDown className="h-4 w-4 mr-2" /> 
+                  {isExporting ? 'Exporting CSV...' : 'CSV Export'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <Card>
@@ -134,9 +237,9 @@ const ResultsPage = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Assessments</SelectItem>
-                      <SelectItem value="programming">Programming Fundamentals</SelectItem>
-                      <SelectItem value="datastructures">Data Structures</SelectItem>
-                      <SelectItem value="algorithms">Algorithms</SelectItem>
+                      <SelectItem value="PROG101">Programming Fundamentals</SelectItem>
+                      <SelectItem value="ALGO202">Algorithms and Data Structures</SelectItem>
+                      <SelectItem value="TEST123">Test Assessment</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

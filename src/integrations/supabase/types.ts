@@ -71,7 +71,7 @@ export type Database = {
         Row: {
           code: string
           created_at: string
-          created_by: string
+          created_by: string | null
           duration_minutes: number
           end_time: string
           id: string
@@ -82,7 +82,7 @@ export type Database = {
         Insert: {
           code: string
           created_at?: string
-          created_by: string
+          created_by?: string | null
           duration_minutes?: number
           end_time: string
           id?: string
@@ -93,7 +93,7 @@ export type Database = {
         Update: {
           code?: string
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           duration_minutes?: number
           end_time?: string
           id?: string
