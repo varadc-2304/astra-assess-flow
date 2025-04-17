@@ -342,6 +342,8 @@ export type Database = {
           created_at: string | null
           id: string
           input: string
+          is_hidden: boolean
+          marks: number
           order_index: number
           output: string
           question_id: string
@@ -350,6 +352,8 @@ export type Database = {
           created_at?: string | null
           id?: string
           input: string
+          is_hidden?: boolean
+          marks?: number
           order_index: number
           output: string
           question_id: string
@@ -358,6 +362,8 @@ export type Database = {
           created_at?: string | null
           id?: string
           input?: string
+          is_hidden?: boolean
+          marks?: number
           order_index?: number
           output?: string
           question_id?: string

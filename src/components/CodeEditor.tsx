@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -130,6 +131,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         throw error;
       }
       
+      // Ensure the returned data matches the TestCase interface
       return testCases || [];
     } catch (error) {
       console.error('Error fetching test cases:', error);
