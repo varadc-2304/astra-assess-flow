@@ -6,6 +6,8 @@ import { supabase } from '@/integrations/supabase/client';
 export const useFullscreen = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenExitTime, setFullscreenExitTime] = useState<number | null>(null);
+  const [showExitWarning, setShowExitWarning] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(30);
   const { fullscreenWarnings, addFullscreenWarning, endAssessment, assessment } = useAssessment();
   const navigate = useNavigate();
 
@@ -34,9 +36,12 @@ export const useFullscreen = () => {
 
   const startOrResumeTimer = useCallback(() => {
     clearTimerIfExists();
+    persistentTimeRef.current = MAX_FULLSCREEN_EXIT_TIME;
+    setTimeRemaining(MAX_FULLSCREEN_EXIT_TIME);
 
     timerRef.current = setInterval(() => {
       persistentTimeRef.current = Math.max(0, persistentTimeRef.current - 1);
+      setTimeRemaining(persistentTimeRef.current);
 
       if (persistentTimeRef.current <= 0) {
         clearTimerIfExists();
@@ -50,20 +55,11 @@ export const useFullscreen = () => {
   const enterFullscreen = useCallback(async () => {
     try {
       const docElm = document.documentElement;
-
-      if (docElm.requestFullscreen) {
-        await docElm.requestFullscreen();
-      } else if ((docElm as any).mozRequestFullScreen) {
-        await (docElm as any).mozRequestFullScreen();
-      } else if ((docElm as any).webkitRequestFullscreen) {
-        await (docElm as any).webkitRequestFullscreen();
-      } else if ((docElm as any).msRequestFullscreen) {
-        await (docElm as any).msRequestFullscreen();
-      }
-
+      await docElm.requestFullscreen();
       setIsFullscreen(true);
       clearTimerIfExists();
       setFullscreenExitTime(null);
+      setShowExitWarning(false);
       fullscreenExitHandledRef.current = false;
     } catch (error) {
       console.error('Failed to enter fullscreen mode:', error);
@@ -74,14 +70,7 @@ export const useFullscreen = () => {
     try {
       if (document.exitFullscreen) {
         document.exitFullscreen();
-      } else if ((document as any).mozCancelFullScreen) {
-        (document as any).mozCancelFullScreen();
-      } else if ((document as any).webkitExitFullscreen) {
-        (document as any).webkitExitFullscreen();
-      } else if ((document as any).msExitFullscreen) {
-        (document as any).msExitFullscreen();
       }
-
       setIsFullscreen(false);
     } catch (error) {
       console.error('Failed to exit fullscreen mode:', error);
@@ -128,6 +117,7 @@ export const useFullscreen = () => {
       if (!fullscreenExitHandledRef.current) {
         fullscreenExitHandledRef.current = true;
         setFullscreenExitTime(Date.now());
+        setShowExitWarning(true);
         addFullscreenWarning();
         recordFullscreenViolation();
         startOrResumeTimer();
@@ -142,6 +132,7 @@ export const useFullscreen = () => {
       fullscreenExitHandledRef.current = false;
       clearTimerIfExists();
       setFullscreenExitTime(null);
+      setShowExitWarning(false);
     }
   }, [
     checkFullscreen,
@@ -174,10 +165,19 @@ export const useFullscreen = () => {
     };
   }, [handleFullscreenChange]);
 
+  const handleEndAssessment = useCallback(() => {
+    clearTimerIfExists();
+    endAssessment();
+    navigate('/summary');
+  }, [endAssessment, navigate]);
+
   return {
     isFullscreen,
     enterFullscreen,
     exitFullscreen,
-    fullscreenWarnings
+    fullscreenWarnings,
+    showExitWarning,
+    timeRemaining,
+    handleEndAssessment
   };
 };

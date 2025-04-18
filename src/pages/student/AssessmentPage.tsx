@@ -46,7 +46,14 @@ const AssessmentPage = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [isEndingAssessment, setIsEndingAssessment] = useState(false);
   const navigate = useNavigate();
-  const { enterFullscreen, isFullscreen, ExitDialog } = useFullscreen();
+  const { 
+    enterFullscreen, 
+    isFullscreen, 
+    showExitWarning, 
+    timeRemaining, 
+    fullscreenWarnings,
+    handleEndAssessment 
+  } = useFullscreen();
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -393,6 +400,42 @@ const AssessmentPage = () => {
               ) : (
                 "End Assessment"
               )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showExitWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center">
+              <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
+              Fullscreen Mode Required
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                You have exited fullscreen mode. This is violation {fullscreenWarnings + 1}/{MAX_WARNINGS}.
+                Please return to fullscreen immediately or your test will be terminated.
+              </p>
+              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-red-700 font-medium">
+                  Time remaining: {timeRemaining} seconds
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={enterFullscreen}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              Return to Fullscreen
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={handleEndAssessment}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              End Assessment
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
