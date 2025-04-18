@@ -138,50 +138,71 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             percentage: result.percentage,
             completedAt: result.completed_at,
             isTerminated: result.isTerminated || false,
-            division: user?.division || 'N/A',
-            batch: user?.batch || 'N/A',
-            year: user?.year || 'N/A',
-            department: user?.department || 'N/A'
+            division: user?.division || '',
+            batch: user?.batch || '',
+            year: user?.year || '',
+            department: user?.department || ''
           };
         });
+
+        console.log('Total results before filtering:', transformedData.length);
 
         // Apply all filters sequentially
         if (filters.year && filters.year !== '') {
           transformedData = transformedData.filter(s => s.year === filters.year);
+          console.log('After year filter:', transformedData.length);
         }
         
         if (filters.division && filters.division !== '') {
-          transformedData = transformedData.filter(s => s.division === filters.division);
+          console.log('Filtering by division:', filters.division);
+          console.log('Student divisions:', transformedData.map(s => s.division));
+          transformedData = transformedData.filter(s => {
+            // Trim whitespace and do case-insensitive comparison
+            return s.division && s.division.trim().toLowerCase() === filters.division.trim().toLowerCase();
+          });
+          console.log('After division filter:', transformedData.length);
         }
         
         if (filters.batch && filters.batch !== '') {
-          transformedData = transformedData.filter(s => s.batch === filters.batch);
+          transformedData = transformedData.filter(s => {
+            return s.batch && s.batch.trim().toLowerCase() === filters.batch.trim().toLowerCase();
+          });
+          console.log('After batch filter:', transformedData.length);
         }
 
         if (filters.department && filters.department !== '') {
-          transformedData = transformedData.filter(s => s.department === filters.department);
+          transformedData = transformedData.filter(s => {
+            return s.department && s.department.trim().toLowerCase() === filters.department.trim().toLowerCase();
+          });
+          console.log('After department filter:', transformedData.length);
         }
         
         if (filters.assessment && filters.assessment !== '' && filters.assessment !== 'all') {
-          transformedData = transformedData.filter(s => s.assessmentCode === filters.assessment);
+          transformedData = transformedData.filter(s => {
+            return s.assessmentCode && s.assessmentCode.trim() === filters.assessment.trim();
+          });
+          console.log('After assessment filter:', transformedData.length);
         }
         
         if (filters.searchQuery && filters.searchQuery !== '') {
-          const query = filters.searchQuery.toLowerCase();
+          const query = filters.searchQuery.toLowerCase().trim();
           transformedData = transformedData.filter(s => 
-            s.name.toLowerCase().includes(query) || 
-            s.email.toLowerCase().includes(query) ||
-            s.assessmentName.toLowerCase().includes(query)
+            (s.name && s.name.toLowerCase().includes(query)) || 
+            (s.email && s.email.toLowerCase().includes(query)) ||
+            (s.assessmentName && s.assessmentName.toLowerCase().includes(query))
           );
+          console.log('After search filter:', transformedData.length);
         }
         
         if (flagged) {
           transformedData = transformedData.filter(s => s.isTerminated);
+          console.log('After flagged filter:', transformedData.length);
         }
         
         if (topPerformers) {
           transformedData.sort((a, b) => b.percentage - a.percentage);
           transformedData = transformedData.slice(0, 10);
+          console.log('After top performers filter:', transformedData.length);
         }
         
         // Reset to first page when filters change
