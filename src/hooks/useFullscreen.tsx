@@ -75,6 +75,22 @@ export const useFullscreen = () => {
       if (updateError) {
         console.error('Error updating submission with fullscreen violation:', updateError);
       }
+
+      // Update the results table if this violation leads to termination
+      if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
+        const { error: resultError } = await supabase
+          .from('results')
+          .update({ 
+            isTerminated: true,
+            completed_at: new Date().toISOString()
+          })
+          .eq('assessment_id', assessment.id)
+          .eq('user_id', submission.user_id);
+
+        if (resultError) {
+          console.error('Error updating result termination status:', resultError);
+        }
+      }
     } catch (error) {
       console.error('Error recording fullscreen violation:', error);
     }
