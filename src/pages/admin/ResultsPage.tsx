@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -136,15 +137,22 @@ const ResultsPage = () => {
     try {
       setIsExporting(true);
 
-      const { data: resultsData, error } = await supabase
+      // Fetch results data
+      const { data: resultsData, error: resultsError } = await supabase
         .from('results')
         .select(`
-          *,
-          assessments:assessment_id (name, code),
-          users:user_id (id, name, email, year, department, division, batch)
+          id,
+          user_id,
+          assessment_id,
+          total_score,
+          total_marks,
+          percentage,
+          completed_at,
+          isTerminated,
+          assessments:assessment_id (name, code)
         `);
 
-      if (error) throw error;
+      if (resultsError) throw resultsError;
       
       if (!resultsData || resultsData.length === 0) {
         toast({
@@ -155,23 +163,53 @@ const ResultsPage = () => {
         return;
       }
 
-      // Update filtering to include department
-      let filteredResults = resultsData as unknown as ResultData[];
+      // Fetch user data separately
+      const userIds = Array.from(new Set(resultsData.map(r => r.user_id)));
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id, auth_ID, name, email, year, department, division, batch')
+        .in('auth_ID', userIds);
+      
+      if (usersError) {
+        console.error("Error fetching user data:", usersError);
+      }
+      
+      // Create a map of user data for easier lookup
+      const userMap: Record<string, UserData> = {};
+      if (usersData) {
+        usersData.forEach(user => {
+          if (user.auth_ID) {
+            userMap[user.auth_ID] = user;
+          }
+        });
+      }
+
+      // Combine results with user data
+      let combinedData = resultsData.map(result => {
+        const userDetails = userMap[result.user_id] || {};
+        return {
+          ...result,
+          userData: userDetails
+        };
+      });
+
+      // Apply filters
+      let filteredResults = combinedData;
       
       if (filters.year) {
-        filteredResults = filteredResults.filter(r => r.users?.year === filters.year);
+        filteredResults = filteredResults.filter(r => r.userData?.year === filters.year);
       }
       
       if (filters.division) {
-        filteredResults = filteredResults.filter(r => r.users?.division === filters.division);
+        filteredResults = filteredResults.filter(r => r.userData?.division === filters.division);
       }
       
       if (filters.batch) {
-        filteredResults = filteredResults.filter(r => r.users?.batch === filters.batch);
+        filteredResults = filteredResults.filter(r => r.userData?.batch === filters.batch);
       }
       
       if (filters.department) {
-        filteredResults = filteredResults.filter(r => r.users?.department === filters.department);
+        filteredResults = filteredResults.filter(r => r.userData?.department === filters.department);
       }
       
       if (filters.assessment && filters.assessment !== 'all') {
@@ -181,18 +219,19 @@ const ResultsPage = () => {
       if (filters.searchQuery) {
         const query = filters.searchQuery.toLowerCase();
         filteredResults = filteredResults.filter(r => 
-          (r.users?.name?.toLowerCase().includes(query) ?? false) || 
-          (r.users?.email?.toLowerCase().includes(query) ?? false)
+          (r.userData?.name?.toLowerCase().includes(query) ?? false) || 
+          (r.userData?.email?.toLowerCase().includes(query) ?? false)
         );
       }
 
+      // Format data for CSV
       const csvData = filteredResults.map(result => ({
-        "Student Name": result.users?.name || "Unknown",
-        "Email": result.users?.email || "unknown@example.com",
-        "Year": result.users?.year || "N/A",
-        "Department": result.users?.department || "N/A",
-        "Division": result.users?.division || "N/A",
-        "Batch": result.users?.batch || "N/A",
+        "Student Name": result.userData?.name || "Unknown",
+        "Email": result.userData?.email || "unknown@example.com",
+        "Year": result.userData?.year || "N/A",
+        "Department": result.userData?.department || "N/A",
+        "Division": result.userData?.division || "N/A",
+        "Batch": result.userData?.batch || "N/A",
         "Assessment": result.assessments?.name || "Unknown",
         "Assessment Code": result.assessments?.code || "N/A",
         "Score": result.total_score,
