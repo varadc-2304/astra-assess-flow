@@ -6,7 +6,6 @@ import {
   Card, 
   CardContent, 
   CardDescription, 
-  CardFooter, 
   CardHeader, 
   CardTitle 
 } from '@/components/ui/card';
@@ -18,23 +17,11 @@ import { format } from 'date-fns';
 import { 
   AlarmClock, 
   CalendarIcon, 
-  Edit, 
-  FileText, 
-  Trash2, 
-  Users,
-  AlertTriangle 
+  FileText,
+  AlertTriangle,
+  Users
 } from 'lucide-react';
 import QuestionList from '@/components/admin/QuestionList';
-import { 
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@/components/ui/alert-dialog';
 
 interface Assessment {
   id: string;
@@ -55,7 +42,6 @@ const AssessmentDetail = () => {
   
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     const fetchAssessment = async () => {
@@ -85,52 +71,6 @@ const AssessmentDetail = () => {
 
     fetchAssessment();
   }, [id, toast]);
-
-  const handleEdit = () => {
-    navigate(`/admin/assessments/${id}/edit`);
-  };
-
-  const handleDelete = () => {
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    try {
-      if (!id) return;
-
-      // Delete all questions associated with this assessment
-      const { error: questionError } = await supabase
-        .from('questions')
-        .delete()
-        .eq('assessment_id', id);
-
-      if (questionError) throw questionError;
-
-      // Delete the assessment
-      const { error } = await supabase
-        .from('assessments')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Assessment deleted successfully",
-      });
-      
-      navigate('/admin');
-    } catch (error: any) {
-      console.error('Error deleting assessment:', error);
-      toast({
-        title: "Error",
-        description: `Error deleting assessment: ${error.message}`,
-        variant: "destructive",
-      });
-    } finally {
-      setDeleteDialogOpen(false);
-    }
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -198,26 +138,14 @@ const AssessmentDetail = () => {
         
         {/* Assessment details */}
         <Card>
-          <CardHeader className="flex flex-row items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-2xl font-bold">{assessment.name}</CardTitle>
-                {getStatusBadge(assessment.status)}
-              </div>
-              <CardDescription>
-                Code: <span className="font-mono uppercase">{assessment.code}</span>
-              </CardDescription>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-2xl font-bold">{assessment.name}</CardTitle>
+              {getStatusBadge(assessment.status)}
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleEdit}>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
-              <Button variant="outline" className="text-red-600" onClick={handleDelete}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </Button>
-            </div>
+            <CardDescription>
+              Code: <span className="font-mono uppercase">{assessment.code}</span>
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Basic information */}
@@ -289,41 +217,14 @@ const AssessmentDetail = () => {
           <CardHeader>
             <CardTitle>Questions</CardTitle>
             <CardDescription>
-              Manage the questions for this assessment
+              View the questions for this assessment
             </CardDescription>
           </CardHeader>
           <CardContent>
             <QuestionList assessmentId={id || ''} />
           </CardContent>
-          <CardFooter className="border-t p-4 flex justify-end">
-            <Button
-              className="bg-astra-red hover:bg-red-600 text-white"
-              onClick={() => navigate(`/admin/assessments/${id}/questions/new`)}
-            >
-              Add Question
-            </Button>
-          </CardFooter>
         </Card>
       </div>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Deletion</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this assessment? This action cannot be undone.
-              All associated questions and student submissions will also be deleted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };
