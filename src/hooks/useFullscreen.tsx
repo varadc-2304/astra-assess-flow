@@ -20,6 +20,7 @@ export const useFullscreen = () => {
   const navigate = useNavigate();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const persistentTimeRef = useRef<number>(30);
+  const fullscreenChangeHandlerRef = useRef<() => void>();
 
   const MAX_WARNINGS = 3;
   const MAX_FULLSCREEN_EXIT_TIME = 30; // seconds
@@ -117,20 +118,18 @@ export const useFullscreen = () => {
 
   const handleFullscreenChange = useCallback(() => {
     const fullscreenStatus = checkFullscreen();
+    console.log("Fullscreen change detected:", fullscreenStatus);
     setIsFullscreen(fullscreenStatus);
     
     if (!fullscreenStatus) {
-      if (!fullscreenExitTime) {
+      if (!showExitDialog) {
         // First time exiting or re-exiting after returning to fullscreen
         setFullscreenExitTime(Date.now());
         addFullscreenWarning();
         recordFullscreenViolation();
-        console.log("Starting new fullscreen exit timer with", persistentTimeRef.current, "seconds remaining");
+        setShowExitDialog(true);
+        console.log("Exit dialog should now be showing");
       }
-      
-      setShowExitDialog(true);
-      
-      console.log("Exited fullscreen - dialog should show:", { showExitDialog: true, warnings: fullscreenWarnings });
       
       if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
         endAssessment();
@@ -144,7 +143,7 @@ export const useFullscreen = () => {
       setFullscreenExitTime(null);
       setShowExitDialog(false);
     }
-  }, [checkFullscreen, fullscreenWarnings, fullscreenExitTime, addFullscreenWarning, recordFullscreenViolation, endAssessment, navigate]);
+  }, [checkFullscreen, fullscreenWarnings, recordFullscreenViolation, endAssessment, navigate, showExitDialog, addFullscreenWarning]);
 
   const startOrResumeTimer = useCallback(() => {
     clearTimerIfExists();
@@ -168,25 +167,33 @@ export const useFullscreen = () => {
     persistentTimeRef.current = MAX_FULLSCREEN_EXIT_TIME;
   }, []);
 
-  // Attach event listeners for fullscreen change
+  // Create the fullscreen change handler ref to prevent multiple handlers
   useEffect(() => {
-    const fullscreenChangeHandler = () => {
-      handleFullscreenChange();
+    // Create a stable reference to the handler
+    fullscreenChangeHandlerRef.current = () => handleFullscreenChange();
+  }, [handleFullscreenChange]);
+
+  // Attach event listeners for fullscreen change with stable handler
+  useEffect(() => {
+    const handler = () => {
+      if (fullscreenChangeHandlerRef.current) {
+        fullscreenChangeHandlerRef.current();
+      }
     };
     
-    document.addEventListener('fullscreenchange', fullscreenChangeHandler);
-    document.addEventListener('webkitfullscreenchange', fullscreenChangeHandler);
-    document.addEventListener('mozfullscreenchange', fullscreenChangeHandler);
-    document.addEventListener('MSFullscreenChange', fullscreenChangeHandler);
+    document.addEventListener('fullscreenchange', handler);
+    document.addEventListener('webkitfullscreenchange', handler);
+    document.addEventListener('mozfullscreenchange', handler);
+    document.addEventListener('MSFullscreenChange', handler);
 
     return () => {
-      document.removeEventListener('fullscreenchange', fullscreenChangeHandler);
-      document.removeEventListener('webkitfullscreenchange', fullscreenChangeHandler);
-      document.removeEventListener('mozfullscreenchange', fullscreenChangeHandler);
-      document.removeEventListener('MSFullscreenChange', fullscreenChangeHandler);
+      document.removeEventListener('fullscreenchange', handler);
+      document.removeEventListener('webkitfullscreenchange', handler);
+      document.removeEventListener('mozfullscreenchange', handler);
+      document.removeEventListener('MSFullscreenChange', handler);
       clearTimerIfExists();
     };
-  }, [handleFullscreenChange]);
+  }, []);
 
   const handleReturnToHome = useCallback(() => {
     clearTimerIfExists();
@@ -204,8 +211,8 @@ export const useFullscreen = () => {
         open={showExitDialog} 
         onOpenChange={(open) => {
           if (!open && !isFullscreen) {
-            // Force dialog to stay open
-            setShowExitDialog(true);
+            // Force dialog to stay open if we're not in fullscreen
+            setTimeout(() => setShowExitDialog(true), 0);
           }
         }}
       >
@@ -219,7 +226,7 @@ export const useFullscreen = () => {
             </div>
           </AlertDialogDescription>
           <div className="flex justify-between mt-4">
-            <AlertDialogAction onClick={() => enterFullscreen()}>
+            <AlertDialogAction onClick={enterFullscreen}>
               Return to Fullscreen
             </AlertDialogAction>
             <AlertDialogAction onClick={handleReturnToHome} className="bg-red-600 hover:bg-red-700">
