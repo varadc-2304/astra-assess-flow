@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -12,6 +11,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { CalendarIcon } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import AssessmentCodeInput from '@/components/AssessmentCodeInput';
 
 const StudentDashboard = () => {
   const { user } = useAuth();
@@ -135,9 +135,12 @@ const StudentDashboard = () => {
   return (
     <div className="container mx-auto py-8">
       <h1 className="text-2xl font-bold mb-4">Student Dashboard</h1>
+      
+      <div className="mb-8">
+        <AssessmentCodeInput />
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Calendar Card */}
         <Card className="col-span-1 md:col-span-1">
           <CardHeader className="space-y-1">
             <CardTitle className="text-lg">Upcoming Assessments</CardTitle>
@@ -169,7 +172,6 @@ const StudentDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Assessments List */}
         <div className="col-span-1 md:col-span-2">
           <h2 className="text-xl font-semibold mb-2">Available Assessments</h2>
           {loading ? (
