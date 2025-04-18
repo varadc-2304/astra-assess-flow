@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +14,9 @@ import AssessmentPage from "./pages/student/AssessmentPage";
 import SummaryPage from "./pages/student/SummaryPage";
 import NotFound from "./pages/NotFound";
 import ResultsPage from "./pages/admin/ResultsPage";
+import AssessmentForm from "@/components/admin/AssessmentForm";
+import AssessmentDetail from "@/pages/admin/AssessmentDetail";
+import QuestionForm from "@/components/admin/QuestionForm";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +59,11 @@ const AppRoutes = () => (
     {/* Admin Routes */}
     <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
     <Route path="/admin/results" element={<ProtectedRoute requiredRole="admin"><ResultsPage /></ProtectedRoute>} />
+    <Route path="/admin/create-assessment" element={<ProtectedRoute requiredRole="admin"><AssessmentForm /></ProtectedRoute>} />
+    <Route path="/admin/assessments/:id" element={<ProtectedRoute requiredRole="admin"><AssessmentDetail /></ProtectedRoute>} />
+    <Route path="/admin/assessments/:id/edit" element={<ProtectedRoute requiredRole="admin"><AssessmentForm assessmentId="$id" /></ProtectedRoute>} />
+    <Route path="/admin/assessments/:assessmentId/questions/new" element={<ProtectedRoute requiredRole="admin"><QuestionForm /></ProtectedRoute>} />
+    <Route path="/admin/assessments/:assessmentId/questions/:questionId/edit" element={<ProtectedRoute requiredRole="admin"><QuestionForm /></ProtectedRoute>} />
     
     {/* 404 Route */}
     <Route path="*" element={<NotFound />} />
