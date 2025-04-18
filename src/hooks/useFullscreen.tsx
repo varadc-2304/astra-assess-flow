@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useNavigate } from 'react-router-dom';
@@ -6,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 export const MAX_WARNINGS = 3;
-export const MAX_FULLSCREEN_EXIT_TIME = 30;
+export const MAX_FULLSCREEN_EXIT_TIME = 20;
 
 export const useFullscreen = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -55,7 +54,7 @@ export const useFullscreen = () => {
     // Set up toast interval for remaining time notifications
     toastIntervalRef.current = setInterval(() => {
       const timeLeft = persistentTimeRef.current;
-      if (timeLeft === 20 || timeLeft === 10 || timeLeft === 5) {
+      if (timeLeft === 15 || timeLeft === 10 || timeLeft === 5) {
         toast({
           title: "Warning",
           description: `${timeLeft} seconds remaining to return to fullscreen mode.`,
@@ -213,6 +212,6 @@ export const useFullscreen = () => {
     fullscreenWarnings,
     showExitWarning,
     terminateAssessment,
-    timeRemaining: persistentTimeRef.current, // Add this property to the returned object
+    timeRemaining: persistentTimeRef.current,
   };
 };
