@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -13,30 +14,11 @@ import { useToast } from '@/hooks/use-toast';
 
 interface UserFilters {
   assessment: string;
+  year: string;
+  department: string;
+  division: string;
+  batch: string;
   searchQuery: string;
-}
-
-interface UserData {
-  id?: string;
-  auth_ID?: string;
-  name?: string;
-  email?: string;
-  year?: string;
-  department?: string;
-  division?: string;
-  batch?: string;
-}
-
-interface ResultData {
-  id: string;
-  user_id: string;
-  assessment_id: string;
-  total_score: number;
-  total_marks: number;
-  percentage: number;
-  completed_at: string;
-  isTerminated?: boolean;
-  contest_name?: string;
 }
 
 const ResultsPage = () => {
@@ -46,13 +28,21 @@ const ResultsPage = () => {
   const [activeTab, setActiveTab] = useState('all');
   const [filters, setFilters] = useState<UserFilters>({
     assessment: 'all',
+    year: 'all',
+    department: 'all',
+    division: 'all',
+    batch: 'all',
     searchQuery: ''
   });
   const [isExporting, setIsExporting] = useState(false);
   const [assessmentOptions, setAssessmentOptions] = useState<{ name: string }[]>([]);
+  const [yearOptions, setYearOptions] = useState<string[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
+  const [divisionOptions, setDivisionOptions] = useState<string[]>([]);
+  const [batchOptions, setBatchOptions] = useState<string[]>([]);
 
   useEffect(() => {
-    const fetchAssessmentOptions = async () => {
+    const fetchOptions = async () => {
       try {
         // Fetch unique contest names from results table
         const { data: contestNamesData, error: contestNamesError } = await supabase
@@ -65,10 +55,9 @@ const ResultsPage = () => {
           console.error('Error fetching contest names:', contestNamesError);
           return;
         }
-        
+
         // Extract unique assessment names
         const uniqueAssessmentNames = new Set<string>();
-        
         if (contestNamesData) {
           contestNamesData.forEach(item => {
             if (item.contest_name) {
@@ -77,18 +66,40 @@ const ResultsPage = () => {
           });
         }
         
-        // Convert to array of objects with name property
-        const assessmentOptionsArray = Array.from(uniqueAssessmentNames).map(name => ({
-          name
-        }));
-        
-        setAssessmentOptions(assessmentOptionsArray);
+        // Fetch unique values for other filters from users table
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('year, department, division, batch');
+
+        if (usersError) {
+          console.error('Error fetching user details:', usersError);
+          return;
+        }
+
+        const uniqueYears = new Set<string>();
+        const uniqueDepartments = new Set<string>();
+        const uniqueDivisions = new Set<string>();
+        const uniqueBatches = new Set<string>();
+
+        usersData?.forEach(user => {
+          if (user.year) uniqueYears.add(user.year);
+          if (user.department) uniqueDepartments.add(user.department);
+          if (user.division) uniqueDivisions.add(user.division);
+          if (user.batch) uniqueBatches.add(user.batch);
+        });
+
+        setAssessmentOptions(Array.from(uniqueAssessmentNames).map(name => ({ name })));
+        setYearOptions(Array.from(uniqueYears));
+        setDepartmentOptions(Array.from(uniqueDepartments));
+        setDivisionOptions(Array.from(uniqueDivisions));
+        setBatchOptions(Array.from(uniqueBatches));
+
       } catch (error) {
-        console.error('Error fetching assessment options:', error);
+        console.error('Error fetching options:', error);
       }
     };
 
-    fetchAssessmentOptions();
+    fetchOptions();
   }, []);
 
   const handleFilterChange = (key: string, value: string) => {
@@ -231,34 +242,98 @@ const ResultsPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Select
-                    value={filters.assessment}
-                    onValueChange={(value) => handleFilterChange('assessment', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Assessment" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Assessments</SelectItem>
-                      {assessmentOptions.map((item, index) => (
-                        <SelectItem key={`${item.name}-${index}`} value={item.name}>
-                          {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Select
+                  value={filters.assessment}
+                  onValueChange={(value) => handleFilterChange('assessment', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Assessment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Assessments</SelectItem>
+                    {assessmentOptions.map((item, index) => (
+                      <SelectItem key={`${item.name}-${index}`} value={item.name}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-                <div>
-                  <Input
-                    type="text"
-                    placeholder="Search by student name or ID"
-                    value={filters.searchQuery}
-                    onChange={(e) => handleFilterChange('searchQuery', e.target.value)}
-                  />
-                </div>
+                <Select
+                  value={filters.year}
+                  onValueChange={(value) => handleFilterChange('year', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Years</SelectItem>
+                    {yearOptions.map((year) => (
+                      <SelectItem key={year} value={year}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filters.department}
+                  onValueChange={(value) => handleFilterChange('department', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {departmentOptions.map((dept) => (
+                      <SelectItem key={dept} value={dept}>
+                        {dept}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filters.division}
+                  onValueChange={(value) => handleFilterChange('division', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Division" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Divisions</SelectItem>
+                    {divisionOptions.map((div) => (
+                      <SelectItem key={div} value={div}>
+                        {div}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filters.batch}
+                  onValueChange={(value) => handleFilterChange('batch', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Batch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Batches</SelectItem>
+                    {batchOptions.map((batch) => (
+                      <SelectItem key={batch} value={batch}>
+                        {batch}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Input
+                  type="text"
+                  placeholder="Search by student name or ID"
+                  value={filters.searchQuery}
+                  onChange={(e) => handleFilterChange('searchQuery', e.target.value)}
+                />
               </div>
             </CardContent>
           </Card>
