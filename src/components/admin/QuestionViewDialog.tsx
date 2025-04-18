@@ -56,7 +56,16 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
           .single();
 
         if (codingError) throw codingError;
-        setCodingDetails(codingData);
+        
+        // Convert solution_template from Json to Record<string, string>
+        // This fixes the type error by explicitly casting the solution_template
+        if (codingData) {
+          const typedCodingData: CodingQuestion = {
+            ...codingData,
+            solution_template: codingData.solution_template as unknown as Record<string, string>
+          };
+          setCodingDetails(typedCodingData);
+        }
 
         // Fetch test cases
         const { data: testCasesData, error: testCasesError } = await supabase
