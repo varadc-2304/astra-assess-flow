@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -14,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 const StudentDashboard = () => {
   const { user } = useAuth();
-  const { startAssessment, assessment } = useAssessment();
+  const { startAssessment, assessment, checkReattemptAvailability } = useAssessment();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [assessments, setAssessments] = useState<any[]>([]);
@@ -112,7 +113,14 @@ const StudentDashboard = () => {
         return;
       }
 
-      await startAssessment(assessmentId);
+      // Check if reattempt is allowed using the context function
+      const reattemptAllowed = await checkReattemptAvailability(assessmentId);
+      
+      if (!reattemptAllowed) {
+        return;
+      }
+
+      await startAssessment();
       navigate('/instructions');
     } catch (error) {
       console.error('Error starting assessment:', error);
