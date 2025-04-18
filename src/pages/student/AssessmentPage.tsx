@@ -58,6 +58,7 @@ const AssessmentPage = () => {
 
   useEffect(() => {
     if (assessmentStarted && !isFullscreen) {
+      console.log("Assessment started but not in fullscreen - entering fullscreen");
       enterFullscreen();
     }
   }, [assessmentStarted, isFullscreen, enterFullscreen]);

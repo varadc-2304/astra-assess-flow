@@ -116,6 +116,8 @@ export const useFullscreen = () => {
       setShowExitDialog(true);
       setTimeRemaining(30);
       
+      console.log("Exited fullscreen - dialog should show:", { showExitDialog: true, warnings: fullscreenWarnings });
+      
       if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
         endAssessment();
         navigate('/summary');
@@ -128,12 +130,30 @@ export const useFullscreen = () => {
   }, [checkFullscreen, fullscreenWarnings, addFullscreenWarning, endAssessment, recordFullscreenViolation, navigate]);
 
   useEffect(() => {
+    // Attach event listeners for fullscreen change events
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    // Clean up event listeners
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, [handleFullscreenChange]);
+
+  useEffect(() => {
     let timer: NodeJS.Timeout | undefined;
     
     if (fullscreenExitTime !== null) {
       timer = setInterval(() => {
         const secondsOut = Math.floor((Date.now() - fullscreenExitTime) / 1000);
         const remaining = MAX_FULLSCREEN_EXIT_TIME - secondsOut;
+        
+        console.log("Timer update:", { remaining, showDialog: showExitDialog });
         
         if (remaining <= 0) {
           endAssessment();
@@ -161,8 +181,14 @@ export const useFullscreen = () => {
     exitFullscreen,
     fullscreenWarnings,
     ExitDialog: () => (
-      <AlertDialog open={showExitDialog}>
-        <AlertDialogContent>
+      <AlertDialog open={showExitDialog} onOpenChange={(open) => {
+        if (!open && !isFullscreen) {
+          // Prevent dialog from being closed unless returning to fullscreen
+          // This ensures dialog stays open until user returns to fullscreen or time runs out
+          setShowExitDialog(true);
+        }
+      }}>
+        <AlertDialogContent className="z-[1000]">
           <AlertDialogTitle>Fullscreen Mode Exited</AlertDialogTitle>
           <AlertDialogDescription>
             You have exited fullscreen mode. This is violation {fullscreenWarnings}/{MAX_WARNINGS}.
