@@ -48,6 +48,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     const fetchResults = async () => {
       setIsLoading(true);
       try {
+        // Get all results
         const { data: resultsData, error: resultsError } = await supabase
           .from('results')
           .select(`
@@ -56,7 +57,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
               name,
               code
             ),
-            submissions:assessment_id!inner,user_id (
+            submissions:assessment_id (
               is_terminated
             )
           `)
@@ -80,15 +81,29 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           return;
         }
         
+        // Create user map for lookup
         const userMap = usersData?.reduce((acc: any, user) => {
           acc[user.auth_ID] = user;
           return acc;
         }, {});
 
-        let transformedData = resultsData.map((result) => {
+        // Get submission status for each result
+        const submissionPromises = resultsData.map(result => 
+          supabase
+            .from('submissions')
+            .select('is_terminated')
+            .eq('user_id', result.user_id)
+            .eq('assessment_id', result.assessment_id)
+            .maybeSingle()
+        );
+        
+        const submissionsResults = await Promise.all(submissionPromises);
+        
+        // Transform the data
+        let transformedData = resultsData.map((result, index) => {
           const userDetails = userMap[result.user_id] || { name: 'Unknown User', email: 'unknown@example.com' };
           const assessment = result.assessments;
-          const submission = result.submissions?.[0];
+          const submissionData = submissionsResults[index].data;
           
           return {
             name: userDetails.name,
@@ -98,7 +113,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             totalMarks: result.total_marks,
             percentage: result.percentage,
             completedAt: result.completed_at,
-            isTerminated: submission?.is_terminated || false,
+            isTerminated: submissionData?.is_terminated || false,
           };
         });
         
