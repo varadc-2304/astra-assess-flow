@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -56,6 +57,7 @@ interface ResultsTableProps {
     batch: string;
     assessment: string;
     searchQuery: string;
+    department: string;
   };
   flagged: boolean;
   topPerformers: boolean;
@@ -89,22 +91,8 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             percentage,
             completed_at,
             isTerminated,
-            assessments:assessment_id (
-              id,
-              name,
-              code
-            ),
-            users:user_id (
-              id,
-              name,
-              email,
-              role,
-              auth_ID,
-              year,
-              department,
-              division,
-              batch
-            )
+            assessments(id, name, code),
+            users(id, name, email, role, auth_ID, year, department, division, batch)
           `)
           .order('completed_at', { ascending: false });
         
@@ -123,11 +111,20 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           return;
         }
 
+        console.log('Raw results data:', resultsData);
+
         let transformedData: Student[] = resultsData
-          .filter(result => result.users) // Filter out results without user data
+          .filter(result => {
+            // Filter out results without user data
+            return result.users !== null;
+          })
           .map(result => {
-            const user = result.users;
-            const assessment = result.assessments;
+            const user = result.users as UserData | null;
+            const assessment = result.assessments as { id: string; name: string; code: string } | null;
+            
+            if (!user || !assessment) {
+              console.log('Missing user or assessment data for result:', result);
+            }
             
             return {
               id: result.user_id,
@@ -147,20 +144,38 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           });
 
         // Apply filters
-        if (filters.year) {
-          transformedData = transformedData.filter(s => s.year && s.year.toLowerCase() === filters.year.toLowerCase());
+        if (filters.year && filters.year.trim() !== '') {
+          console.log('Filtering by year:', filters.year);
+          transformedData = transformedData.filter(s => 
+            s.year && s.year.toLowerCase() === filters.year.toLowerCase()
+          );
         }
         
-        if (filters.division) {
-          transformedData = transformedData.filter(s => s.division && s.division.toLowerCase() === filters.division.toLowerCase());
+        if (filters.division && filters.division.trim() !== '') {
+          console.log('Filtering by division:', filters.division);
+          transformedData = transformedData.filter(s => 
+            s.division && s.division.toLowerCase() === filters.division.toLowerCase()
+          );
         }
         
-        if (filters.batch) {
-          transformedData = transformedData.filter(s => s.batch && s.batch.toLowerCase() === filters.batch.toLowerCase());
+        if (filters.batch && filters.batch.trim() !== '') {
+          console.log('Filtering by batch:', filters.batch);
+          transformedData = transformedData.filter(s => 
+            s.batch && s.batch.toLowerCase() === filters.batch.toLowerCase()
+          );
+        }
+
+        if (filters.department && filters.department.trim() !== '') {
+          console.log('Filtering by department:', filters.department);
+          transformedData = transformedData.filter(s => {
+            const user = resultsData.find(r => r.user_id === s.id)?.users as UserData | null;
+            return user?.department?.toLowerCase() === filters.department.toLowerCase();
+          });
         }
         
-        if (filters.searchQuery) {
-          const query = filters.searchQuery.toLowerCase();
+        if (filters.searchQuery && filters.searchQuery.trim() !== '') {
+          const query = filters.searchQuery.toLowerCase().trim();
+          console.log('Filtering by search query:', query);
           transformedData = transformedData.filter(s => 
             s.name.toLowerCase().includes(query) || 
             s.email.toLowerCase().includes(query)
@@ -168,10 +183,12 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         }
         
         if (flagged) {
+          console.log('Filtering flagged students');
           transformedData = transformedData.filter(s => s.isTerminated);
         }
         
         if (topPerformers) {
+          console.log('Sorting by top performers');
           transformedData.sort((a, b) => b.percentage - a.percentage);
           transformedData = transformedData.slice(0, 10);
         }
@@ -192,6 +209,11 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     
     fetchResults();
   }, [filters, flagged, topPerformers, toast]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, flagged, topPerformers]);
 
   return (
     <div className="space-y-4">
