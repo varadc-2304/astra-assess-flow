@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -144,28 +145,28 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           };
         });
 
-        // Apply filters
-        if (filters.year) {
+        // Apply all filters sequentially
+        if (filters.year && filters.year !== '') {
           transformedData = transformedData.filter(s => s.year === filters.year);
         }
         
-        if (filters.division) {
+        if (filters.division && filters.division !== '') {
           transformedData = transformedData.filter(s => s.division === filters.division);
         }
         
-        if (filters.batch) {
+        if (filters.batch && filters.batch !== '') {
           transformedData = transformedData.filter(s => s.batch === filters.batch);
         }
 
-        if (filters.department) {
+        if (filters.department && filters.department !== '') {
           transformedData = transformedData.filter(s => s.department === filters.department);
         }
         
-        if (filters.assessment && filters.assessment !== 'all') {
+        if (filters.assessment && filters.assessment !== '' && filters.assessment !== 'all') {
           transformedData = transformedData.filter(s => s.assessmentCode === filters.assessment);
         }
         
-        if (filters.searchQuery) {
+        if (filters.searchQuery && filters.searchQuery !== '') {
           const query = filters.searchQuery.toLowerCase();
           transformedData = transformedData.filter(s => 
             s.name.toLowerCase().includes(query) || 
@@ -183,6 +184,8 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           transformedData = transformedData.slice(0, 10);
         }
         
+        // Reset to first page when filters change
+        setCurrentPage(1);
         setStudents(transformedData);
       } catch (error) {
         console.error('Error fetching results:', error);
