@@ -261,8 +261,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       const allPassed = finalResults.every(r => r.passed);
       const totalPossibleMarks = testCases.reduce((sum, tc) => sum + (tc.marks || 0), 0);
       const correctPercentage = totalPossibleMarks > 0 ? (totalMarksEarned / totalPossibleMarks) * 100 : 0;
-      
-      setOutput(prev => `${prev}\n\nTotal marks earned: ${totalMarksEarned}/${totalPossibleMarks} (${correctPercentage.toFixed(1)}%)`);
+    
       
       if (onMarksUpdate) {
         onMarksUpdate(question.id, totalMarksEarned);
@@ -317,11 +316,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             throw answerError;
           }
           
-          toast({
-            title: allPassed ? "Success!" : "Test Cases Evaluation Complete",
-            description: `You earned ${totalMarksEarned} out of ${totalPossibleMarks} marks (${correctPercentage.toFixed(1)}%).`,
-            variant: allPassed ? "default" : "destructive",
-          });
         } catch (dbError) {
           console.error('Error storing results:', dbError);
           toast({
