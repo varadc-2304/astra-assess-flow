@@ -73,6 +73,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             percentage,
             completed_at,
             isTerminated,
+            contest_name,
             assessments:assessment_id (
               id,
               name,
@@ -122,7 +123,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         let transformedData: Student[] = resultsData.map((result) => {
           const userDetails = userMap[result.user_id];
           const assessment = typeof result.assessments === 'object' ? result.assessments : null;
-          const assessmentName = assessment?.name || 'Unknown Assessment';
+          const assessmentName = result.contest_name || assessment?.name || 'Unknown Assessment';
           
           const userName = userDetails?.name || 'Unknown User';
           const userEmail = userDetails?.email || 'unknown@example.com';

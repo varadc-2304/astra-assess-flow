@@ -265,6 +265,7 @@ export type Database = {
         Row: {
           assessment_id: string
           completed_at: string
+          contest_name: string | null
           created_at: string | null
           id: string
           isTerminated: boolean | null
@@ -276,6 +277,7 @@ export type Database = {
         Insert: {
           assessment_id: string
           completed_at: string
+          contest_name?: string | null
           created_at?: string | null
           id?: string
           isTerminated?: boolean | null
@@ -287,6 +289,7 @@ export type Database = {
         Update: {
           assessment_id?: string
           completed_at?: string
+          contest_name?: string | null
           created_at?: string | null
           id?: string
           isTerminated?: boolean | null

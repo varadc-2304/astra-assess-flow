@@ -165,6 +165,18 @@ const AssessmentPage = () => {
       
       await endAssessment();
       
+      const { error: resultError } = await supabase
+        .from('results')
+        .update({ 
+          contest_name: assessment.name 
+        })
+        .eq('assessment_id', assessment.id)
+        .eq('user_id', user?.id);
+      
+      if (resultError) {
+        console.error('Error updating contest name in results:', resultError);
+      }
+      
       toast({
         title: "Assessment Submitted",
         description: "Your answers have been submitted successfully!",
