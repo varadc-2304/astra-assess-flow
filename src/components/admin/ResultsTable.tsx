@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -20,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Flag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDate } from '@/lib/utils';
+import { Result } from '@/types/database';
 
 interface UserData {
   id: string;
@@ -39,6 +41,7 @@ interface Student {
   email: string;
   assessmentId: string;
   assessmentName: string;
+  assessmentCode?: string;
   score: number;
   totalMarks: number;
   percentage: number;
@@ -78,16 +81,17 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     const fetchResults = async () => {
       setIsLoading(true);
       try {
+        // First, let's query the results but modify our join approach to properly link users
         const { data: resultsData, error: resultsError } = await supabase
           .from('results')
           .select(`
             *,
-            assessments:assessment_id (
+            assessments (
               id,
               name,
               code
             ),
-            users:user_id (
+            users (
               id,
               name,
               email,
@@ -108,18 +112,17 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         }
 
         let transformedData: Student[] = resultsData.map((result) => {
-          const userDetails = result.users;
-          const assessment = result.assessments;
-          const assessmentName = assessment?.name || 'Unknown Assessment';
-          const assessmentCode = assessment?.code || '';
+          // Type assertion to provide better type safety
+          const userDetails = result.users as unknown as UserData;
+          const assessment = result.assessments as {id: string, name: string, code: string};
           
           return {
             id: result.user_id,
             name: userDetails?.name || 'Unknown User',
             email: userDetails?.email || 'unknown@example.com',
             assessmentId: result.assessment_id,
-            assessmentName,
-            assessmentCode,
+            assessmentName: assessment?.name || 'Unknown Assessment',
+            assessmentCode: assessment?.code || '',
             score: result.total_score,
             totalMarks: result.total_marks,
             percentage: result.percentage,
@@ -132,6 +135,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           };
         });
 
+        // Apply filters
         if (filters.year) {
           transformedData = transformedData.filter(s => s.year === filters.year);
         }
