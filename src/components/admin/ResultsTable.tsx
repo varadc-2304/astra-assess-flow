@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -44,9 +43,6 @@ interface Student {
 
 interface ResultsTableProps {
   filters: {
-    year: string;
-    division: string;
-    batch: string;
     assessment: string;
     searchQuery: string;
   };
@@ -162,23 +158,8 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           };
         });
         
-        // Apply filters
-        if (filters.year) {
-          transformedData = transformedData.filter(s => s.year === filters.year);
-        }
-        
-        if (filters.division) {
-          transformedData = transformedData.filter(s => s.division === filters.division);
-        }
-        
-        if (filters.batch) {
-          transformedData = transformedData.filter(s => s.batch === filters.batch);
-        }
-        
         if (filters.assessment && filters.assessment !== 'all') {
-          transformedData = transformedData.filter(s => 
-            s.assessmentName === filters.assessment
-          );
+          transformedData = transformedData.filter(s => s.assessmentName === filters.assessment);
         }
         
         if (filters.searchQuery) {

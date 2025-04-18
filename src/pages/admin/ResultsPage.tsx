@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -12,12 +11,7 @@ import ResultsTable from '@/components/admin/ResultsTable';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
-// Update UserFilters interface to include department
 interface UserFilters {
-  year: string;
-  division: string;
-  batch: string;
-  department: string;
   assessment: string;
   searchQuery: string;
 }
@@ -61,24 +55,15 @@ const ResultsPage = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('all');
   const [filters, setFilters] = useState<UserFilters>({
-    year: '',
-    division: '',
-    batch: '',
-    department: '',
     assessment: '',
     searchQuery: ''
   });
   const [isExporting, setIsExporting] = useState(false);
-  const [assessmentOptions, setAssessmentOptions] = useState<AssessmentOption[]>([]);
-  const [years, setYears] = useState<string[]>([]);
-  const [divisions, setDivisions] = useState<string[]>([]);
-  const [batches, setBatches] = useState<string[]>([]);
-  const [departments, setDepartments] = useState<string[]>([]);
+  const [assessmentOptions, setAssessmentOptions] = useState<{ name: string }[]>([]);
 
   useEffect(() => {
     const fetchAssessmentOptions = async () => {
       try {
-        // Fetch all unique contest names from the results table
         const { data: contestNamesData, error: contestNamesError } = await supabase
           .from('results')
           .select('contest_name')
@@ -87,75 +72,28 @@ const ResultsPage = () => {
         
         if (contestNamesError) throw contestNamesError;
         
-        // Also fetch assessment names and codes as backup
-        const { data: assessmentsData, error: assessmentsError } = await supabase
-          .from('assessments')
-          .select('name, code')
-          .order('name');
+        const uniqueAssessmentNames = new Set<string>();
         
-        if (assessmentsError) throw assessmentsError;
-        
-        // Combine unique contest names from results and assessment names
-        const uniqueAssessmentOptions = new Map();
-        
-        // First add contest names from results
         if (contestNamesData) {
           contestNamesData.forEach(item => {
             if (item.contest_name) {
-              uniqueAssessmentOptions.set(item.contest_name.toLowerCase(), { name: item.contest_name });
+              uniqueAssessmentNames.add(item.contest_name);
             }
           });
         }
         
-        // Then add assessment names as fallback
-        if (assessmentsData) {
-          assessmentsData.forEach(assessment => {
-            const displayName = `${assessment.name} (${assessment.code})`;
-            if (!uniqueAssessmentOptions.has(displayName.toLowerCase())) {
-              uniqueAssessmentOptions.set(displayName.toLowerCase(), { name: displayName });
-            }
-          });
-        }
+        const assessmentOptionsArray = Array.from(uniqueAssessmentNames).map(name => ({
+          name
+        }));
         
-        // Convert map to array of unique assessment options
-        setAssessmentOptions(Array.from(uniqueAssessmentOptions.values()));
+        setAssessmentOptions(assessmentOptionsArray);
       } catch (error) {
         console.error('Error fetching assessment options:', error);
       }
     };
 
-    const fetchUserFilters = async () => {
-      try {
-        const { data: users, error } = await supabase
-          .from('users')
-          .select('year, division, batch, department');
-
-        if (error) throw error;
-
-        if (users) {
-          const uniqueYears = [...new Set(users.map(user => user.year).filter(Boolean))].sort();
-          const uniqueDivisions = [...new Set(users.map(user => user.division).filter(Boolean))].sort();
-          const uniqueBatches = [...new Set(users.map(user => user.batch).filter(Boolean))].sort();
-          const uniqueDepartments = [...new Set(users.map(user => user.department).filter(Boolean))].sort();
-
-          setYears(uniqueYears);
-          setDivisions(uniqueDivisions);
-          setBatches(uniqueBatches);
-          setDepartments(uniqueDepartments);
-        }
-      } catch (error) {
-        console.error('Error fetching user filters:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load filter options",
-          variant: "destructive"
-        });
-      }
-    };
-
     fetchAssessmentOptions();
-    fetchUserFilters();
-  }, [toast]);
+  }, []);
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters({
@@ -168,8 +106,7 @@ const ResultsPage = () => {
     try {
       setIsExporting(true);
 
-      // Fetch results data
-      const { data: resultsData, error: resultsError } = await supabase
+      let query = supabase
         .from('results')
         .select(`
           id,
@@ -180,8 +117,22 @@ const ResultsPage = () => {
           percentage,
           completed_at,
           isTerminated,
-          assessments:assessment_id (name, code)
+          contest_name,
+          users:user_id (
+            name,
+            email,
+            department,
+            year,
+            division,
+            batch
+          )
         `);
+
+      if (filters.assessment) {
+        query = query.eq('contest_name', filters.assessment);
+      }
+
+      const { data: resultsData, error: resultsError } = await query;
 
       if (resultsError) throw resultsError;
       
@@ -194,92 +145,20 @@ const ResultsPage = () => {
         return;
       }
 
-      // Fetch user data separately
-      const userIds = Array.from(new Set(resultsData.map(r => r.user_id)));
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('id, auth_ID, name, email, year, department, division, batch')
-        .in('auth_ID', userIds);
-      
-      if (usersError) {
-        console.error("Error fetching user data:", usersError);
-      }
-      
-      // Create a map of user data for easier lookup
-      const userMap: Record<string, UserData> = {};
-      if (usersData) {
-        usersData.forEach(user => {
-          if (user.auth_ID) {
-            userMap[user.auth_ID] = user;
-          }
-        });
-      }
-
-      // Combine results with user data
-      let combinedData = resultsData.map(result => {
-        const userDetails = userMap[result.user_id] || {};
-        return {
-          ...result,
-          userData: userDetails
-        };
-      });
-
-      // Apply filters
-      let filteredResults = combinedData;
-      
-      if (filters.year) {
-        filteredResults = filteredResults.filter(r => r.userData?.year === filters.year);
-      }
-      
-      if (filters.division) {
-        filteredResults = filteredResults.filter(r => r.userData?.division === filters.division);
-      }
-      
-      if (filters.batch) {
-        filteredResults = filteredResults.filter(r => r.userData?.batch === filters.batch);
-      }
-      
-      if (filters.department) {
-        filteredResults = filteredResults.filter(r => r.userData?.department === filters.department);
-      }
-      
-      if (filters.assessment && filters.assessment !== 'all') {
-        filteredResults = filteredResults.filter(r => r.assessments?.code === filters.assessment);
-      }
-      
-      if (filters.searchQuery) {
-        const query = filters.searchQuery.toLowerCase();
-        filteredResults = filteredResults.filter(r => 
-          (r.userData?.name?.toLowerCase().includes(query) ?? false) || 
-          (r.userData?.email?.toLowerCase().includes(query) ?? false)
-        );
-      }
-
-      // Format data for CSV
-      const csvData = filteredResults.map(result => ({
-        "Student Name": result.userData?.name || "Unknown",
-        "Email": result.userData?.email || "unknown@example.com",
-        "Year": result.userData?.year || "N/A",
-        "Department": result.userData?.department || "N/A",
-        "Division": result.userData?.division || "N/A",
-        "Batch": result.userData?.batch || "N/A",
-        "Assessment": result.assessments?.name || "Unknown",
-        "Assessment Code": result.assessments?.code || "N/A",
+      const csvData = resultsData.map(result => ({
+        "Student Name": result.users?.name || "Unknown",
+        "Email": result.users?.email || "unknown@example.com",
+        "Year": result.users?.year || "N/A",
+        "Department": result.users?.department || "N/A",
+        "Division": result.users?.division || "N/A",
+        "Batch": result.users?.batch || "N/A",
+        "Assessment": result.contest_name || "Unknown",
         "Score": result.total_score,
         "Total Marks": result.total_marks,
         "Percentage": result.percentage,
         "Status": result.isTerminated ? "Terminated" : "Completed",
         "Completion Time": new Date(result.completed_at).toLocaleString()
       }));
-
-      if (csvData.length === 0) {
-        toast({
-          title: "No data to export",
-          description: "There are no results matching your filter criteria",
-          variant: "destructive"
-        });
-        return;
-      }
 
       const headers = Object.keys(csvData[0]);
       const csvContent = [
@@ -352,80 +231,7 @@ const ResultsPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                <div>
-                  <Select
-                    value={filters.year}
-                    onValueChange={(value) => handleFilterChange('year', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Academic Year" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {years.map(year => (
-                        <SelectItem key={year} value={year}>
-                          {year}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Select
-                    value={filters.division}
-                    onValueChange={(value) => handleFilterChange('division', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Division" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {divisions.map(division => (
-                        <SelectItem key={division} value={division}>
-                          Division {division}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Select
-                    value={filters.batch}
-                    onValueChange={(value) => handleFilterChange('batch', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Batch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {batches.map(batch => (
-                        <SelectItem key={batch} value={batch}>
-                          {batch}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Department Filter */}
-                <div>
-                  <Select
-                    value={filters.department}
-                    onValueChange={(value) => handleFilterChange('department', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map(department => (
-                        <SelectItem key={department} value={department}>
-                          {department}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Select
                     value={filters.assessment}
