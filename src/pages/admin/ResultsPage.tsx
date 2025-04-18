@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -16,10 +17,6 @@ interface UserFilters {
   searchQuery: string;
 }
 
-interface AssessmentOption {
-  name: string;
-}
-
 interface UserData {
   id?: string;
   auth_ID?: string;
@@ -31,11 +28,6 @@ interface UserData {
   batch?: string;
 }
 
-interface AssessmentData {
-  name?: string;
-  code?: string;
-}
-
 interface ResultData {
   id: string;
   user_id: string;
@@ -45,8 +37,7 @@ interface ResultData {
   percentage: number;
   completed_at: string;
   isTerminated?: boolean;
-  users?: UserData;
-  assessments?: AssessmentData;
+  contest_name?: string;
 }
 
 const ResultsPage = () => {
@@ -55,7 +46,7 @@ const ResultsPage = () => {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('all');
   const [filters, setFilters] = useState<UserFilters>({
-    assessment: '',
+    assessment: 'all',
     searchQuery: ''
   });
   const [isExporting, setIsExporting] = useState(false);
@@ -64,14 +55,18 @@ const ResultsPage = () => {
   useEffect(() => {
     const fetchAssessmentOptions = async () => {
       try {
+        // Fetch unique contest names from results table
         const { data: contestNamesData, error: contestNamesError } = await supabase
           .from('results')
           .select('contest_name')
-          .not('contest_name', 'is', null)
-          .order('contest_name');
+          .not('contest_name', 'is', null);
         
-        if (contestNamesError) throw contestNamesError;
+        if (contestNamesError) {
+          console.error('Error fetching contest names:', contestNamesError);
+          return;
+        }
         
+        // Extract unique assessment names
         const uniqueAssessmentNames = new Set<string>();
         
         if (contestNamesData) {
@@ -82,6 +77,7 @@ const ResultsPage = () => {
           });
         }
         
+        // Convert to array of objects with name property
         const assessmentOptionsArray = Array.from(uniqueAssessmentNames).map(name => ({
           name
         }));
@@ -106,29 +102,21 @@ const ResultsPage = () => {
     try {
       setIsExporting(true);
 
-      let query = supabase
-        .from('results')
-        .select(`
-          id,
-          user_id,
-          assessment_id,
-          total_score,
-          total_marks,
-          percentage,
-          completed_at,
-          isTerminated,
-          contest_name,
-          users:user_id (
-            name,
-            email,
-            department,
-            year,
-            division,
-            batch
-          )
-        `);
+      // Fetch results based on filters
+      let query = supabase.from('results').select(`
+        id,
+        user_id,
+        assessment_id,
+        total_score,
+        total_marks,
+        percentage,
+        completed_at,
+        isTerminated,
+        contest_name
+      `);
 
-      if (filters.assessment) {
+      // Apply assessment filter if not set to 'all'
+      if (filters.assessment && filters.assessment !== 'all') {
         query = query.eq('contest_name', filters.assessment);
       }
 
@@ -145,21 +133,35 @@ const ResultsPage = () => {
         return;
       }
 
-      const csvData = resultsData.map(result => ({
-        "Student Name": result.users?.name || "Unknown",
-        "Email": result.users?.email || "unknown@example.com",
-        "Year": result.users?.year || "N/A",
-        "Department": result.users?.department || "N/A",
-        "Division": result.users?.division || "N/A",
-        "Batch": result.users?.batch || "N/A",
-        "Assessment": result.contest_name || "Unknown",
-        "Score": result.total_score,
-        "Total Marks": result.total_marks,
-        "Percentage": result.percentage,
-        "Status": result.isTerminated ? "Terminated" : "Completed",
-        "Completion Time": new Date(result.completed_at).toLocaleString()
-      }));
+      // Fetch user data separately for each result
+      const csvData = [];
+      
+      for (const result of resultsData) {
+        // Get user data for each result
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('name, email, department, year, division, batch')
+          .eq('auth_ID', result.user_id)
+          .single();
+        
+        // If user data is found, add it to the CSV data
+        csvData.push({
+          "Student Name": userData?.name || "Unknown",
+          "Email": userData?.email || "unknown@example.com",
+          "Year": userData?.year || "N/A",
+          "Department": userData?.department || "N/A",
+          "Division": userData?.division || "N/A",
+          "Batch": userData?.batch || "N/A",
+          "Assessment": result.contest_name || "Unknown",
+          "Score": result.total_score,
+          "Total Marks": result.total_marks,
+          "Percentage": result.percentage,
+          "Status": result.isTerminated ? "Terminated" : "Completed",
+          "Completion Time": new Date(result.completed_at).toLocaleString()
+        });
+      }
 
+      // Create CSV from data
       const headers = Object.keys(csvData[0]);
       const csvContent = [
         headers.join(','),
@@ -168,6 +170,7 @@ const ResultsPage = () => {
         ).join(','))
       ].join('\n');
 
+      // Download CSV file
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
