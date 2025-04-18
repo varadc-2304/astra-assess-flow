@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +15,7 @@ export const useFullscreen = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenExitTime, setFullscreenExitTime] = useState<number | null>(null);
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState<number>(30);
   const { fullscreenWarnings, addFullscreenWarning, endAssessment, assessment } = useAssessment();
   const navigate = useNavigate();
 
@@ -112,6 +114,7 @@ export const useFullscreen = () => {
       addFullscreenWarning();
       recordFullscreenViolation();
       setShowExitDialog(true);
+      setTimeRemaining(30);
       
       if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
         endAssessment();
@@ -120,6 +123,7 @@ export const useFullscreen = () => {
     } else {
       setFullscreenExitTime(null);
       setShowExitDialog(false);
+      setTimeRemaining(30);
     }
   }, [checkFullscreen, fullscreenWarnings, addFullscreenWarning, endAssessment, recordFullscreenViolation, navigate]);
 
@@ -129,11 +133,14 @@ export const useFullscreen = () => {
     if (fullscreenExitTime !== null) {
       timer = setInterval(() => {
         const secondsOut = Math.floor((Date.now() - fullscreenExitTime) / 1000);
+        const remaining = MAX_FULLSCREEN_EXIT_TIME - secondsOut;
         
-        if (secondsOut >= MAX_FULLSCREEN_EXIT_TIME) {
+        if (remaining <= 0) {
           endAssessment();
           navigate('/summary');
           clearInterval(timer);
+        } else {
+          setTimeRemaining(remaining);
         }
       }, 1000);
     }
@@ -154,14 +161,14 @@ export const useFullscreen = () => {
     exitFullscreen,
     fullscreenWarnings,
     ExitDialog: () => (
-      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+      <AlertDialog open={showExitDialog}>
         <AlertDialogContent>
           <AlertDialogTitle>Fullscreen Mode Exited</AlertDialogTitle>
           <AlertDialogDescription>
             You have exited fullscreen mode. This is violation {fullscreenWarnings}/{MAX_WARNINGS}.
             Please return to fullscreen immediately or your test will be terminated.
             <div className="mt-2 font-semibold text-red-600">
-              You have {MAX_FULLSCREEN_EXIT_TIME} seconds to return to fullscreen.
+              Time remaining: {timeRemaining} seconds
             </div>
           </AlertDialogDescription>
           <div className="flex justify-between mt-4">
