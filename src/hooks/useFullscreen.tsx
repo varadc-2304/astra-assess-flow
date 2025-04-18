@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useNavigate } from 'react-router-dom';
@@ -20,7 +19,7 @@ export const useFullscreen = () => {
   const navigate = useNavigate();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const persistentTimeRef = useRef<number>(30);
-  const fullscreenChangeHandlerRef = useRef<() => void>();
+  const fullscreenChangeHandlerRef = useRef<boolean>(false);
 
   const MAX_WARNINGS = 3;
   const MAX_FULLSCREEN_EXIT_TIME = 30; // seconds
@@ -118,32 +117,39 @@ export const useFullscreen = () => {
 
   const handleFullscreenChange = useCallback(() => {
     const fullscreenStatus = checkFullscreen();
-    console.log("Fullscreen change detected:", fullscreenStatus);
-    setIsFullscreen(fullscreenStatus);
     
     if (!fullscreenStatus) {
-      if (!showExitDialog) {
-        // First time exiting or re-exiting after returning to fullscreen
+      if (!fullscreenChangeHandlerRef.current) {
+        fullscreenChangeHandlerRef.current = true;
+        
         setFullscreenExitTime(Date.now());
         addFullscreenWarning();
         recordFullscreenViolation();
+        
         setShowExitDialog(true);
-        console.log("Exit dialog should now be showing");
+        startOrResumeTimer();
+        
+        if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
+          endAssessment();
+          navigate('/summary');
+          return;
+        }
       }
-      
-      if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
-        endAssessment();
-        navigate('/summary');
-        return;
-      }
-      
-      startOrResumeTimer();
     } else {
+      fullscreenChangeHandlerRef.current = false;
       clearTimerIfExists();
       setFullscreenExitTime(null);
       setShowExitDialog(false);
     }
-  }, [checkFullscreen, fullscreenWarnings, recordFullscreenViolation, endAssessment, navigate, showExitDialog, addFullscreenWarning]);
+  }, [
+    checkFullscreen, 
+    fullscreenWarnings, 
+    recordFullscreenViolation, 
+    endAssessment, 
+    navigate, 
+    addFullscreenWarning,
+    startOrResumeTimer
+  ]);
 
   const startOrResumeTimer = useCallback(() => {
     clearTimerIfExists();
@@ -162,18 +168,14 @@ export const useFullscreen = () => {
     }, 1000);
   }, [endAssessment, navigate, showExitDialog]);
 
-  // Initialize the persistent timer reference when component mounts
   useEffect(() => {
     persistentTimeRef.current = MAX_FULLSCREEN_EXIT_TIME;
   }, []);
 
-  // Create the fullscreen change handler ref to prevent multiple handlers
   useEffect(() => {
-    // Create a stable reference to the handler
     fullscreenChangeHandlerRef.current = () => handleFullscreenChange();
   }, [handleFullscreenChange]);
 
-  // Attach event listeners for fullscreen change with stable handler
   useEffect(() => {
     const handler = () => {
       if (fullscreenChangeHandlerRef.current) {
@@ -211,7 +213,6 @@ export const useFullscreen = () => {
         open={showExitDialog} 
         onOpenChange={(open) => {
           if (!open && !isFullscreen) {
-            // Force dialog to stay open if we're not in fullscreen
             setTimeout(() => setShowExitDialog(true), 0);
           }
         }}
