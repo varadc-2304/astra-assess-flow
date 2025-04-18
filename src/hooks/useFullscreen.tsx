@@ -180,6 +180,5 @@ export const useFullscreen = () => {
     showExitWarning,
     timeRemaining,
     terminateAssessment,
-    MAX_WARNINGS
   };
 };

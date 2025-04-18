@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -418,9 +419,10 @@ const AssessmentPage = () => {
                 Please return to fullscreen immediately or your test will be terminated.
               </p>
               <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-red-700 font-medium">
-                  Time remaining: {timeRemaining} seconds
-                </p>
+                <div className="text-red-700 font-medium flex items-center justify-between">
+                  <span>Time remaining:</span>
+                  <Timer value={timeRemaining} />
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
