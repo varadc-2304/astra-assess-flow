@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -59,7 +58,8 @@ const ResultsPage = () => {
         const { data: contestNamesData, error: contestNamesError } = await supabase
           .from('results')
           .select('contest_name')
-          .not('contest_name', 'is', null);
+          .not('contest_name', 'is', null)
+          .order('contest_name');
         
         if (contestNamesError) {
           console.error('Error fetching contest names:', contestNamesError);
@@ -133,18 +133,16 @@ const ResultsPage = () => {
         return;
       }
 
-      // Fetch user data separately for each result
+      // Fetch user data for each result
       const csvData = [];
       
       for (const result of resultsData) {
-        // Get user data for each result
-        const { data: userData, error: userError } = await supabase
+        const { data: userData } = await supabase
           .from('users')
           .select('name, email, department, year, division, batch')
           .eq('auth_ID', result.user_id)
           .single();
-        
-        // If user data is found, add it to the CSV data
+
         csvData.push({
           "Student Name": userData?.name || "Unknown",
           "Email": userData?.email || "unknown@example.com",
@@ -161,7 +159,7 @@ const ResultsPage = () => {
         });
       }
 
-      // Create CSV from data
+      // Create and download CSV
       const headers = Object.keys(csvData[0]);
       const csvContent = [
         headers.join(','),
@@ -170,7 +168,6 @@ const ResultsPage = () => {
         ).join(','))
       ].join('\n');
 
-      // Download CSV file
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
