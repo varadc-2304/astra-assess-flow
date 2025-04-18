@@ -50,7 +50,6 @@ const AssessmentPage = () => {
     enterFullscreen, 
     isFullscreen, 
     showExitWarning, 
-    timeRemaining, 
     fullscreenWarnings,
     terminateAssessment
   } = useFullscreen();

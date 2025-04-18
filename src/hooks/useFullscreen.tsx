@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useNavigate } from 'react-router-dom';
@@ -212,5 +213,6 @@ export const useFullscreen = () => {
     fullscreenWarnings,
     showExitWarning,
     terminateAssessment,
+    timeRemaining: persistentTimeRef.current, // Add this property to the returned object
   };
 };
