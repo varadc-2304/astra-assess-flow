@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -9,14 +8,6 @@ import {
   TableRow 
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Pagination, 
-  PaginationContent, 
-  PaginationItem, 
-  PaginationLink, 
-  PaginationNext, 
-  PaginationPrevious 
-} from '@/components/ui/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { Flag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -65,13 +56,7 @@ interface ResultsTableProps {
 const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerformers }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
-  
-  const pageSize = 10;
-  const totalPages = Math.ceil(students.length / pageSize);
-  const startIndex = (currentPage - 1) * pageSize;
-  const visibleStudents = students.slice(startIndex, startIndex + pageSize);
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -142,12 +127,10 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           const userName = userDetails?.name || 'Unknown User';
           const userEmail = userDetails?.email || 'unknown@example.com';
           
-          // Use actual user data if available, otherwise generate from hash
           let division = userDetails?.division;
           let batch = userDetails?.batch;
           let year = userDetails?.year;
           
-          // Fallback to hash-based values if real data is not available
           if (!division || !batch || !year) {
             const hash = result.user_id.split('').reduce((a, b) => {
               a = ((a << 5) - a) + b.charCodeAt(0);
@@ -240,86 +223,50 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           <p className="text-gray-500">No results found matching the selected criteria</p>
         </div>
       ) : (
-        <>
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Assessment</TableHead>
-                  <TableHead className="text-center">Score</TableHead>
-                  <TableHead>Date Completed</TableHead>
-                  <TableHead>Status</TableHead>
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Assessment</TableHead>
+                <TableHead className="text-center">Score</TableHead>
+                <TableHead>Date Completed</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {students.map((student, index) => (
+                <TableRow 
+                  key={`${student.id}-${student.assessmentId}-${index}`} 
+                  className={student.isTerminated ? "bg-red-50" : ""}
+                >
+                  <TableCell>
+                    {student.name}
+                    <div className="text-xs text-gray-500">{student.email}</div>
+                  </TableCell>
+                  <TableCell>{student.assessmentName}</TableCell>
+                  <TableCell className="text-center">
+                    {student.score}/{student.totalMarks}
+                    <div className="text-xs text-gray-500">{student.percentage}%</div>
+                  </TableCell>
+                  <TableCell>{formatDate(student.completedAt)}</TableCell>
+                  <TableCell>
+                    {student.isTerminated ? (
+                      <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
+                        <Flag className="h-3 w-3 mr-1" />
+                        Flagged
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">
+                        No Issues
+                      </Badge>
+                    )}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visibleStudents.map((student, index) => (
-                  <TableRow 
-                    key={`${student.id}-${student.assessmentId}-${index}`} 
-                    className={student.isTerminated ? "bg-red-50" : ""}
-                  >
-                    <TableCell>
-                      {student.name}
-                      <div className="text-xs text-gray-500">{student.email}</div>
-                    </TableCell>
-                    <TableCell>{student.assessmentName}</TableCell>
-                    <TableCell className="text-center">
-                      {student.score}/{student.totalMarks}
-                      <div className="text-xs text-gray-500">{student.percentage}%</div>
-                    </TableCell>
-                    <TableCell>{formatDate(student.completedAt)}</TableCell>
-                    <TableCell>
-                      {student.isTerminated ? (
-                        <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
-                          <Flag className="h-3 w-3 mr-1" />
-                          Flagged
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">
-                          No Issues
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          
-          {totalPages > 1 && (
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious 
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    className="cursor-pointer"
-                    aria-disabled={currentPage <= 1} 
-                  />
-                </PaginationItem>
-                
-                {Array.from({length: totalPages}, (_, i) => i + 1).map(page => (
-                  <PaginationItem key={page}>
-                    <PaginationLink 
-                      isActive={page === currentPage}
-                      onClick={() => setCurrentPage(page)}
-                      className="cursor-pointer"
-                    >
-                      {page}
-                    </PaginationLink>
-                  </PaginationItem>
-                ))}
-                
-                <PaginationItem>
-                  <PaginationNext 
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    className="cursor-pointer"
-                    aria-disabled={currentPage >= totalPages}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          )}
-        </>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </div>
   );
