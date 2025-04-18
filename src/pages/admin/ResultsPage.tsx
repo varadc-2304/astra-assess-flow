@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -9,11 +10,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, FileDown, Filter } from 'lucide-react';
 import ResultsTable from '@/components/admin/ResultsTable';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'react-toastify';
+import { useToast } from '@/hooks/use-toast';
 
 const ResultsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('all');
   const [filters, setFilters] = useState({
     year: '',
@@ -111,7 +113,7 @@ const ResultsPage = () => {
         .select(`
           *,
           assessments:assessment_id (name, code),
-          users:user_id (name, email, year, department, division, batch)
+          users:user_id (id)
         `);
 
       if (error) throw error;
@@ -125,44 +127,82 @@ const ResultsPage = () => {
         return;
       }
 
+      // Get the user details separately to avoid type issues
+      const userIds = results.map(result => result.user_id);
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, name, email, year, department, division, batch')
+        .in('auth_ID', userIds);
+
+      if (userError) throw userError;
+
+      // Create a lookup map for user data
+      const userMap: Record<string, any> = {};
+      if (userData) {
+        userData.forEach(user => {
+          if (user.id) userMap[user.id] = user;
+          if (user.auth_ID) userMap[user.auth_ID] = user;
+        });
+      }
+
       // Apply filters
       let filteredResults = results;
       
       if (filters.year) {
-        filteredResults = filteredResults.filter(r => r.users?.year === filters.year);
+        filteredResults = filteredResults.filter(r => {
+          const user = userMap[r.user_id];
+          return user && user.year === filters.year;
+        });
       }
       if (filters.division) {
-        filteredResults = filteredResults.filter(r => r.users?.division === filters.division);
+        filteredResults = filteredResults.filter(r => {
+          const user = userMap[r.user_id];
+          return user && user.division === filters.division;
+        });
       }
       if (filters.batch) {
-        filteredResults = filteredResults.filter(r => r.users?.batch === filters.batch);
+        filteredResults = filteredResults.filter(r => {
+          const user = userMap[r.user_id];
+          return user && user.batch === filters.batch;
+        });
       }
       if (filters.assessment) {
-        filteredResults = filteredResults.filter(r => r.assessments?.code === filters.assessment);
+        filteredResults = filteredResults.filter(r => 
+          r.assessments && typeof r.assessments === 'object' && 
+          'code' in r.assessments && r.assessments.code === filters.assessment
+        );
       }
       if (filters.searchQuery) {
         const query = filters.searchQuery.toLowerCase();
-        filteredResults = filteredResults.filter(r => 
-          r.users?.name.toLowerCase().includes(query) || 
-          r.users?.email.toLowerCase().includes(query)
-        );
+        filteredResults = filteredResults.filter(r => {
+          const user = userMap[r.user_id];
+          return user && (
+            (user.name && user.name.toLowerCase().includes(query)) || 
+            (user.email && user.email.toLowerCase().includes(query))
+          );
+        });
       }
 
-      const csvData = filteredResults.map(result => ({
-        "Student Name": result.users?.name || "Unknown",
-        "Email": result.users?.email || "unknown@example.com",
-        "Year": result.users?.year || "N/A",
-        "Department": result.users?.department || "N/A",
-        "Division": result.users?.division || "N/A",
-        "Batch": result.users?.batch || "N/A",
-        "Assessment": result.assessments?.name || "Unknown",
-        "Assessment Code": result.assessments?.code || "N/A",
-        "Score": result.total_score,
-        "Total Marks": result.total_marks,
-        "Percentage": result.percentage,
-        "Status": result.isTerminated ? "Terminated" : "Completed",
-        "Completion Time": new Date(result.completed_at).toLocaleString()
-      }));
+      const csvData = filteredResults.map(result => {
+        const user = userMap[result.user_id] || {};
+        const assessment = result.assessments && typeof result.assessments === 'object' ? result.assessments : {};
+        
+        return {
+          "Student Name": user.name || "Unknown",
+          "Email": user.email || "unknown@example.com",
+          "Year": user.year || "N/A",
+          "Department": user.department || "N/A",
+          "Division": user.division || "N/A",
+          "Batch": user.batch || "N/A",
+          "Assessment": assessment.name || "Unknown",
+          "Assessment Code": assessment.code || "N/A",
+          "Score": result.total_score,
+          "Total Marks": result.total_marks,
+          "Percentage": result.percentage,
+          "Status": result.isTerminated ? "Terminated" : "Completed",
+          "Completion Time": new Date(result.completed_at).toLocaleString()
+        };
+      });
 
       if (csvData.length === 0) {
         toast({

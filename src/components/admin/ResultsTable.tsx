@@ -28,6 +28,10 @@ interface UserData {
   email: string;
   role: string;
   auth_ID: string;
+  year?: string;
+  department?: string;
+  division?: string;
+  batch?: string;
 }
 
 interface Student {
@@ -104,7 +108,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         
         const { data: usersData, error: usersError } = await supabase
           .from('users')
-          .select('id, name, email, role, auth_ID')
+          .select('id, name, email, role, auth_ID, year, department, division, batch')
           .in('auth_ID', userIds);
         
         if (usersError) {
@@ -120,7 +124,11 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
                 name: user.name,
                 email: user.email,
                 role: user.role,
-                auth_ID: user.auth_ID
+                auth_ID: user.auth_ID,
+                year: user.year,
+                department: user.department,
+                division: user.division,
+                batch: user.batch
               };
             }
           });
@@ -134,15 +142,23 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           const userName = userDetails?.name || 'Unknown User';
           const userEmail = userDetails?.email || 'unknown@example.com';
           
-          const hash = result.user_id.split('').reduce((a, b) => {
-            a = ((a << 5) - a) + b.charCodeAt(0);
-            return a & a;
-          }, 0);
+          // Use actual user data if available, otherwise generate from hash
+          let division = userDetails?.division;
+          let batch = userDetails?.batch;
+          let year = userDetails?.year;
           
-          const absHash = Math.abs(hash);
-          const division = ['A', 'B', 'C'][absHash % 3];
-          const batch = ['B1', 'B2', 'B3'][absHash % 3];
-          const year = ['2023', '2024', '2025'][absHash % 3];
+          // Fallback to hash-based values if real data is not available
+          if (!division || !batch || !year) {
+            const hash = result.user_id.split('').reduce((a, b) => {
+              a = ((a << 5) - a) + b.charCodeAt(0);
+              return a & a;
+            }, 0);
+            
+            const absHash = Math.abs(hash);
+            division = division || ['A', 'B', 'C'][absHash % 3];
+            batch = batch || ['B1', 'B2', 'B3'][absHash % 3];
+            year = year || ['2023', '2024', '2025'][absHash % 3];
+          }
           
           return {
             id: result.user_id,
@@ -310,4 +326,3 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
 };
 
 export default ResultsTable;
-
