@@ -435,7 +435,7 @@ const ResultsPage = () => {
                       <SelectValue placeholder="Assessment" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Assessments</SelectItem>
+                      <SelectItem value="all">All Assessments</SelectItem>
                       {assessmentOptions.map((item, index) => (
                         <SelectItem key={`${item.name}-${index}`} value={item.name}>
                           {item.name}

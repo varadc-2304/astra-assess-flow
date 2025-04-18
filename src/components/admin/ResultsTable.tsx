@@ -175,7 +175,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           transformedData = transformedData.filter(s => s.batch === filters.batch);
         }
         
-        if (filters.assessment && filters.assessment !== '') {
+        if (filters.assessment && filters.assessment !== 'all') {
           transformedData = transformedData.filter(s => 
             s.assessmentName === filters.assessment
           );
