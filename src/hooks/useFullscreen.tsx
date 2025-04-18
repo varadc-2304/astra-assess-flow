@@ -43,7 +43,7 @@ export const useFullscreen = () => {
     timerRef.current = setInterval(() => {
       persistentTimeRef.current = Math.max(0, persistentTimeRef.current - 1);
       setTimeRemaining(persistentTimeRef.current);
-
+      
       if (persistentTimeRef.current <= 0) {
         clearTimerIfExists();
         fullscreenExitHandledRef.current = false;
@@ -51,6 +51,9 @@ export const useFullscreen = () => {
         navigate('/summary');
       }
     }, 1000);
+
+    console.log('Timer started with interval ID:', timerRef.current);
+    return () => clearTimerIfExists();
   }, [endAssessment, navigate]);
 
   const enterFullscreen = useCallback(async () => {
@@ -121,12 +124,14 @@ export const useFullscreen = () => {
         setShowExitWarning(true);
         addFullscreenWarning();
         recordFullscreenViolation();
-        startOrResumeTimer();
+        
+        // Immediately start the timer when exiting fullscreen
+        const cleanupTimer = startOrResumeTimer();
         
         if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
           endAssessment();
           navigate('/summary');
-          return;
+          return cleanupTimer;
         }
       }
     } else {
