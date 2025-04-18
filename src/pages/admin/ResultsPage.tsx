@@ -12,20 +12,26 @@ import ResultsTable from '@/components/admin/ResultsTable';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
-// Define type interfaces for our data
+// Define more flexible type interfaces for our data
 interface AssessmentCode {
   code: string;
   name: string;
 }
 
 interface UserData {
-  id: string;
+  id?: string;
+  auth_ID?: string;
   name?: string;
   email?: string;
   year?: string;
   department?: string;
   division?: string;
   batch?: string;
+}
+
+interface AssessmentData {
+  name?: string;
+  code?: string;
 }
 
 interface ResultData {
@@ -38,10 +44,7 @@ interface ResultData {
   completed_at: string;
   isTerminated?: boolean;
   users?: UserData;
-  assessments?: {
-    name?: string;
-    code?: string;
-  };
+  assessments?: AssessmentData;
 }
 
 const ResultsPage = () => {
@@ -140,7 +143,7 @@ const ResultsPage = () => {
       setIsExporting(true);
 
       // Fetch results with the current filters applied
-      let { data: results, error } = await supabase
+      const { data: resultsData, error } = await supabase
         .from('results')
         .select(`
           *,
@@ -150,7 +153,7 @@ const ResultsPage = () => {
 
       if (error) throw error;
       
-      if (!results || results.length === 0) {
+      if (!resultsData || resultsData.length === 0) {
         toast({
           title: "No data to export",
           description: "There are no results matching your filter criteria",
@@ -159,8 +162,8 @@ const ResultsPage = () => {
         return;
       }
 
-      // Apply filters to properly typed results
-      let filteredResults = results as ResultData[];
+      // Apply filters to the fetched data with proper type casting
+      let filteredResults = resultsData as unknown as ResultData[];
       
       if (filters.year) {
         filteredResults = filteredResults.filter(r => r.users?.year === filters.year);
