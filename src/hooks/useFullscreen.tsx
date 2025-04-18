@@ -4,20 +4,20 @@ import { useAssessment } from '@/contexts/AssessmentContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 
+export const MAX_WARNINGS = 3;
+export const MAX_FULLSCREEN_EXIT_TIME = 30;
+
 export const useFullscreen = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenExitTime, setFullscreenExitTime] = useState<number | null>(null);
   const [showExitWarning, setShowExitWarning] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(30);
+  const [timeRemaining, setTimeRemaining] = useState(MAX_FULLSCREEN_EXIT_TIME);
   const { fullscreenWarnings, addFullscreenWarning, endAssessment, assessment } = useAssessment();
   const navigate = useNavigate();
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const persistentTimeRef = useRef<number>(30);
+  const persistentTimeRef = useRef<number>(MAX_FULLSCREEN_EXIT_TIME);
   const fullscreenExitHandledRef = useRef<boolean>(false);
-  
-  const MAX_WARNINGS = 3;
-  const MAX_FULLSCREEN_EXIT_TIME = 30;
 
   const checkFullscreen = useCallback(() => {
     const isDocumentFullscreen =

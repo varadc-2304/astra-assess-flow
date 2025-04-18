@@ -7,12 +7,14 @@ type TimerProps = {
   variant?: 'countdown' | 'assessment';
   targetTime?: string; // ISO date string for countdown to start time
   onCountdownEnd?: () => void;
+  value?: number; // For manually controlled timers (fullscreen warning)
 };
 
 export const Timer: React.FC<TimerProps> = ({ 
   variant = 'assessment',
   targetTime,
-  onCountdownEnd
+  onCountdownEnd,
+  value
 }) => {
   const { timeRemaining, setTimeRemaining, endAssessment } = useAssessment();
   const [countdownTime, setCountdownTime] = useState<number | null>(null);
@@ -80,7 +82,7 @@ export const Timer: React.FC<TimerProps> = ({
   // Determine what time to display
   const displayTime = variant === 'countdown' 
     ? (countdownTime !== null ? formatTime(countdownTime) : '--:--:--')
-    : formatTime(timeRemaining);
+    : value !== undefined ? formatTime(value) : formatTime(timeRemaining);
   
   return (
     <div className={`flex items-center gap-2 font-mono text-lg font-bold ${getColorClass()}`}>

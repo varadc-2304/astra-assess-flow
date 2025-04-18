@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -10,7 +9,7 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet';
 import { useAssessment } from '@/contexts/AssessmentContext';
-import { useFullscreen } from '@/hooks/useFullscreen';
+import { useFullscreen, MAX_WARNINGS } from '@/hooks/useFullscreen';
 import { Timer } from '@/components/Timer';
 import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
@@ -53,8 +52,7 @@ const AssessmentPage = () => {
     showExitWarning, 
     timeRemaining, 
     fullscreenWarnings,
-    terminateAssessment,
-    MAX_WARNINGS
+    terminateAssessment
   } = useFullscreen();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -416,7 +414,7 @@ const AssessmentPage = () => {
             </AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <p>
-                You have exited fullscreen mode. This is violation {fullscreenWarnings + 1}/{MAX_WARNINGS}.
+                You have exited fullscreen mode. This is violation {fullscreenWarnings}/{MAX_WARNINGS}.
                 Please return to fullscreen immediately or your test will be terminated.
               </p>
               <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
