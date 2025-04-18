@@ -155,54 +155,7 @@ const StudentDashboard = () => {
           </CardContent>
         </Card>
         
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Recent Assessments</h2>
-          <Card className="glass-card">
-            <CardContent className="p-0">
-              {recentAssessments.length > 0 ? (
-                <ScrollArea className="h-[300px]">
-                  <div className="divide-y">
-                    {recentAssessments.map((assessment) => (
-                      <div key={assessment.id} className="p-4">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h3 className="font-medium text-gray-900">{assessment.name}</h3>
-                            <div className="flex items-center gap-2 text-sm text-gray-500 mt-1">
-                              <Clock className="h-4 w-4" />
-                              {new Date(assessment.completed_at).toLocaleDateString()}
-                            </div>
-                            <div className="text-sm text-gray-500 mt-1">
-                              Code: {assessment.code}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="flex items-center gap-1">
-                              {assessment.total_score >= (assessment.total_marks * 0.4) ? (
-                                <CheckCircle className="h-4 w-4 text-green-500" />
-                              ) : (
-                                <XCircle className="h-4 w-4 text-red-500" />
-                              )}
-                              <span className="font-medium">
-                                {assessment.total_score}/{assessment.total_marks}
-                              </span>
-                            </div>
-                            <div className="text-sm text-gray-500 mt-1">
-                              {Math.round((assessment.total_score / assessment.total_marks) * 100)}%
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              ) : (
-                <div className="text-gray-500 text-sm text-center py-6">
-                  No recent assessments found
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+       
       </div>
     </div>
   );
