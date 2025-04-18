@@ -386,6 +386,7 @@ export type Database = {
       }
       users: {
         Row: {
+          auth_ID: string | null
           created_at: string
           email: string
           id: string
@@ -395,6 +396,7 @@ export type Database = {
           role: string
         }
         Insert: {
+          auth_ID?: string | null
           created_at?: string
           email: string
           id?: string
@@ -404,6 +406,7 @@ export type Database = {
           role: string
         }
         Update: {
+          auth_ID?: string | null
           created_at?: string
           email?: string
           id?: string

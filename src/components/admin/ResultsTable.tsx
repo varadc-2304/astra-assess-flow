@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -38,6 +37,7 @@ interface UserData {
   name: string;
   email: string;
   role: string;
+  auth_ID: string;
 }
 
 interface Student {
@@ -85,7 +85,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     const fetchResults = async () => {
       setIsLoading(true);
       try {
-        // Fetch results with assessment information
         const { data: resultsData, error: resultsError } = await supabase
           .from('results')
           .select(`
@@ -112,33 +111,32 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           return;
         }
         
-        // Get all unique user IDs to fetch their details
         const userIds = [...new Set(resultsData.map(result => result.user_id))];
         
-        // Fetch user details from public.users table
         const { data: usersData, error: usersError } = await supabase
           .from('users')
-          .select('id, name, email, role')
-          .in('id', userIds);
+          .select('id, name, email, role, auth_ID')
+          .in('auth_ID', userIds);
         
         if (usersError) {
           console.error('Error fetching user details:', usersError);
         }
         
-        // Create a map of user details for quick lookup
         const userMap: Record<string, UserData> = {};
         if (usersData) {
           usersData.forEach(user => {
-            userMap[user.id] = {
-              id: user.id,
-              name: user.name,
-              email: user.email,
-              role: user.role
-            };
+            if (user.auth_ID) {
+              userMap[user.auth_ID] = {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                auth_ID: user.auth_ID
+              };
+            }
           });
         }
         
-        // Fetch submission data for flagging
         const { data: submissions, error: submissionsError } = await supabase
           .from('submissions')
           .select('user_id, assessment_id, is_terminated, fullscreen_violations');
@@ -159,14 +157,8 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           const assessment = typeof result.assessments === 'object' ? result.assessments : null;
           const assessmentName = assessment?.name || 'Unknown Assessment';
           
-          // Use real user data from the users table if available
           const userName = userDetails?.name || 'Unknown User';
           const userEmail = userDetails?.email || 'unknown@example.com';
-          
-          // Generate consistent division/batch/year values based on user ID for filtering
-          const divisions = ['A', 'B', 'C'];
-          const batches = ['B1', 'B2', 'B3'];
-          const years = ['2023', '2024', '2025'];
           
           const hash = result.user_id.split('').reduce((a, b) => {
             a = ((a << 5) - a) + b.charCodeAt(0);
@@ -174,9 +166,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           }, 0);
           
           const absHash = Math.abs(hash);
-          const division = divisions[absHash % divisions.length];
-          const batch = batches[absHash % batches.length];
-          const year = years[absHash % years.length];
+          const division = ['A', 'B', 'C'][absHash % 3];
+          const batch = ['B1', 'B2', 'B3'][absHash % 3];
+          const year = ['2023', '2024', '2025'][absHash % 3];
           
           return {
             id: result.user_id,
@@ -195,7 +187,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           };
         });
         
-        // Apply filters
         if (filters.year) {
           transformedData = transformedData.filter(s => s.year === filters.year);
         }
@@ -257,7 +248,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     if (!studentToDelete) return;
     
     try {
-      // Actually delete from database
       const { error } = await supabase
         .from('results')
         .delete()
@@ -265,7 +255,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
       
       if (error) throw error;
       
-      // Update UI
       setStudents(students.filter(student => student.id !== studentToDelete));
       
       toast({
@@ -308,7 +297,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Assessment</TableHead>
                   <TableHead className="text-center">Score</TableHead>
@@ -323,7 +311,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
                     key={`${student.id}-${student.assessmentId}-${index}`} 
                     className={student.isFlagged ? "bg-red-50" : ""}
                   >
-                    <TableCell className="font-medium">{student.id.substring(0, 8)}...</TableCell>
                     <TableCell>
                       {student.name}
                       <div className="text-xs text-gray-500">{student.email}</div>
