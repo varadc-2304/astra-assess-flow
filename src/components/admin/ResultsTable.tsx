@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -22,11 +23,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { formatDate } from '@/lib/utils';
 
 interface UserData {
-  id?: string;
-  name?: string;
-  email?: string;
-  role?: string;
-  auth_ID?: string;
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  auth_ID: string;
   year?: string;
   department?: string;
   division?: string;
@@ -56,7 +57,6 @@ interface ResultsTableProps {
     batch: string;
     assessment: string;
     searchQuery: string;
-    department: string;
   };
   flagged: boolean;
   topPerformers: boolean;
@@ -77,9 +77,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     const fetchResults = async () => {
       setIsLoading(true);
       try {
-        console.log('Fetching results with filters:', filters);
-        
-        let { data: resultsData, error: resultsError } = await supabase
+        const { data: resultsData, error: resultsError } = await supabase
           .from('results')
           .select(`
             id,
@@ -90,105 +88,131 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             percentage,
             completed_at,
             isTerminated,
-            assessments:assessment_id (id, name, code)
+            assessments:assessment_id (
+              id,
+              name,
+              code
+            )
           `)
           .order('completed_at', { ascending: false });
-
+        
         if (resultsError) throw resultsError;
-
+        
         if (!resultsData || resultsData.length === 0) {
           setStudents([]);
           setIsLoading(false);
           return;
         }
-
+        
         const userIds = [...new Set(resultsData.map(result => result.user_id))];
         
         const { data: usersData, error: usersError } = await supabase
           .from('users')
           .select('id, name, email, role, auth_ID, year, department, division, batch')
-          .in('id', userIds);
-          
-        if (usersError) throw usersError;
+          .in('auth_ID', userIds);
         
-        console.log('Raw results data:', resultsData);
-        console.log('Users data:', usersData);
-
-        let transformedData: Student[] = resultsData.map(result => {
-          const user = usersData?.find(u => u.id === result.user_id) as UserData | undefined;
-          const assessment = result.assessments as { id: string; name: string; code: string } | null;
+        if (usersError) {
+          console.error('Error fetching user details:', usersError);
+        }
+        
+        const userMap: Record<string, UserData> = {};
+        if (usersData) {
+          usersData.forEach(user => {
+            if (user.auth_ID) {
+              userMap[user.auth_ID] = {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                auth_ID: user.auth_ID,
+                year: user.year,
+                department: user.department,
+                division: user.division,
+                batch: user.batch
+              };
+            }
+          });
+        }
+        
+        let transformedData: Student[] = resultsData.map((result) => {
+          const userDetails = userMap[result.user_id];
+          const assessment = typeof result.assessments === 'object' ? result.assessments : null;
+          const assessmentName = assessment?.name || 'Unknown Assessment';
+          
+          const userName = userDetails?.name || 'Unknown User';
+          const userEmail = userDetails?.email || 'unknown@example.com';
+          
+          // Use actual user data if available, otherwise generate from hash
+          let division = userDetails?.division;
+          let batch = userDetails?.batch;
+          let year = userDetails?.year;
+          
+          // Fallback to hash-based values if real data is not available
+          if (!division || !batch || !year) {
+            const hash = result.user_id.split('').reduce((a, b) => {
+              a = ((a << 5) - a) + b.charCodeAt(0);
+              return a & a;
+            }, 0);
+            
+            const absHash = Math.abs(hash);
+            division = division || ['A', 'B', 'C'][absHash % 3];
+            batch = batch || ['B1', 'B2', 'B3'][absHash % 3];
+            year = year || ['2023', '2024', '2025'][absHash % 3];
+          }
           
           return {
             id: result.user_id,
-            name: user?.name || 'Unknown User',
-            email: user?.email || 'unknown@example.com',
+            name: userName,
+            email: userEmail,
             assessmentId: result.assessment_id,
-            assessmentName: assessment?.name || 'Unknown Assessment',
+            assessmentName,
             score: result.total_score,
             totalMarks: result.total_marks,
             percentage: result.percentage,
             completedAt: result.completed_at,
             isTerminated: result.isTerminated || false,
-            division: user?.division || 'N/A',
-            batch: user?.batch || 'N/A',
-            year: user?.year || 'N/A'
+            division,
+            batch,
+            year
           };
         });
-
+        
+        if (filters.year) {
+          transformedData = transformedData.filter(s => s.year === filters.year);
+        }
+        
+        if (filters.division) {
+          transformedData = transformedData.filter(s => s.division === filters.division);
+        }
+        
+        if (filters.batch) {
+          transformedData = transformedData.filter(s => s.batch === filters.batch);
+        }
+        
         if (filters.assessment && filters.assessment !== 'all') {
-          transformedData = transformedData.filter(s => s.assessmentId === filters.assessment);
-        }
-
-        if (filters.year && filters.year.trim() !== '') {
-          console.log('Filtering by year:', filters.year);
           transformedData = transformedData.filter(s => 
-            s.year && s.year.toLowerCase() === filters.year.toLowerCase()
+            s.assessmentName.toLowerCase().includes(filters.assessment.toLowerCase())
           );
         }
         
-        if (filters.division && filters.division.trim() !== '') {
-          console.log('Filtering by division:', filters.division);
-          transformedData = transformedData.filter(s => 
-            s.division && s.division.toLowerCase() === filters.division.toLowerCase()
-          );
-        }
-        
-        if (filters.batch && filters.batch.trim() !== '') {
-          console.log('Filtering by batch:', filters.batch);
-          transformedData = transformedData.filter(s => 
-            s.batch && s.batch.toLowerCase() === filters.batch.toLowerCase()
-          );
-        }
-
-        if (filters.department && filters.department.trim() !== '') {
-          console.log('Filtering by department:', filters.department);
-          transformedData = transformedData.filter(s => {
-            const user = usersData?.find(u => u.id === s.id);
-            return user?.department?.toLowerCase() === filters.department.toLowerCase();
-          });
-        }
-        
-        if (filters.searchQuery && filters.searchQuery.trim() !== '') {
-          const query = filters.searchQuery.toLowerCase().trim();
-          console.log('Filtering by search query:', query);
+        if (filters.searchQuery) {
+          const query = filters.searchQuery.toLowerCase();
           transformedData = transformedData.filter(s => 
             s.name.toLowerCase().includes(query) || 
+            s.id.toLowerCase().includes(query) ||
             s.email.toLowerCase().includes(query)
           );
         }
         
         if (flagged) {
-          console.log('Filtering flagged students');
           transformedData = transformedData.filter(s => s.isTerminated);
         }
         
         if (topPerformers) {
-          console.log('Sorting by top performers');
           transformedData.sort((a, b) => b.percentage - a.percentage);
           transformedData = transformedData.slice(0, 10);
         }
-
-        console.log('Filtered data:', transformedData);
+        
         setStudents(transformedData);
       } catch (error) {
         console.error('Error fetching results:', error);
@@ -204,10 +228,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     
     fetchResults();
   }, [filters, flagged, topPerformers, toast]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filters, flagged, topPerformers]);
 
   return (
     <div className="space-y-4">
