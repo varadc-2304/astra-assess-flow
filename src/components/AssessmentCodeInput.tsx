@@ -44,8 +44,7 @@ const AssessmentCodeInput = () => {
         .from('results')
         .select('*')
         .eq('user_id', user?.id)
-        .eq('assessment_id', assessmentData.id)
-        .maybeSingle();
+        .eq('assessment_id', assessmentData.id);
 
       if (resultsError) {
         console.error('Error checking previous attempts:', resultsError);
@@ -59,7 +58,7 @@ const AssessmentCodeInput = () => {
       }
 
       // If results exist and reattempt is not allowed, prevent access
-      if (results && !assessmentData.reattempt) {
+      if (results && results.length > 0 && !assessmentData.reattempt) {
         toast({
           title: "Assessment Already Completed",
           description: "You have already completed this assessment and retakes are not allowed.",
@@ -72,6 +71,10 @@ const AssessmentCodeInput = () => {
       // Load the assessment and navigate to instructions
       const success = await loadAssessment(code);
       if (success) {
+        toast({
+          title: "Assessment Loaded",
+          description: "The assessment has been loaded successfully.",
+        });
         navigate('/instructions');
       }
 
