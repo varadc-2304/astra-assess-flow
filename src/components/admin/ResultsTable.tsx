@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -23,11 +22,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { formatDate } from '@/lib/utils';
 
 interface UserData {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  auth_ID: string;
+  id?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  auth_ID?: string;
   year?: string;
   department?: string;
   division?: string;
@@ -80,7 +79,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
       try {
         console.log('Fetching results with filters:', filters);
         
-        let query = supabase
+        let { data: resultsData, error: resultsError } = await supabase
           .from('results')
           .select(`
             id,
@@ -91,17 +90,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             percentage,
             completed_at,
             isTerminated,
-            assessments(id, name, code),
-            users(id, name, email, role, auth_ID, year, department, division, batch)
+            assessments:assessment_id (id, name, code)
           `)
           .order('completed_at', { ascending: false });
-        
-        // Filter by assessment if specified
-        if (filters.assessment && filters.assessment !== 'all') {
-          query = query.eq('assessment_id', filters.assessment);
-        }
-
-        const { data: resultsData, error: resultsError } = await query;
 
         if (resultsError) throw resultsError;
 
@@ -111,39 +102,43 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           return;
         }
 
+        const userIds = [...new Set(resultsData.map(result => result.user_id))];
+        
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('id, name, email, role, auth_ID, year, department, division, batch')
+          .in('id', userIds);
+          
+        if (usersError) throw usersError;
+        
         console.log('Raw results data:', resultsData);
+        console.log('Users data:', usersData);
 
-        let transformedData: Student[] = resultsData
-          .filter(result => {
-            // Filter out results without user data
-            return result.users !== null;
-          })
-          .map(result => {
-            const user = result.users as UserData | null;
-            const assessment = result.assessments as { id: string; name: string; code: string } | null;
-            
-            if (!user || !assessment) {
-              console.log('Missing user or assessment data for result:', result);
-            }
-            
-            return {
-              id: result.user_id,
-              name: user?.name || 'Unknown User',
-              email: user?.email || 'unknown@example.com',
-              assessmentId: result.assessment_id,
-              assessmentName: assessment?.name || 'Unknown Assessment',
-              score: result.total_score,
-              totalMarks: result.total_marks,
-              percentage: result.percentage,
-              completedAt: result.completed_at,
-              isTerminated: result.isTerminated || false,
-              division: user?.division || 'N/A',
-              batch: user?.batch || 'N/A',
-              year: user?.year || 'N/A'
-            };
-          });
+        let transformedData: Student[] = resultsData.map(result => {
+          const user = usersData?.find(u => u.id === result.user_id) as UserData | undefined;
+          const assessment = result.assessments as { id: string; name: string; code: string } | null;
+          
+          return {
+            id: result.user_id,
+            name: user?.name || 'Unknown User',
+            email: user?.email || 'unknown@example.com',
+            assessmentId: result.assessment_id,
+            assessmentName: assessment?.name || 'Unknown Assessment',
+            score: result.total_score,
+            totalMarks: result.total_marks,
+            percentage: result.percentage,
+            completedAt: result.completed_at,
+            isTerminated: result.isTerminated || false,
+            division: user?.division || 'N/A',
+            batch: user?.batch || 'N/A',
+            year: user?.year || 'N/A'
+          };
+        });
 
-        // Apply filters
+        if (filters.assessment && filters.assessment !== 'all') {
+          transformedData = transformedData.filter(s => s.assessmentId === filters.assessment);
+        }
+
         if (filters.year && filters.year.trim() !== '') {
           console.log('Filtering by year:', filters.year);
           transformedData = transformedData.filter(s => 
@@ -168,7 +163,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         if (filters.department && filters.department.trim() !== '') {
           console.log('Filtering by department:', filters.department);
           transformedData = transformedData.filter(s => {
-            const user = resultsData.find(r => r.user_id === s.id)?.users as UserData | null;
+            const user = usersData?.find(u => u.id === s.id);
             return user?.department?.toLowerCase() === filters.department.toLowerCase();
           });
         }
@@ -210,7 +205,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     fetchResults();
   }, [filters, flagged, topPerformers, toast]);
 
-  // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [filters, flagged, topPerformers]);
