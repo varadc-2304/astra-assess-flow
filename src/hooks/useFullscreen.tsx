@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useNavigate } from 'react-router-dom';
@@ -19,6 +20,7 @@ export const useFullscreen = () => {
   const navigate = useNavigate();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const persistentTimeRef = useRef<number>(30);
+  // Changed to use a MutableRefObject with a function type
   const fullscreenChangeHandlerRef = useRef<boolean>(false);
 
   const MAX_WARNINGS = 3;
@@ -115,6 +117,24 @@ export const useFullscreen = () => {
     }
   }, [assessment, fullscreenWarnings]);
 
+  // Define startOrResumeTimer before using it in handleFullscreenChange
+  const startOrResumeTimer = useCallback(() => {
+    clearTimerIfExists();
+    
+    timerRef.current = setInterval(() => {
+      persistentTimeRef.current = Math.max(0, persistentTimeRef.current - 1);
+      setTimeRemaining(persistentTimeRef.current);
+      
+      console.log("Timer update:", { remaining: persistentTimeRef.current, showDialog: showExitDialog });
+      
+      if (persistentTimeRef.current <= 0) {
+        clearTimerIfExists();
+        endAssessment();
+        navigate('/summary');
+      }
+    }, 1000);
+  }, [endAssessment, navigate, showExitDialog]);
+
   const handleFullscreenChange = useCallback(() => {
     const fullscreenStatus = checkFullscreen();
     
@@ -151,36 +171,16 @@ export const useFullscreen = () => {
     startOrResumeTimer
   ]);
 
-  const startOrResumeTimer = useCallback(() => {
-    clearTimerIfExists();
-    
-    timerRef.current = setInterval(() => {
-      persistentTimeRef.current = Math.max(0, persistentTimeRef.current - 1);
-      setTimeRemaining(persistentTimeRef.current);
-      
-      console.log("Timer update:", { remaining: persistentTimeRef.current, showDialog: showExitDialog });
-      
-      if (persistentTimeRef.current <= 0) {
-        clearTimerIfExists();
-        endAssessment();
-        navigate('/summary');
-      }
-    }, 1000);
-  }, [endAssessment, navigate, showExitDialog]);
-
   useEffect(() => {
     persistentTimeRef.current = MAX_FULLSCREEN_EXIT_TIME;
   }, []);
 
-  useEffect(() => {
-    fullscreenChangeHandlerRef.current = () => handleFullscreenChange();
-  }, [handleFullscreenChange]);
+  // We're not actually storing a function in fullscreenChangeHandlerRef anymore, so we don't need this effect
+  // Instead, we're directly using the handler inside the event listener
 
   useEffect(() => {
     const handler = () => {
-      if (fullscreenChangeHandlerRef.current) {
-        fullscreenChangeHandlerRef.current();
-      }
+      handleFullscreenChange();
     };
     
     document.addEventListener('fullscreenchange', handler);
@@ -195,7 +195,7 @@ export const useFullscreen = () => {
       document.removeEventListener('MSFullscreenChange', handler);
       clearTimerIfExists();
     };
-  }, []);
+  }, [handleFullscreenChange]);
 
   const handleReturnToHome = useCallback(() => {
     clearTimerIfExists();
