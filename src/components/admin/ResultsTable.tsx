@@ -41,7 +41,7 @@ interface Student {
   email: string;
   assessmentId: string;
   assessmentName: string;
-  assessmentCode: string;
+  assessmentCode?: string;
   score: number;
   totalMarks: number;
   percentage: number;
@@ -81,10 +81,26 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     const fetchResults = async () => {
       setIsLoading(true);
       try {
-        // First get results with separate queries to avoid join issues
+        // First, let's query the results but modify our join approach to properly link users
         const { data: resultsData, error: resultsError } = await supabase
           .from('results')
-          .select('*')
+          .select(`
+            *,
+            assessments (
+              id,
+              name,
+              code
+            ),
+            users (
+              id,
+              name,
+              email,
+              year,
+              department,
+              division,
+              batch
+            )
+          `)
           .order('completed_at', { ascending: false });
         
         if (resultsError) throw resultsError;
@@ -95,41 +111,15 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           return;
         }
 
-        // Get all user IDs from results
-        const userIds = resultsData.map(result => result.user_id);
-        
-        // Get all assessment IDs from results
-        const assessmentIds = resultsData.map(result => result.assessment_id);
-        
-        // Fetch users data
-        const { data: usersData, error: usersError } = await supabase
-          .from('users')
-          .select('*')
-          .in('id', userIds);
-          
-        if (usersError) throw usersError;
-        
-        // Fetch assessments data
-        const { data: assessmentsData, error: assessmentsError } = await supabase
-          .from('assessments')
-          .select('*')
-          .in('id', assessmentIds);
-          
-        if (assessmentsError) throw assessmentsError;
-        
-        // Create a map for quick lookup
-        const usersMap = new Map(usersData?.map(user => [user.id, user]));
-        const assessmentsMap = new Map(assessmentsData?.map(assessment => [assessment.id, assessment]));
-        
-        // Transform the data
-        let transformedData: Student[] = resultsData.map(result => {
-          const user = usersMap.get(result.user_id);
-          const assessment = assessmentsMap.get(result.assessment_id);
+        let transformedData: Student[] = resultsData.map((result) => {
+          // Type assertion to provide better type safety
+          const userDetails = result.users as unknown as UserData;
+          const assessment = result.assessments as {id: string, name: string, code: string};
           
           return {
             id: result.user_id,
-            name: user?.name || 'Unknown User',
-            email: user?.email || 'unknown@example.com',
+            name: userDetails?.name || 'Unknown User',
+            email: userDetails?.email || 'unknown@example.com',
             assessmentId: result.assessment_id,
             assessmentName: assessment?.name || 'Unknown Assessment',
             assessmentCode: assessment?.code || '',
@@ -138,75 +128,52 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             percentage: result.percentage,
             completedAt: result.completed_at,
             isTerminated: result.isTerminated || false,
-            division: user?.division || '',
-            batch: user?.batch || '',
-            year: user?.year || '',
-            department: user?.department || ''
+            division: userDetails?.division || 'N/A',
+            batch: userDetails?.batch || 'N/A',
+            year: userDetails?.year || 'N/A',
+            department: userDetails?.department || 'N/A'
           };
         });
 
-        console.log('Total results before filtering:', transformedData.length);
-
-        // Apply all filters sequentially
-        if (filters.year && filters.year !== '') {
+        // Apply filters
+        if (filters.year) {
           transformedData = transformedData.filter(s => s.year === filters.year);
-          console.log('After year filter:', transformedData.length);
         }
         
-        if (filters.division && filters.division !== '') {
-          console.log('Filtering by division:', filters.division);
-          console.log('Student divisions:', transformedData.map(s => s.division));
-          transformedData = transformedData.filter(s => {
-            // Trim whitespace and do case-insensitive comparison
-            return s.division && s.division.trim().toLowerCase() === filters.division.trim().toLowerCase();
-          });
-          console.log('After division filter:', transformedData.length);
+        if (filters.division) {
+          transformedData = transformedData.filter(s => s.division === filters.division);
         }
         
-        if (filters.batch && filters.batch !== '') {
-          transformedData = transformedData.filter(s => {
-            return s.batch && s.batch.trim().toLowerCase() === filters.batch.trim().toLowerCase();
-          });
-          console.log('After batch filter:', transformedData.length);
+        if (filters.batch) {
+          transformedData = transformedData.filter(s => s.batch === filters.batch);
         }
 
-        if (filters.department && filters.department !== '') {
-          transformedData = transformedData.filter(s => {
-            return s.department && s.department.trim().toLowerCase() === filters.department.trim().toLowerCase();
-          });
-          console.log('After department filter:', transformedData.length);
+        if (filters.department) {
+          transformedData = transformedData.filter(s => s.department === filters.department);
         }
         
-        if (filters.assessment && filters.assessment !== '' && filters.assessment !== 'all') {
-          transformedData = transformedData.filter(s => {
-            return s.assessmentCode && s.assessmentCode.trim() === filters.assessment.trim();
-          });
-          console.log('After assessment filter:', transformedData.length);
+        if (filters.assessment && filters.assessment !== 'all') {
+          transformedData = transformedData.filter(s => s.assessmentCode === filters.assessment);
         }
         
-        if (filters.searchQuery && filters.searchQuery !== '') {
-          const query = filters.searchQuery.toLowerCase().trim();
+        if (filters.searchQuery) {
+          const query = filters.searchQuery.toLowerCase();
           transformedData = transformedData.filter(s => 
-            (s.name && s.name.toLowerCase().includes(query)) || 
-            (s.email && s.email.toLowerCase().includes(query)) ||
-            (s.assessmentName && s.assessmentName.toLowerCase().includes(query))
+            s.name.toLowerCase().includes(query) || 
+            s.email.toLowerCase().includes(query) ||
+            s.assessmentName.toLowerCase().includes(query)
           );
-          console.log('After search filter:', transformedData.length);
         }
         
         if (flagged) {
           transformedData = transformedData.filter(s => s.isTerminated);
-          console.log('After flagged filter:', transformedData.length);
         }
         
         if (topPerformers) {
           transformedData.sort((a, b) => b.percentage - a.percentage);
           transformedData = transformedData.slice(0, 10);
-          console.log('After top performers filter:', transformedData.length);
         }
         
-        // Reset to first page when filters change
-        setCurrentPage(1);
         setStudents(transformedData);
       } catch (error) {
         console.error('Error fetching results:', error);
