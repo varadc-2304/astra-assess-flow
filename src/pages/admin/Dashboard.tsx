@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -6,8 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { PlusCircle, FileSpreadsheet, Clock, Users, BarChart } from 'lucide-react';
-import AssessmentForm from '@/components/admin/AssessmentForm';
+import { FileSpreadsheet, Clock, Users, BarChart } from 'lucide-react';
 import AssessmentList from '@/components/admin/AssessmentList';
 
 const AdminDashboard = () => {
@@ -21,18 +19,15 @@ const AdminDashboard = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch dashboard stats
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // Fetch actual data from Supabase
         const { data: assessments, error: assessmentsError } = await supabase
           .from('assessments')
           .select('*');
 
         if (assessmentsError) throw assessmentsError;
         
-        // Calculate active assessments (current date is between start_time and end_time)
         const now = new Date();
         const activeAssessments = assessments?.filter(assessment => {
           const startTime = new Date(assessment.start_time);
@@ -40,14 +35,11 @@ const AdminDashboard = () => {
           return now >= startTime && now <= endTime;
         }).length || 0;
         
-        // Count completed assessments (current date is after end_time)
         const completedAssessments = assessments?.filter(assessment => {
           const endTime = new Date(assessment.end_time);
           return now > endTime;
         }).length || 0;
         
-        // For student count, we would typically query a students or users table
-        // Since we don't have direct access to auth.users table, we'll set this to 0
         const students = 0;
         
         setStats({
@@ -67,7 +59,6 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      {/* Header */}
       <header className="bg-white border-b border-gray-200 py-4 px-6 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div>
@@ -81,7 +72,6 @@ const AdminDashboard = () => {
         </div>
       </header>
 
-      {/* Main Content */}
       <div className="flex-1 p-6">
         <div className="max-w-7xl mx-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -89,21 +79,10 @@ const AdminDashboard = () => {
               <TabsList>
                 <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
                 <TabsTrigger value="assessments">Assessments</TabsTrigger>
-                <TabsTrigger value="create">Create New</TabsTrigger>
                 <TabsTrigger value="results" onClick={() => navigate('/admin/results')}>Results</TabsTrigger>
               </TabsList>
-              
-              {activeTab === 'assessments' && (
-                <Button 
-                  onClick={() => setActiveTab('create')}
-                  className="bg-astra-red hover:bg-red-600 text-white"
-                >
-                  <PlusCircle className="h-4 w-4 mr-2" /> Create Assessment
-                </Button>
-              )}
             </div>
 
-            {/* Dashboard Tab */}
             <TabsContent value="dashboard" className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card>
@@ -167,14 +146,8 @@ const AdminDashboard = () => {
               </div>
             </TabsContent>
 
-            {/* Assessments Tab */}
             <TabsContent value="assessments">
               <AssessmentList />
-            </TabsContent>
-
-            {/* Create New Tab */}
-            <TabsContent value="create">
-              <AssessmentForm />
             </TabsContent>
           </Tabs>
         </div>
