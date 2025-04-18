@@ -209,14 +209,8 @@ export const useFullscreen = () => {
     exitFullscreen,
     fullscreenWarnings,
     ExitDialog: () => (
-      <AlertDialog 
-        open={showExitDialog} 
-        onOpenChange={(open) => {
-          if (!open && !isFullscreen) {
-            setTimeout(() => setShowExitDialog(true), 0);
-          }
-        }}
-      >
+<AlertDialog open={showExitDialog}>
+
         <AlertDialogContent className="z-[1000]">
           <AlertDialogTitle>Fullscreen Mode Exited</AlertDialogTitle>
           <AlertDialogDescription>
