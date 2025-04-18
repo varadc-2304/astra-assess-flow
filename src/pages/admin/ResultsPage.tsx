@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -71,6 +72,7 @@ const ResultsPage = () => {
     try {
       setIsExporting(true);
 
+      // Fetch results with user and assessment details
       const { data: results, error } = await supabase
         .from('results')
         .select(`
@@ -97,11 +99,36 @@ const ResultsPage = () => {
         return;
       }
 
+      // Get all unique user IDs
+      const userIds = [...new Set(results.map(result => result.user_id))];
+      
+      // Fetch user details
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id, name, email')
+        .in('id', userIds);
+      
+      if (usersError) throw usersError;
+      
+      // Create a map of user details for quick lookup
+      const userMap: Record<string, {name: string, email: string}> = {};
+      if (usersData) {
+        usersData.forEach(user => {
+          userMap[user.id] = {
+            name: user.name,
+            email: user.email
+          };
+        });
+      }
+
       const csvData = results.map(result => {
         const assessment = result.assessments;
+        const user = userMap[result.user_id] || { name: 'Unknown User', email: 'unknown@example.com' };
         
         return {
           "User ID": result.user_id,
+          "User Name": user.name,
+          "User Email": user.email,
           "Assessment": assessment?.name || "Unknown",
           "Code": assessment?.code || "N/A",
           "Score": result.total_score,

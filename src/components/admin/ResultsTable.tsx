@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -31,6 +32,13 @@ import { useToast } from '@/components/ui/use-toast';
 import { Download, Eye, Flag, Trash } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDate } from '@/lib/utils';
+
+interface UserData {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
 
 interface Student {
   id: string;
@@ -77,6 +85,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     const fetchResults = async () => {
       setIsLoading(true);
       try {
+        // Fetch results with assessment information
         const { data: resultsData, error: resultsError } = await supabase
           .from('results')
           .select(`
@@ -103,6 +112,33 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           return;
         }
         
+        // Get all unique user IDs to fetch their details
+        const userIds = [...new Set(resultsData.map(result => result.user_id))];
+        
+        // Fetch user details from public.users table
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('id, name, email, role')
+          .in('id', userIds);
+        
+        if (usersError) {
+          console.error('Error fetching user details:', usersError);
+        }
+        
+        // Create a map of user details for quick lookup
+        const userMap: Record<string, UserData> = {};
+        if (usersData) {
+          usersData.forEach(user => {
+            userMap[user.id] = {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              role: user.role
+            };
+          });
+        }
+        
+        // Fetch submission data for flagging
         const { data: submissions, error: submissionsError } = await supabase
           .from('submissions')
           .select('user_id, assessment_id, is_terminated, fullscreen_violations');
@@ -112,16 +148,22 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         }
         
         let transformedData: Student[] = resultsData.map((result) => {
+          const userDetails = userMap[result.user_id];
           const matchingSubmission = submissions?.find(
             s => s.user_id === result.user_id && s.assessment_id === result.assessment_id
           );
           
           const isFlagged = matchingSubmission ? 
-            (matchingSubmission.is_terminated || matchingSubmission.fullscreen_violations > 1) : false;
+            (matchingSubmission.is_terminated || (matchingSubmission.fullscreen_violations ?? 0) > 1) : false;
           
           const assessment = typeof result.assessments === 'object' ? result.assessments : null;
           const assessmentName = assessment?.name || 'Unknown Assessment';
           
+          // Use real user data from the users table if available
+          const userName = userDetails?.name || 'Unknown User';
+          const userEmail = userDetails?.email || 'unknown@example.com';
+          
+          // Generate consistent division/batch/year values based on user ID for filtering
           const divisions = ['A', 'B', 'C'];
           const batches = ['B1', 'B2', 'B3'];
           const years = ['2023', '2024', '2025'];
@@ -136,14 +178,10 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           const batch = batches[absHash % batches.length];
           const year = years[absHash % years.length];
           
-          const userId = result.user_id;
-          const email = userId + '@example.com';
-          const userName = userId.split('-')[0];
-          
           return {
-            id: userId,
+            id: result.user_id,
             name: userName,
-            email: email,
+            email: userEmail,
             assessmentId: result.assessment_id,
             assessmentName,
             score: result.total_score,
@@ -157,6 +195,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           };
         });
         
+        // Apply filters
         if (filters.year) {
           transformedData = transformedData.filter(s => s.year === filters.year);
         }
@@ -218,6 +257,15 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     if (!studentToDelete) return;
     
     try {
+      // Actually delete from database
+      const { error } = await supabase
+        .from('results')
+        .delete()
+        .eq('user_id', studentToDelete);
+      
+      if (error) throw error;
+      
+      // Update UI
       setStudents(students.filter(student => student.id !== studentToDelete));
       
       toast({
@@ -225,6 +273,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         description: "Student result deleted successfully",
       });
     } catch (error) {
+      console.error('Error deleting result:', error);
       toast({
         title: "Error",
         description: "Failed to delete student result",
@@ -269,9 +318,12 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visibleStudents.map(student => (
-                  <TableRow key={`${student.id}-${student.assessmentId}`} className={student.isFlagged ? "bg-red-50" : ""}>
-                    <TableCell className="font-medium">{student.id}</TableCell>
+                {visibleStudents.map((student, index) => (
+                  <TableRow 
+                    key={`${student.id}-${student.assessmentId}-${index}`} 
+                    className={student.isFlagged ? "bg-red-50" : ""}
+                  >
+                    <TableCell className="font-medium">{student.id.substring(0, 8)}...</TableCell>
                     <TableCell>
                       {student.name}
                       <div className="text-xs text-gray-500">{student.email}</div>
