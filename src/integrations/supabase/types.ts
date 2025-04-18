@@ -267,6 +267,7 @@ export type Database = {
           completed_at: string
           created_at: string | null
           id: string
+          isTerminated: boolean | null
           percentage: number
           total_marks: number
           total_score: number
@@ -277,6 +278,7 @@ export type Database = {
           completed_at: string
           created_at?: string | null
           id?: string
+          isTerminated?: boolean | null
           percentage?: number
           total_marks?: number
           total_score?: number
@@ -287,6 +289,7 @@ export type Database = {
           completed_at?: string
           created_at?: string | null
           id?: string
+          isTerminated?: boolean | null
           percentage?: number
           total_marks?: number
           total_score?: number
