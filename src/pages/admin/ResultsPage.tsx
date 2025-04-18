@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -12,7 +11,14 @@ import ResultsTable from '@/components/admin/ResultsTable';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
-// Define more flexible type interfaces for our data
+interface UserFilters {
+  year: string;
+  division: string;
+  batch: string;
+  assessment: string;
+  searchQuery: string;
+}
+
 interface AssessmentCode {
   code: string;
   name: string;
@@ -52,19 +58,19 @@ const ResultsPage = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('all');
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<UserFilters>({
     year: '',
     division: '',
     batch: '',
     assessment: '',
-    searchQuery: '',
+    searchQuery: ''
   });
   const [isExporting, setIsExporting] = useState(false);
   const [assessmentCodes, setAssessmentCodes] = useState<AssessmentCode[]>([]);
   const [years, setYears] = useState<string[]>([]);
   const [divisions, setDivisions] = useState<string[]>([]);
   const [batches, setBatches] = useState<string[]>([]);
-  
+
   useEffect(() => {
     const fetchAssessmentCodes = async () => {
       try {
@@ -81,54 +87,36 @@ const ResultsPage = () => {
         console.error('Error fetching assessment codes:', error);
       }
     };
-    
-    fetchAssessmentCodes();
-  }, []);
 
-  useEffect(() => {
-    const fetchUniqueValues = async () => {
+    const fetchUserFilters = async () => {
       try {
-        const { data: results, error: resultsError } = await supabase
-          .from('results')
-          .select(`
-            user_id,
-            assessment_id
-          `);
+        const { data: users, error } = await supabase
+          .from('users')
+          .select('year, division, batch');
 
-        if (resultsError) throw resultsError;
+        if (error) throw error;
 
-        if (results) {
-          const userIds = [...new Set(results.map(result => result.user_id))];
-          const hash = (str: string) => {
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-              hash = ((hash << 5) - hash) + str.charCodeAt(i);
-              hash = hash & hash;
-            }
-            return Math.abs(hash);
-          };
-
-          // Generate unique values based on user IDs
-          const uniqueYears = [...new Set(userIds.map(id => 
-            ['2023', '2024', '2025'][hash(id) % 3]
-          ))].sort();
-          const uniqueDivisions = [...new Set(userIds.map(id => 
-            ['A', 'B', 'C'][hash(id) % 3]
-          ))].sort();
-          const uniqueBatches = [...new Set(userIds.map(id => 
-            ['B1', 'B2', 'B3'][hash(id) % 3]
-          ))].sort();
+        if (users) {
+          const uniqueYears = [...new Set(users.map(user => user.year).filter(Boolean))].sort();
+          const uniqueDivisions = [...new Set(users.map(user => user.division).filter(Boolean))].sort();
+          const uniqueBatches = [...new Set(users.map(user => user.batch).filter(Boolean))].sort();
 
           setYears(uniqueYears);
           setDivisions(uniqueDivisions);
           setBatches(uniqueBatches);
         }
       } catch (error) {
-        console.error('Error fetching unique values:', error);
+        console.error('Error fetching user filters:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load filter options",
+          variant: "destructive"
+        });
       }
     };
 
-    fetchUniqueValues();
+    fetchAssessmentCodes();
+    fetchUserFilters();
   }, []);
 
   const handleFilterChange = (key: string, value: string) => {
@@ -142,7 +130,6 @@ const ResultsPage = () => {
     try {
       setIsExporting(true);
 
-      // Fetch results with the current filters applied
       const { data: resultsData, error } = await supabase
         .from('results')
         .select(`
@@ -162,7 +149,6 @@ const ResultsPage = () => {
         return;
       }
 
-      // Apply filters to the fetched data with proper type casting
       let filteredResults = resultsData as unknown as ResultData[];
       
       if (filters.year) {
