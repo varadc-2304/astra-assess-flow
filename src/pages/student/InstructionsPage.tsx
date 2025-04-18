@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -7,7 +6,7 @@ import { useAssessment } from '@/contexts/AssessmentContext';
 import { Timer } from '@/components/Timer';
 import { Separator } from '@/components/ui/separator';
 import { ClipboardList, Clock, Code } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 const InstructionsPage = () => {
   const { assessment, startAssessment, assessmentCode, loading } = useAssessment();
@@ -15,7 +14,6 @@ const InstructionsPage = () => {
   const [countdownEnded, setCountdownEnded] = useState(false);
   const { toast } = useToast();
   
-  // Check if assessment exists and redirect if not
   useEffect(() => {
     if (!loading && !assessment && assessmentCode) {
       console.log("No assessment data available, redirecting to dashboard");
@@ -45,7 +43,6 @@ const InstructionsPage = () => {
     navigate('/assessment');
   };
 
-  // Handle countdown end
   const handleCountdownEnd = () => {
     setCountdownEnded(true);
   };
