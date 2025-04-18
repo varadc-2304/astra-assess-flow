@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -345,8 +344,50 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const target = e.target as HTMLTextAreaElement;
+      const start = target.selectionStart;
+      const end = target.selectionEnd;
+      const spaces = '    '; // 4 spaces for indentation
+      
+      const value = target.value;
+      const newValue = value.substring(0, start) + spaces + value.substring(end);
+      
+      onCodeChange(selectedLanguage, newValue);
+      
+      // Restore cursor position after indent
+      setTimeout(() => {
+        target.selectionStart = target.selectionEnd = start + 4;
+      }, 0);
+    } else if (e.key === '(' || e.key === '{' || e.key === '[' || e.key === '"' || e.key === "'") {
+      e.preventDefault();
+      const target = e.target as HTMLTextAreaElement;
+      const start = target.selectionStart;
+      const pairs: Record<string, string> = {
+        '(': ')',
+        '{': '}',
+        '[': ']',
+        '"': '"',
+        "'": "'"
+      };
+      const closingChar = pairs[e.key];
+      
+      const value = target.value;
+      const newValue = value.substring(0, start) + e.key + closingChar + value.substring(start);
+      
+      onCodeChange(selectedLanguage, newValue);
+      
+      // Place cursor between the brackets
+      setTimeout(() => {
+        target.selectionStart = target.selectionEnd = start + 1;
+      }, 0);
+    }
+  };
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex flex-col h-full">
       <div className="flex justify-between items-center mb-2">
         <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
           <SelectTrigger className="w-40">
@@ -399,6 +440,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             <Textarea
               value={currentCode}
               onChange={handleCodeChange}
+              onKeyDown={handleKeyDown}
               className="h-full font-mono text-sm resize-none p-4"
               spellCheck="false"
             />

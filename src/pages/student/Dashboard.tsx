@@ -1,161 +1,195 @@
-
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useAuth } from '@/contexts/AuthContext';
-import { useAssessment } from '@/contexts/AssessmentContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Clock, CheckCircle, XCircle } from 'lucide-react';
-
-interface RecentAssessment {
-  id: string;
-  name: string;
-  code: string;
-  completed_at: string;
-  total_marks: number;
-  total_score: number;
-}
+import { useAuth } from '@/contexts/AuthContext';
+import { useAssessment } from '@/contexts/AssessmentContext';
+import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Calendar } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { CalendarIcon } from "lucide-react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 const StudentDashboard = () => {
-  const [code, setCode] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [recentAssessments, setRecentAssessments] = useState<RecentAssessment[]>([]);
-  const { user, logout } = useAuth();
-  const { setAssessmentCode, loadAssessment } = useAssessment();
+  const { user } = useAuth();
+  const { startAssessment, assessment } = useAssessment();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [assessments, setAssessments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [date, setDate] = React.useState<Date | undefined>(new Date())
+  const formattedDate = date ? format(date, "yyyy-MM-dd") : null
 
   useEffect(() => {
-    const fetchRecentAssessments = async () => {
-      if (!user) return;
-
+    const fetchAssessments = async () => {
+      setLoading(true);
       try {
         const { data, error } = await supabase
-          .from('results')
-          .select(`
-            id,
-            total_marks,
-            total_score,
-            completed_at,
-            assessment:assessments (
-              name,
-              code
-            )
-          `)
-          .eq('user_id', user.id)
-          .order('completed_at', { ascending: false })
-          .limit(5);
+          .from('assessments')
+          .select('*')
+          .order('start_time', { ascending: true });
 
-        if (error) throw error;
-
-        if (data) {
-          const formatted = data.map(result => ({
-            id: result.id,
-            name: result.assessment.name,
-            code: result.assessment.code,
-            completed_at: result.completed_at,
-            total_marks: result.total_marks,
-            total_score: result.total_score
-          }));
-          setRecentAssessments(formatted);
+        if (error) {
+          console.error('Error fetching assessments:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load assessments. Please try again.",
+            variant: "destructive"
+          });
+        } else {
+          setAssessments(data || []);
         }
       } catch (error) {
-        console.error('Error fetching recent assessments:', error);
+        console.error('Error fetching assessments:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load assessments. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchRecentAssessments();
-  }, [user]);
+    fetchAssessments();
+  }, [toast]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!code.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter an assessment code",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setLoading(true);
-    
+  const handleStartAssessment = async (assessmentId: string) => {
     try {
-      console.log("Setting assessment code:", code);
-      setAssessmentCode(code);
-      
-      console.log("Loading assessment...");
-      const success = await loadAssessment(code);
-      
-      if (success) {
-        console.log("Assessment loaded successfully. Navigating to instructions page");
-        navigate('/instructions');
-      } else {
-        console.error("Failed to load assessment");
-        // Error is already shown in toast by the loadAssessment function
+      // Check if user has already completed this assessment
+      const { data: results } = await supabase
+        .from('results')
+        .select('*')
+        .eq('user_id', user?.id)
+        .eq('assessment_id', assessmentId)
+        .order('completed_at', { ascending: false })
+        .limit(1);
+
+      // Get assessment details to check reattempt flag
+      const { data: assessment } = await supabase
+        .from('assessments')
+        .select('*')
+        .eq('id', assessmentId)
+        .single();
+
+      if (results && results.length > 0 && !assessment?.reattempt) {
+        toast({
+          title: "Assessment Already Completed",
+          description: "This assessment cannot be retaken as re-attempts are not allowed.",
+          variant: "destructive"
+        });
+        return;
       }
-    } catch (error: any) {
-      console.error("Error in handleSubmit:", error);
+
+      const selectedAssessment = assessments.find(a => a.id === assessmentId);
+
+      if (!selectedAssessment) {
+        toast({
+          title: "Error",
+          description: "Assessment not found.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (new Date(selectedAssessment.start_time) > new Date()) {
+        toast({
+          title: "Assessment Not Yet Available",
+          description: "This assessment has not yet started.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (selectedAssessment.end_time && new Date(selectedAssessment.end_time) < new Date()) {
+        toast({
+          title: "Assessment Expired",
+          description: "This assessment has already ended.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      await startAssessment(assessmentId);
+      navigate('/instructions');
+    } catch (error) {
+      console.error('Error starting assessment:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred. Please try again.",
-        variant: "destructive",
+        description: "Failed to start assessment. Please try again.",
+        variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 animate-gradient py-12">
-      <div className="max-w-xl mx-auto px-4">
-        <header className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="gradient-text text-4xl font-bold mb-1">Yudh</h1>
-            <p className="text-gray-600">Welcome back, {user?.name}</p>
-          </div>
-          <Button 
-            variant="outline" 
-            onClick={logout}
-            className="bg-white/50 backdrop-blur-sm hover:bg-white/80 transition-all duration-200"
-          >
-            Log out
-          </Button>
-        </header>
-        
-        <Card className="glass-card mb-8">
-          <CardHeader>
-            <CardTitle>Enter Assessment Code</CardTitle>
-            <CardDescription>
-              Please enter the assessment code provided by your instructor to begin
-            </CardDescription>
+    <div className="container mx-auto py-8">
+      <h1 className="text-2xl font-bold mb-4">Student Dashboard</h1>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Calendar Card */}
+        <Card className="col-span-1 md:col-span-1">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-lg">Upcoming Assessments</CardTitle>
+            <CardDescription>Select a date to view assessments.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Input 
-                placeholder="Assessment Code (e.g., DEMO123)"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className="text-center font-mono text-lg uppercase bg-white/50 backdrop-blur-sm border-gray-200 focus:border-astra-red focus:ring-astra-red/10"
-              />
-              
-              <Button 
-                type="submit" 
-                className="w-full bg-gradient-to-r from-astra-red to-red-500 hover:from-red-600 hover:to-red-700 text-white shadow-lg transition-all duration-200 hover:shadow-xl disabled:opacity-50"
-                disabled={loading}
-              >
-                {loading ? 'Loading...' : 'Continue'}
-              </Button>
-            </form>
+          <CardContent className="grid gap-4">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className="w-full justify-start text-left font-normal"
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date ? format(date, "PPP") : <span>Pick a date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={date}
+                  onSelect={setDate}
+                  disabled={(date) =>
+                    date > new Date()
+                  }
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </CardContent>
         </Card>
-        
-       
+
+        {/* Assessments List */}
+        <div className="col-span-1 md:col-span-2">
+          <h2 className="text-xl font-semibold mb-2">Available Assessments</h2>
+          {loading ? (
+            <p>Loading assessments...</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {assessments.filter(assessment => {
+                if (!formattedDate) return true;
+                const assessmentDate = format(new Date(assessment.start_time), "yyyy-MM-dd");
+                return assessmentDate === formattedDate;
+              }).map(assessment => (
+                <Card key={assessment.id}>
+                  <CardHeader>
+                    <CardTitle>{assessment.name}</CardTitle>
+                    <CardDescription>{assessment.instructions}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p>Code: {assessment.code}</p>
+                    <p>Duration: {assessment.duration_minutes} minutes</p>
+                    <Button onClick={() => handleStartAssessment(assessment.id)}>
+                      Start Assessment
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
