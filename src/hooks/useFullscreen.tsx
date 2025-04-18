@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -18,6 +18,8 @@ export const useFullscreen = () => {
   const [timeRemaining, setTimeRemaining] = useState<number>(30);
   const { fullscreenWarnings, addFullscreenWarning, endAssessment, assessment } = useAssessment();
   const navigate = useNavigate();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const persistentTimeRef = useRef<number>(30);
 
   const MAX_WARNINGS = 3;
   const MAX_FULLSCREEN_EXIT_TIME = 30; // seconds
@@ -47,6 +49,7 @@ export const useFullscreen = () => {
       }
       
       setIsFullscreen(true);
+      clearTimerIfExists();
       setFullscreenExitTime(null);
       setShowExitDialog(false);
     } catch (error) {
@@ -71,6 +74,13 @@ export const useFullscreen = () => {
       console.error('Failed to exit fullscreen mode:', error);
     }
   }, []);
+
+  const clearTimerIfExists = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
 
   const recordFullscreenViolation = useCallback(async () => {
     if (!assessment) return;
@@ -110,67 +120,76 @@ export const useFullscreen = () => {
     setIsFullscreen(fullscreenStatus);
     
     if (!fullscreenStatus) {
-      setFullscreenExitTime(Date.now());
-      addFullscreenWarning();
-      recordFullscreenViolation();
+      if (!fullscreenExitTime) {
+        // First time exiting or re-exiting after returning to fullscreen
+        setFullscreenExitTime(Date.now());
+        addFullscreenWarning();
+        recordFullscreenViolation();
+        console.log("Starting new fullscreen exit timer with", persistentTimeRef.current, "seconds remaining");
+      }
+      
       setShowExitDialog(true);
-      setTimeRemaining(30);
       
       console.log("Exited fullscreen - dialog should show:", { showExitDialog: true, warnings: fullscreenWarnings });
       
       if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
         endAssessment();
         navigate('/summary');
+        return;
       }
+      
+      startOrResumeTimer();
     } else {
+      clearTimerIfExists();
       setFullscreenExitTime(null);
       setShowExitDialog(false);
-      setTimeRemaining(30);
     }
-  }, [checkFullscreen, fullscreenWarnings, addFullscreenWarning, endAssessment, recordFullscreenViolation, navigate]);
+  }, [checkFullscreen, fullscreenWarnings, fullscreenExitTime, addFullscreenWarning, recordFullscreenViolation, endAssessment, navigate]);
 
+  const startOrResumeTimer = useCallback(() => {
+    clearTimerIfExists();
+    
+    timerRef.current = setInterval(() => {
+      persistentTimeRef.current = Math.max(0, persistentTimeRef.current - 1);
+      setTimeRemaining(persistentTimeRef.current);
+      
+      console.log("Timer update:", { remaining: persistentTimeRef.current, showDialog: showExitDialog });
+      
+      if (persistentTimeRef.current <= 0) {
+        clearTimerIfExists();
+        endAssessment();
+        navigate('/summary');
+      }
+    }, 1000);
+  }, [endAssessment, navigate, showExitDialog]);
+
+  // Initialize the persistent timer reference when component mounts
   useEffect(() => {
-    // Attach event listeners for fullscreen change events
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+    persistentTimeRef.current = MAX_FULLSCREEN_EXIT_TIME;
+  }, []);
 
-    // Clean up event listeners
+  // Attach event listeners for fullscreen change
+  useEffect(() => {
+    const fullscreenChangeHandler = () => {
+      handleFullscreenChange();
+    };
+    
+    document.addEventListener('fullscreenchange', fullscreenChangeHandler);
+    document.addEventListener('webkitfullscreenchange', fullscreenChangeHandler);
+    document.addEventListener('mozfullscreenchange', fullscreenChangeHandler);
+    document.addEventListener('MSFullscreenChange', fullscreenChangeHandler);
+
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+      document.removeEventListener('fullscreenchange', fullscreenChangeHandler);
+      document.removeEventListener('webkitfullscreenchange', fullscreenChangeHandler);
+      document.removeEventListener('mozfullscreenchange', fullscreenChangeHandler);
+      document.removeEventListener('MSFullscreenChange', fullscreenChangeHandler);
+      clearTimerIfExists();
     };
   }, [handleFullscreenChange]);
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout | undefined;
-    
-    if (fullscreenExitTime !== null) {
-      timer = setInterval(() => {
-        const secondsOut = Math.floor((Date.now() - fullscreenExitTime) / 1000);
-        const remaining = MAX_FULLSCREEN_EXIT_TIME - secondsOut;
-        
-        console.log("Timer update:", { remaining, showDialog: showExitDialog });
-        
-        if (remaining <= 0) {
-          endAssessment();
-          navigate('/summary');
-          clearInterval(timer);
-        } else {
-          setTimeRemaining(remaining);
-        }
-      }, 1000);
-    }
-    
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [fullscreenExitTime, endAssessment, navigate]);
-
   const handleReturnToHome = useCallback(() => {
+    clearTimerIfExists();
     endAssessment();
     navigate('/summary');
   }, [endAssessment, navigate]);
@@ -181,13 +200,15 @@ export const useFullscreen = () => {
     exitFullscreen,
     fullscreenWarnings,
     ExitDialog: () => (
-      <AlertDialog open={showExitDialog} onOpenChange={(open) => {
-        if (!open && !isFullscreen) {
-          // Prevent dialog from being closed unless returning to fullscreen
-          // This ensures dialog stays open until user returns to fullscreen or time runs out
-          setShowExitDialog(true);
-        }
-      }}>
+      <AlertDialog 
+        open={showExitDialog} 
+        onOpenChange={(open) => {
+          if (!open && !isFullscreen) {
+            // Force dialog to stay open
+            setShowExitDialog(true);
+          }
+        }}
+      >
         <AlertDialogContent className="z-[1000]">
           <AlertDialogTitle>Fullscreen Mode Exited</AlertDialogTitle>
           <AlertDialogDescription>
