@@ -390,33 +390,45 @@ export type Database = {
       users: {
         Row: {
           auth_ID: string | null
+          batch: string | null
           created_at: string
+          department: string | null
+          division: string | null
           email: string
           id: string
           name: string
           password: string
           prn: string | null
           role: string
+          year: string | null
         }
         Insert: {
           auth_ID?: string | null
+          batch?: string | null
           created_at?: string
+          department?: string | null
+          division?: string | null
           email: string
           id?: string
           name: string
           password: string
           prn?: string | null
           role: string
+          year?: string | null
         }
         Update: {
           auth_ID?: string | null
+          batch?: string | null
           created_at?: string
+          department?: string | null
+          division?: string | null
           email?: string
           id?: string
           name?: string
           password?: string
           prn?: string | null
           role?: string
+          year?: string | null
         }
         Relationships: []
       }

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -10,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, FileDown, Filter } from 'lucide-react';
 import ResultsTable from '@/components/admin/ResultsTable';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'react-toastify';
 
 const ResultsPage = () => {
   const navigate = useNavigate();
@@ -106,119 +106,103 @@ const ResultsPage = () => {
       setIsExporting(true);
 
       // Fetch results with the current filters applied
-      let query = supabase
+      let { data: results, error } = await supabase
         .from('results')
         .select(`
-          id,
-          user_id,
-          assessment_id,
-          total_score,
-          total_marks,
-          percentage,
-          completed_at,
-          isTerminated,
-          assessments(name, code)
-        `)
-        .order('completed_at', { ascending: false });
+          *,
+          assessments:assessment_id (name, code),
+          users:user_id (name, email, year, department, division, batch)
+        `);
 
-      // Apply filters if they exist
-      if (filters.year || filters.division || filters.batch || filters.assessment || filters.searchQuery) {
-        const { data: results } = await query;
-        if (!results) return;
-
-        let filteredResults = results;
-        const hash = (str: string) => {
-          let hash = 0;
-          for (let i = 0; i < str.length; i++) {
-            hash = ((hash << 5) - hash) + str.charCodeAt(i);
-            hash = hash & hash;
-          }
-          return Math.abs(hash);
-        };
-
-        if (filters.year) {
-          filteredResults = filteredResults.filter(r => 
-            ['2023', '2024', '2025'][hash(r.user_id) % 3] === filters.year
-          );
-        }
-        if (filters.division) {
-          filteredResults = filteredResults.filter(r => 
-            ['A', 'B', 'C'][hash(r.user_id) % 3] === filters.division
-          );
-        }
-        if (filters.batch) {
-          filteredResults = filteredResults.filter(r => 
-            ['B1', 'B2', 'B3'][hash(r.user_id) % 3] === filters.batch
-          );
-        }
-        if (filters.assessment) {
-          filteredResults = filteredResults.filter(r => 
-            r.assessments?.code === filters.assessment
-          );
-        }
-
-        // Fetch user details for filtered results
-        const userIds = [...new Set(filteredResults.map(r => r.user_id))];
-        const { data: usersData } = await supabase
-          .from('users')
-          .select('id, name, email')
-          .in('auth_ID', userIds);
-
-        const userMap: Record<string, {name: string, email: string}> = {};
-        if (usersData) {
-          usersData.forEach(user => {
-            if (user.id) {
-              userMap[user.id] = {
-                name: user.name,
-                email: user.email
-              };
-            }
-          });
-        }
-
-        const csvData = filteredResults.map(result => {
-          const user = userMap[result.user_id];
-          const assessment = result.assessments;
-          
-          return {
-            "User Name": user?.name || "Unknown",
-            "User Email": user?.email || "unknown@example.com",
-            "Assessment": assessment?.name || "Unknown",
-            "Code": assessment?.code || "N/A",
-            "Score": result.total_score,
-            "Total Marks": result.total_marks,
-            "Percentage": result.percentage,
-            "Completion Time": new Date(result.completed_at).toLocaleString(),
-            "Status": result.isTerminated ? "Terminated" : "Completed"
-          };
+      if (error) throw error;
+      
+      if (!results || results.length === 0) {
+        toast({
+          title: "No data to export",
+          description: "There are no results matching your filter criteria",
+          variant: "destructive"
         });
-
-        if (filters.searchQuery) {
-          const query = filters.searchQuery.toLowerCase();
-          csvData.filter(row => 
-            row["User Name"].toLowerCase().includes(query) || 
-            row["User Email"].toLowerCase().includes(query)
-          );
-        }
-
-        const headers = Object.keys(csvData[0]);
-        const csvContent = [
-          headers.join(','),
-          ...csvData.map(row => headers.map(header => JSON.stringify(row[header as keyof typeof row])).join(','))
-        ].join('\n');
-
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.setAttribute('href', url);
-        link.setAttribute('download', `assessment_results_${new Date().toISOString().split('T')[0]}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        return;
       }
+
+      // Apply filters
+      let filteredResults = results;
+      
+      if (filters.year) {
+        filteredResults = filteredResults.filter(r => r.users?.year === filters.year);
+      }
+      if (filters.division) {
+        filteredResults = filteredResults.filter(r => r.users?.division === filters.division);
+      }
+      if (filters.batch) {
+        filteredResults = filteredResults.filter(r => r.users?.batch === filters.batch);
+      }
+      if (filters.assessment) {
+        filteredResults = filteredResults.filter(r => r.assessments?.code === filters.assessment);
+      }
+      if (filters.searchQuery) {
+        const query = filters.searchQuery.toLowerCase();
+        filteredResults = filteredResults.filter(r => 
+          r.users?.name.toLowerCase().includes(query) || 
+          r.users?.email.toLowerCase().includes(query)
+        );
+      }
+
+      const csvData = filteredResults.map(result => ({
+        "Student Name": result.users?.name || "Unknown",
+        "Email": result.users?.email || "unknown@example.com",
+        "Year": result.users?.year || "N/A",
+        "Department": result.users?.department || "N/A",
+        "Division": result.users?.division || "N/A",
+        "Batch": result.users?.batch || "N/A",
+        "Assessment": result.assessments?.name || "Unknown",
+        "Assessment Code": result.assessments?.code || "N/A",
+        "Score": result.total_score,
+        "Total Marks": result.total_marks,
+        "Percentage": result.percentage,
+        "Status": result.isTerminated ? "Terminated" : "Completed",
+        "Completion Time": new Date(result.completed_at).toLocaleString()
+      }));
+
+      if (csvData.length === 0) {
+        toast({
+          title: "No data to export",
+          description: "There are no results matching your filter criteria",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const headers = Object.keys(csvData[0]);
+      const csvContent = [
+        headers.join(','),
+        ...csvData.map(row => headers.map(header => 
+          JSON.stringify(row[header as keyof typeof row])
+        ).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `assessment_results_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Success",
+        description: "Results exported successfully",
+      });
+
     } catch (error) {
       console.error("CSV export error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to export results",
+        variant: "destructive"
+      });
     } finally {
       setIsExporting(false);
     }
