@@ -1,7 +1,5 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
-import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { 
   AlertDialog, 
@@ -17,13 +15,11 @@ export const useFullscreen = () => {
   const [fullscreenExitTime, setFullscreenExitTime] = useState<number | null>(null);
   const [showExitDialog, setShowExitDialog] = useState(false);
   const { fullscreenWarnings, addFullscreenWarning, endAssessment, assessment } = useAssessment();
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   const MAX_WARNINGS = 3;
   const MAX_FULLSCREEN_EXIT_TIME = 30; // seconds
 
-  // Check if browser is in fullscreen mode
   const checkFullscreen = useCallback(() => {
     const isDocumentFullscreen = 
       document.fullscreenElement ||
@@ -34,7 +30,6 @@ export const useFullscreen = () => {
     return !!isDocumentFullscreen;
   }, []);
 
-  // Enter fullscreen
   const enterFullscreen = useCallback(async () => {
     try {
       const docElm = document.documentElement;
@@ -54,15 +49,9 @@ export const useFullscreen = () => {
       setShowExitDialog(false);
     } catch (error) {
       console.error('Failed to enter fullscreen mode:', error);
-      toast({
-        title: "Fullscreen Error",
-        description: "Could not enter fullscreen mode. Please try again.",
-        variant: "destructive",
-      });
     }
-  }, [toast]);
+  }, []);
 
-  // Exit fullscreen
   const exitFullscreen = useCallback(() => {
     try {
       if (document.exitFullscreen) {
@@ -81,12 +70,10 @@ export const useFullscreen = () => {
     }
   }, []);
 
-  // Record a fullscreen violation in the database
   const recordFullscreenViolation = useCallback(async () => {
     if (!assessment) return;
     
     try {
-      // Find the latest submission for this assessment
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
@@ -99,7 +86,6 @@ export const useFullscreen = () => {
         return;
       }
       
-      // Update the submission with a new fullscreen violation
       const submission = submissions[0];
       const { error: updateError } = await supabase
         .from('submissions')
@@ -117,44 +103,26 @@ export const useFullscreen = () => {
     }
   }, [assessment, fullscreenWarnings]);
 
-  // Handle fullscreen change events
   const handleFullscreenChange = useCallback(() => {
     const fullscreenStatus = checkFullscreen();
     setIsFullscreen(fullscreenStatus);
     
     if (!fullscreenStatus) {
-      // User exited fullscreen
       setFullscreenExitTime(Date.now());
       addFullscreenWarning();
       recordFullscreenViolation();
-      
-      // Show exit dialog (and don't hide it automatically)
       setShowExitDialog(true);
       
-      toast({
-        title: `Warning ${fullscreenWarnings + 1}/${MAX_WARNINGS}`,
-        description: "Please return to fullscreen mode immediately. Multiple violations will terminate your test.",
-        variant: "destructive",
-      });
-      
-      // If this is the third warning, end the assessment
       if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
-        toast({
-          title: "Test Terminated",
-          description: "You've exited fullscreen mode too many times. Your test has been terminated.",
-          variant: "destructive",
-        });
         endAssessment();
         navigate('/summary');
       }
     } else {
-      // User returned to fullscreen
       setFullscreenExitTime(null);
       setShowExitDialog(false);
     }
-  }, [checkFullscreen, fullscreenWarnings, addFullscreenWarning, endAssessment, toast, recordFullscreenViolation, navigate]);
+  }, [checkFullscreen, fullscreenWarnings, addFullscreenWarning, endAssessment, recordFullscreenViolation, navigate]);
 
-  // Monitor time spent outside fullscreen
   useEffect(() => {
     let timer: NodeJS.Timeout | undefined;
     
@@ -163,21 +131,9 @@ export const useFullscreen = () => {
         const secondsOut = Math.floor((Date.now() - fullscreenExitTime) / 1000);
         
         if (secondsOut >= MAX_FULLSCREEN_EXIT_TIME) {
-          toast({
-            title: "Test Terminated",
-            description: `You've been outside fullscreen mode for over ${MAX_FULLSCREEN_EXIT_TIME} seconds. Your test has been terminated.`,
-            variant: "destructive",
-          });
           endAssessment();
           navigate('/summary');
           clearInterval(timer);
-        } else if (secondsOut % 10 === 0 && secondsOut > 0) {
-          // Remind every 10 seconds
-          toast({
-            title: "Return to Fullscreen",
-            description: `You've been out of fullscreen for ${secondsOut} seconds. Test will terminate after ${MAX_FULLSCREEN_EXIT_TIME - secondsOut} more seconds.`,
-            variant: "destructive",
-          });
         }
       }, 1000);
     }
@@ -185,26 +141,8 @@ export const useFullscreen = () => {
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [fullscreenExitTime, endAssessment, toast, navigate]);
+  }, [fullscreenExitTime, endAssessment, navigate]);
 
-  // Register event listeners
-  useEffect(() => {
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-    
-    // Check initial fullscreen state
-    setIsFullscreen(checkFullscreen());
-    
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-    };
-  }, [handleFullscreenChange, checkFullscreen]);
-  
   const handleReturnToHome = useCallback(() => {
     endAssessment();
     navigate('/summary');

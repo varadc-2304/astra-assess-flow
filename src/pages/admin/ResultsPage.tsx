@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -9,7 +8,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Download, FileDown, Filter } from 'lucide-react';
 import ResultsTable from '@/components/admin/ResultsTable';
-import { useToast } from '@/components/ui/use-toast';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +19,6 @@ import { supabase } from '@/integrations/supabase/client';
 const ResultsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('all');
   const [filters, setFilters] = useState({
     year: '',
@@ -62,17 +59,13 @@ const ResultsPage = () => {
   };
 
   const handleDownloadPDF = () => {
-    toast({
-      title: "PDF Download",
-      description: "The PDF report is being generated and will download shortly.",
-    });
+    // Silent download, no toast needed
   };
 
   const exportToCSV = async () => {
     try {
       setIsExporting(true);
 
-      // Fetch results with user and assessment details
       const { data: results, error } = await supabase
         .from('results')
         .select(`
@@ -90,19 +83,12 @@ const ResultsPage = () => {
       if (error) throw error;
 
       if (!results || results.length === 0) {
-        toast({
-          title: "No Data",
-          description: "There are no results to export.",
-          variant: "destructive",
-        });
         setIsExporting(false);
         return;
       }
 
-      // Get all unique user IDs
       const userIds = [...new Set(results.map(result => result.user_id))];
       
-      // Fetch user details
       const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select('id, name, email')
@@ -110,7 +96,6 @@ const ResultsPage = () => {
       
       if (usersError) throw usersError;
       
-      // Create a map of user details for quick lookup
       const userMap: Record<string, {name: string, email: string}> = {};
       if (usersData) {
         usersData.forEach(user => {
@@ -154,17 +139,8 @@ const ResultsPage = () => {
       link.click();
       document.body.removeChild(link);
 
-      toast({
-        title: "Export Successful",
-        description: "Assessment results have been exported to CSV.",
-      });
     } catch (error) {
       console.error("CSV export error:", error);
-      toast({
-        title: "Export Failed",
-        description: "There was an error exporting the data. Please try again.",
-        variant: "destructive",
-      });
     } finally {
       setIsExporting(false);
     }
