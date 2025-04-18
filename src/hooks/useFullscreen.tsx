@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useNavigate } from 'react-router-dom';
@@ -165,7 +166,7 @@ export const useFullscreen = () => {
     };
   }, [handleFullscreenChange]);
 
-  const handleEndAssessment = useCallback(() => {
+  const terminateAssessment = useCallback(() => {
     clearTimerIfExists();
     endAssessment();
     navigate('/summary');
@@ -178,6 +179,7 @@ export const useFullscreen = () => {
     fullscreenWarnings,
     showExitWarning,
     timeRemaining,
-    handleEndAssessment
+    terminateAssessment,
+    MAX_WARNINGS
   };
 };

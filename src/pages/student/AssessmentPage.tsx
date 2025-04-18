@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -52,7 +53,8 @@ const AssessmentPage = () => {
     showExitWarning, 
     timeRemaining, 
     fullscreenWarnings,
-    handleEndAssessment 
+    terminateAssessment,
+    MAX_WARNINGS
   } = useFullscreen();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -432,7 +434,7 @@ const AssessmentPage = () => {
               Return to Fullscreen
             </AlertDialogAction>
             <AlertDialogAction
-              onClick={handleEndAssessment}
+              onClick={terminateAssessment}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
               End Assessment
@@ -440,8 +442,6 @@ const AssessmentPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      
-      <ExitDialog />
     </div>
   );
 };
