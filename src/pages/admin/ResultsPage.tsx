@@ -22,8 +22,7 @@ interface UserFilters {
   searchQuery: string;
 }
 
-interface AssessmentCode {
-  code: string;
+interface AssessmentOption {
   name: string;
 }
 
@@ -70,26 +69,58 @@ const ResultsPage = () => {
     searchQuery: ''
   });
   const [isExporting, setIsExporting] = useState(false);
-  const [assessmentCodes, setAssessmentCodes] = useState<AssessmentCode[]>([]);
+  const [assessmentOptions, setAssessmentOptions] = useState<AssessmentOption[]>([]);
   const [years, setYears] = useState<string[]>([]);
   const [divisions, setDivisions] = useState<string[]>([]);
   const [batches, setBatches] = useState<string[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
 
   useEffect(() => {
-    const fetchAssessmentCodes = async () => {
+    const fetchAssessmentOptions = async () => {
       try {
-        const { data, error } = await supabase
+        // Fetch all unique contest names from the results table
+        const { data: contestNamesData, error: contestNamesError } = await supabase
+          .from('results')
+          .select('contest_name')
+          .not('contest_name', 'is', null)
+          .order('contest_name');
+        
+        if (contestNamesError) throw contestNamesError;
+        
+        // Also fetch assessment names and codes as backup
+        const { data: assessmentsData, error: assessmentsError } = await supabase
           .from('assessments')
-          .select('code, name')
+          .select('name, code')
           .order('name');
         
-        if (error) throw error;
-        if (data) {
-          setAssessmentCodes(data);
+        if (assessmentsError) throw assessmentsError;
+        
+        // Combine unique contest names from results and assessment names
+        const uniqueAssessmentOptions = new Map();
+        
+        // First add contest names from results
+        if (contestNamesData) {
+          contestNamesData.forEach(item => {
+            if (item.contest_name) {
+              uniqueAssessmentOptions.set(item.contest_name.toLowerCase(), { name: item.contest_name });
+            }
+          });
         }
+        
+        // Then add assessment names as fallback
+        if (assessmentsData) {
+          assessmentsData.forEach(assessment => {
+            const displayName = `${assessment.name} (${assessment.code})`;
+            if (!uniqueAssessmentOptions.has(displayName.toLowerCase())) {
+              uniqueAssessmentOptions.set(displayName.toLowerCase(), { name: displayName });
+            }
+          });
+        }
+        
+        // Convert map to array of unique assessment options
+        setAssessmentOptions(Array.from(uniqueAssessmentOptions.values()));
       } catch (error) {
-        console.error('Error fetching assessment codes:', error);
+        console.error('Error fetching assessment options:', error);
       }
     };
 
@@ -122,9 +153,9 @@ const ResultsPage = () => {
       }
     };
 
-    fetchAssessmentCodes();
+    fetchAssessmentOptions();
     fetchUserFilters();
-  }, []);
+  }, [toast]);
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters({
@@ -376,7 +407,7 @@ const ResultsPage = () => {
                   </Select>
                 </div>
 
-                {/* New Department Filter */}
+                {/* Department Filter */}
                 <div>
                   <Select
                     value={filters.department}
@@ -404,10 +435,10 @@ const ResultsPage = () => {
                       <SelectValue placeholder="Assessment" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Assessments</SelectItem>
-                      {assessmentCodes.map(item => (
-                        <SelectItem key={item.code} value={item.code}>
-                          {item.name} ({item.code})
+                      <SelectItem value="">All Assessments</SelectItem>
+                      {assessmentOptions.map((item, index) => (
+                        <SelectItem key={`${item.name}-${index}`} value={item.name}>
+                          {item.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
