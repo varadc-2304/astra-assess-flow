@@ -1,21 +1,11 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useNavigate } from 'react-router-dom';
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogAction
-} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 
 export const useFullscreen = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenExitTime, setFullscreenExitTime] = useState<number | null>(null);
-  const [showExitDialog, setShowExitDialog] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState<number>(30);
   const { fullscreenWarnings, addFullscreenWarning, endAssessment, assessment } = useAssessment();
   const navigate = useNavigate();
 
@@ -47,7 +37,6 @@ export const useFullscreen = () => {
 
     timerRef.current = setInterval(() => {
       persistentTimeRef.current = Math.max(0, persistentTimeRef.current - 1);
-      setTimeRemaining(persistentTimeRef.current);
 
       if (persistentTimeRef.current <= 0) {
         clearTimerIfExists();
@@ -75,7 +64,6 @@ export const useFullscreen = () => {
       setIsFullscreen(true);
       clearTimerIfExists();
       setFullscreenExitTime(null);
-      setShowExitDialog(false);
       fullscreenExitHandledRef.current = false;
     } catch (error) {
       console.error('Failed to enter fullscreen mode:', error);
@@ -137,14 +125,11 @@ export const useFullscreen = () => {
     const fullscreenStatus = checkFullscreen();
     
     if (!fullscreenStatus) {
-      // Only handle the fullscreen exit once until re-entering fullscreen
       if (!fullscreenExitHandledRef.current) {
         fullscreenExitHandledRef.current = true;
-        
         setFullscreenExitTime(Date.now());
         addFullscreenWarning();
         recordFullscreenViolation();
-        setShowExitDialog(true);
         startOrResumeTimer();
         
         if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
@@ -157,7 +142,6 @@ export const useFullscreen = () => {
       fullscreenExitHandledRef.current = false;
       clearTimerIfExists();
       setFullscreenExitTime(null);
-      setShowExitDialog(false);
     }
   }, [
     checkFullscreen,
@@ -190,41 +174,10 @@ export const useFullscreen = () => {
     };
   }, [handleFullscreenChange]);
 
-  const handleReturnToHome = useCallback(() => {
-    clearTimerIfExists();
-    endAssessment();
-    navigate('/summary');
-  }, [endAssessment, navigate]);
-
   return {
     isFullscreen,
     enterFullscreen,
     exitFullscreen,
-    fullscreenWarnings,
-    ExitDialog: () => (
-      <AlertDialog open={showExitDialog}>
-        <AlertDialogContent className="z-[1000]">
-          <AlertDialogTitle>Fullscreen Mode Exited</AlertDialogTitle>
-          <AlertDialogDescription>
-            You have exited fullscreen mode. This is violation {fullscreenWarnings}/{MAX_WARNINGS}.
-            Please return to fullscreen immediately or your test will be terminated.
-            <div className="mt-2 font-semibold text-red-600">
-              Time remaining: {timeRemaining} seconds
-            </div>
-          </AlertDialogDescription>
-          <div className="flex justify-between mt-4">
-            <AlertDialogAction onClick={enterFullscreen}>
-              Return to Fullscreen
-            </AlertDialogAction>
-            <AlertDialogAction
-              onClick={handleReturnToHome}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              End Test
-            </AlertDialogAction>
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
-    )
+    fullscreenWarnings
   };
 };
