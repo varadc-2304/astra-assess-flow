@@ -61,9 +61,23 @@ const AppRoutes = () => (
     <Route path="/admin/results" element={<ProtectedRoute requiredRole="admin"><ResultsPage /></ProtectedRoute>} />
     <Route path="/admin/create-assessment" element={<ProtectedRoute requiredRole="admin"><AssessmentForm /></ProtectedRoute>} />
     <Route path="/admin/assessments/:id" element={<ProtectedRoute requiredRole="admin"><AssessmentDetail /></ProtectedRoute>} />
-    <Route path="/admin/assessments/:id/edit" element={<ProtectedRoute requiredRole="admin"><AssessmentForm assessmentId="$id" /></ProtectedRoute>} />
-    <Route path="/admin/assessments/:assessmentId/questions/new" element={<ProtectedRoute requiredRole="admin"><QuestionForm /></ProtectedRoute>} />
-    <Route path="/admin/assessments/:assessmentId/questions/:questionId/edit" element={<ProtectedRoute requiredRole="admin"><QuestionForm /></ProtectedRoute>} />
+    <Route path="/admin/assessments/:id/edit" element={<ProtectedRoute requiredRole="admin"><AssessmentForm /></ProtectedRoute>} />
+    <Route 
+      path="/admin/assessments/:assessmentId/questions/new" 
+      element={
+        <ProtectedRoute requiredRole="admin">
+          <QuestionForm />
+        </ProtectedRoute>
+      } 
+    />
+    <Route 
+      path="/admin/assessments/:assessmentId/questions/:questionId/edit" 
+      element={
+        <ProtectedRoute requiredRole="admin">
+          <QuestionForm />
+        </ProtectedRoute>
+      } 
+    />
     
     {/* 404 Route */}
     <Route path="*" element={<NotFound />} />
