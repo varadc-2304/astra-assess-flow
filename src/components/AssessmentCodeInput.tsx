@@ -35,23 +35,37 @@ const AssessmentCodeInput = () => {
           description: "Please check the assessment code and try again.",
           variant: "destructive",
         });
+        setLoading(false);
         return;
       }
 
       // Check if user has already completed this assessment
-      const { data: results } = await supabase
+      const { data: results, error: resultsError } = await supabase
         .from('results')
         .select('*')
         .eq('user_id', user?.id)
         .eq('assessment_id', assessmentData.id)
         .maybeSingle();
 
+      if (resultsError) {
+        console.error('Error checking previous attempts:', resultsError);
+        toast({
+          title: "Error",
+          description: "Failed to verify your previous attempts. Please try again.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // If results exist and reattempt is not allowed, prevent access
       if (results && !assessmentData.reattempt) {
         toast({
           title: "Assessment Already Completed",
           description: "You have already completed this assessment and retakes are not allowed.",
           variant: "destructive",
         });
+        setLoading(false);
         return;
       }
 
