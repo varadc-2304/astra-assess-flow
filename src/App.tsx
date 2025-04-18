@@ -1,3 +1,4 @@
+
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -14,6 +15,7 @@ import ResultsPage from "./pages/admin/ResultsPage";
 import AssessmentForm from "@/components/admin/AssessmentForm";
 import AssessmentDetail from "@/pages/admin/AssessmentDetail";
 import QuestionForm from "@/components/admin/QuestionForm";
+import { Toaster } from "@/components/ui/toaster"; // Import the Toaster
 
 const queryClient = new QueryClient();
 
@@ -70,6 +72,7 @@ const App = () => (
         <AuthProvider>
           <AssessmentProvider>
             <AppRoutes />
+            <Toaster /> {/* Add the Toaster component here */}
           </AssessmentProvider>
         </AuthProvider>
       </BrowserRouter>
