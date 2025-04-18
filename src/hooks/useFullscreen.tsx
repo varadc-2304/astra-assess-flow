@@ -1,8 +1,8 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export const MAX_WARNINGS = 3;
 export const MAX_FULLSCREEN_EXIT_TIME = 30;
@@ -11,13 +11,14 @@ export const useFullscreen = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenExitTime, setFullscreenExitTime] = useState<number | null>(null);
   const [showExitWarning, setShowExitWarning] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(MAX_FULLSCREEN_EXIT_TIME);
   const { fullscreenWarnings, addFullscreenWarning, endAssessment, assessment } = useAssessment();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const persistentTimeRef = useRef<number>(MAX_FULLSCREEN_EXIT_TIME);
   const fullscreenExitHandledRef = useRef<boolean>(false);
+  const toastIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const checkFullscreen = useCallback(() => {
     const isDocumentFullscreen =
@@ -33,16 +34,38 @@ export const useFullscreen = () => {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    if (toastIntervalRef.current) {
+      clearInterval(toastIntervalRef.current);
+      toastIntervalRef.current = null;
+    }
   };
 
   const startOrResumeTimer = useCallback(() => {
     clearTimerIfExists();
     persistentTimeRef.current = MAX_FULLSCREEN_EXIT_TIME;
-    setTimeRemaining(MAX_FULLSCREEN_EXIT_TIME);
+    
+    // Show initial warning
+    toast({
+      title: "Warning",
+      description: `Return to fullscreen mode within ${MAX_FULLSCREEN_EXIT_TIME} seconds or your assessment will be terminated.`,
+      variant: "destructive",
+    });
+
+    // Set up toast interval for remaining time notifications
+    toastIntervalRef.current = setInterval(() => {
+      const timeLeft = persistentTimeRef.current;
+      if (timeLeft === 20 || timeLeft === 10 || timeLeft === 5) {
+        toast({
+          title: "Warning",
+          description: `${timeLeft} seconds remaining to return to fullscreen mode.`,
+          variant: "destructive",
+        });
+      }
+    }, 1000);
 
     timerRef.current = setInterval(() => {
       persistentTimeRef.current = Math.max(0, persistentTimeRef.current - 1);
-      setTimeRemaining(persistentTimeRef.current);
+      console.log('Timer tick:', persistentTimeRef.current);
       
       if (persistentTimeRef.current <= 0) {
         clearTimerIfExists();
@@ -54,7 +77,7 @@ export const useFullscreen = () => {
 
     console.log('Timer started with interval ID:', timerRef.current);
     return () => clearTimerIfExists();
-  }, [endAssessment, navigate]);
+  }, [endAssessment, navigate, toast]);
 
   const enterFullscreen = useCallback(async () => {
     try {
@@ -125,7 +148,7 @@ export const useFullscreen = () => {
         addFullscreenWarning();
         recordFullscreenViolation();
         
-        // Immediately start the timer when exiting fullscreen
+        // Start the timer when exiting fullscreen
         const cleanupTimer = startOrResumeTimer();
         
         if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
@@ -139,6 +162,10 @@ export const useFullscreen = () => {
       clearTimerIfExists();
       setFullscreenExitTime(null);
       setShowExitWarning(false);
+      toast({
+        title: "Fullscreen Mode",
+        description: "You have returned to fullscreen mode.",
+      });
     }
   }, [
     checkFullscreen,
@@ -147,7 +174,8 @@ export const useFullscreen = () => {
     endAssessment,
     navigate,
     addFullscreenWarning,
-    startOrResumeTimer
+    startOrResumeTimer,
+    toast
   ]);
 
   useEffect(() => {
@@ -183,7 +211,6 @@ export const useFullscreen = () => {
     exitFullscreen,
     fullscreenWarnings,
     showExitWarning,
-    timeRemaining,
     terminateAssessment,
   };
 };

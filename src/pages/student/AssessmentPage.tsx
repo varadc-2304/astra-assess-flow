@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -413,17 +412,11 @@ const AssessmentPage = () => {
               <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
               Fullscreen Mode Required
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
+            <AlertDialogDescription>
               <p>
                 You have exited fullscreen mode. This is violation {fullscreenWarnings}/{MAX_WARNINGS}.
                 Please return to fullscreen immediately or your test will be terminated.
               </p>
-              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
-                <div className="text-red-700 font-medium flex items-center justify-between">
-                  <span>Time remaining:</span>
-                  <Timer value={timeRemaining} />
-                </div>
-              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
