@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -161,6 +162,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           };
         });
         
+        // Apply filters
         if (filters.year) {
           transformedData = transformedData.filter(s => s.year === filters.year);
         }
