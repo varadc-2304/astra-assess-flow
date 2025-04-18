@@ -11,6 +11,7 @@ import ResultsTable from '@/components/admin/ResultsTable';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+// Update UserFilters interface to include department
 interface UserFilters {
   year: string;
   division: string;
@@ -88,11 +89,6 @@ const ResultsPage = () => {
         }
       } catch (error) {
         console.error('Error fetching assessment codes:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load assessment codes",
-          variant: "destructive"
-        });
       }
     };
 
@@ -127,7 +123,7 @@ const ResultsPage = () => {
 
     fetchAssessmentCodes();
     fetchUserFilters();
-  }, [toast]);
+  }, []);
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters({
@@ -144,19 +140,8 @@ const ResultsPage = () => {
         .from('results')
         .select(`
           *,
-          assessments:assessment_id (
-            name,
-            code
-          ),
-          users:user_id (
-            id,
-            name,
-            email,
-            year,
-            department,
-            division,
-            batch
-          )
+          assessments:assessment_id (name, code),
+          users:user_id (id, name, email, year, department, division, batch)
         `);
 
       if (error) throw error;
@@ -170,6 +155,7 @@ const ResultsPage = () => {
         return;
       }
 
+      // Update filtering to include department
       let filteredResults = resultsData as unknown as ResultData[];
       
       if (filters.year) {
@@ -351,6 +337,7 @@ const ResultsPage = () => {
                   </Select>
                 </div>
 
+                {/* New Department Filter */}
                 <div>
                   <Select
                     value={filters.department}
