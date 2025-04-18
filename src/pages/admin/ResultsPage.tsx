@@ -11,10 +11,12 @@ import ResultsTable from '@/components/admin/ResultsTable';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+// Update UserFilters interface to include department
 interface UserFilters {
   year: string;
   division: string;
   batch: string;
+  department: string;
   assessment: string;
   searchQuery: string;
 }
@@ -62,6 +64,7 @@ const ResultsPage = () => {
     year: '',
     division: '',
     batch: '',
+    department: '',
     assessment: '',
     searchQuery: ''
   });
@@ -70,6 +73,7 @@ const ResultsPage = () => {
   const [years, setYears] = useState<string[]>([]);
   const [divisions, setDivisions] = useState<string[]>([]);
   const [batches, setBatches] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchAssessmentCodes = async () => {
@@ -92,7 +96,7 @@ const ResultsPage = () => {
       try {
         const { data: users, error } = await supabase
           .from('users')
-          .select('year, division, batch');
+          .select('year, division, batch, department');
 
         if (error) throw error;
 
@@ -100,10 +104,12 @@ const ResultsPage = () => {
           const uniqueYears = [...new Set(users.map(user => user.year).filter(Boolean))].sort();
           const uniqueDivisions = [...new Set(users.map(user => user.division).filter(Boolean))].sort();
           const uniqueBatches = [...new Set(users.map(user => user.batch).filter(Boolean))].sort();
+          const uniqueDepartments = [...new Set(users.map(user => user.department).filter(Boolean))].sort();
 
           setYears(uniqueYears);
           setDivisions(uniqueDivisions);
           setBatches(uniqueBatches);
+          setDepartments(uniqueDepartments);
         }
       } catch (error) {
         console.error('Error fetching user filters:', error);
@@ -149,6 +155,7 @@ const ResultsPage = () => {
         return;
       }
 
+      // Update filtering to include department
       let filteredResults = resultsData as unknown as ResultData[];
       
       if (filters.year) {
@@ -161,6 +168,10 @@ const ResultsPage = () => {
       
       if (filters.batch) {
         filteredResults = filteredResults.filter(r => r.users?.batch === filters.batch);
+      }
+      
+      if (filters.department) {
+        filteredResults = filteredResults.filter(r => r.users?.department === filters.department);
       }
       
       if (filters.assessment && filters.assessment !== 'all') {
@@ -271,7 +282,7 @@ const ResultsPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                 <div>
                   <Select
                     value={filters.year}
@@ -320,6 +331,25 @@ const ResultsPage = () => {
                       {batches.map(batch => (
                         <SelectItem key={batch} value={batch}>
                           {batch}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* New Department Filter */}
+                <div>
+                  <Select
+                    value={filters.department}
+                    onValueChange={(value) => handleFilterChange('department', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map(department => (
+                        <SelectItem key={department} value={department}>
+                          {department}
                         </SelectItem>
                       ))}
                     </SelectContent>
