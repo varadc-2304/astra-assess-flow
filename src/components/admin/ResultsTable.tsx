@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -41,7 +40,7 @@ interface Student {
   email: string;
   assessmentId: string;
   assessmentName: string;
-  assessmentCode?: string;
+  assessmentCode: string;
   score: number;
   totalMarks: number;
   percentage: number;
@@ -81,26 +80,10 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     const fetchResults = async () => {
       setIsLoading(true);
       try {
-        // First, let's query the results but modify our join approach to properly link users
+        // First get results with separate queries to avoid join issues
         const { data: resultsData, error: resultsError } = await supabase
           .from('results')
-          .select(`
-            *,
-            assessments (
-              id,
-              name,
-              code
-            ),
-            users (
-              id,
-              name,
-              email,
-              year,
-              department,
-              division,
-              batch
-            )
-          `)
+          .select('*')
           .order('completed_at', { ascending: false });
         
         if (resultsError) throw resultsError;
@@ -111,15 +94,41 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           return;
         }
 
-        let transformedData: Student[] = resultsData.map((result) => {
-          // Type assertion to provide better type safety
-          const userDetails = result.users as unknown as UserData;
-          const assessment = result.assessments as {id: string, name: string, code: string};
+        // Get all user IDs from results
+        const userIds = resultsData.map(result => result.user_id);
+        
+        // Get all assessment IDs from results
+        const assessmentIds = resultsData.map(result => result.assessment_id);
+        
+        // Fetch users data
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('*')
+          .in('id', userIds);
+          
+        if (usersError) throw usersError;
+        
+        // Fetch assessments data
+        const { data: assessmentsData, error: assessmentsError } = await supabase
+          .from('assessments')
+          .select('*')
+          .in('id', assessmentIds);
+          
+        if (assessmentsError) throw assessmentsError;
+        
+        // Create a map for quick lookup
+        const usersMap = new Map(usersData?.map(user => [user.id, user]));
+        const assessmentsMap = new Map(assessmentsData?.map(assessment => [assessment.id, assessment]));
+        
+        // Transform the data
+        let transformedData: Student[] = resultsData.map(result => {
+          const user = usersMap.get(result.user_id);
+          const assessment = assessmentsMap.get(result.assessment_id);
           
           return {
             id: result.user_id,
-            name: userDetails?.name || 'Unknown User',
-            email: userDetails?.email || 'unknown@example.com',
+            name: user?.name || 'Unknown User',
+            email: user?.email || 'unknown@example.com',
             assessmentId: result.assessment_id,
             assessmentName: assessment?.name || 'Unknown Assessment',
             assessmentCode: assessment?.code || '',
@@ -128,10 +137,10 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             percentage: result.percentage,
             completedAt: result.completed_at,
             isTerminated: result.isTerminated || false,
-            division: userDetails?.division || 'N/A',
-            batch: userDetails?.batch || 'N/A',
-            year: userDetails?.year || 'N/A',
-            department: userDetails?.department || 'N/A'
+            division: user?.division || 'N/A',
+            batch: user?.batch || 'N/A',
+            year: user?.year || 'N/A',
+            department: user?.department || 'N/A'
           };
         });
 
