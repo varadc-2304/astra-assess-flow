@@ -215,7 +215,7 @@ const ResultsPage = () => {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-astra-red">Yudh</h1>
+              <h1 className="text-2xl font-bold text-astra-red">Yudha</h1>
               <p className="text-sm text-gray-600">Results Dashboard</p>
             </div>
           </div>
