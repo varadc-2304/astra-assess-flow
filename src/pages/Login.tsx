@@ -28,7 +28,7 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 animate-gradient py-12 px-4 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <h1 className="gradient-text text-5xl font-bold mb-2 tracking-tight">Yudh</h1>
+          <h1 className="gradient-text text-5xl font-bold mb-2 tracking-tight">Yudha</h1>
         </div>
 
         <Card className="glass-card">
