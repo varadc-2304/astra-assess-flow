@@ -31,7 +31,9 @@ interface TestResult {
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarksUpdate }) => {
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('python');
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(
+    Object.keys(question.solutionTemplate)[0] || 'python'
+  );
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -39,7 +41,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const { toast } = useToast();
   const { user } = useAuth();
 
-  const currentCode = question.userSolution[selectedLanguage] || question.solutionTemplate[selectedLanguage] || '';
+  const currentCode =
+    question.userSolution[selectedLanguage] ??
+    question.solutionTemplate[selectedLanguage] ??
+    '';
 
   const handleLanguageChange = (language: string) => {
     setSelectedLanguage(language);
@@ -394,10 +399,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             <SelectValue placeholder="Language" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="c">C</SelectItem>
-            <SelectItem value="cpp">C++</SelectItem>
-            <SelectItem value="java">Java</SelectItem>
-            <SelectItem value="python">Python</SelectItem>
+            {Object.keys(question.solutionTemplate).map((lang) => (
+              <SelectItem value={lang} key={lang}>
+                {lang.charAt(0).toUpperCase() + lang.slice(1)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <div className="flex gap-2">

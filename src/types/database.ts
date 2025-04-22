@@ -1,4 +1,3 @@
-
 export interface TestCase {
   id: string;
   question_id: string;
@@ -84,7 +83,8 @@ export interface MCQOption {
 export interface CodingQuestion {
   id: string;
   question_id: string;
+  coding_lang: string; // Single language for this row
   constraints: string[];
-  solution_template: Record<string, string>;
+  solution_template: string; // Changed from Record/json to plain string
   created_at: string | null;
 }

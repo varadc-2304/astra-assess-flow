@@ -219,13 +219,14 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           }
 
           const solutionTemplate: Record<string, string> = {};
-          const availableLanguages: string[] = [];
+          const constraints: string[] = [];
+
           (codingLangRows || []).forEach((row: any) => {
-            if (row.coding_lang && row.solution_template) {
-              solutionTemplate[row.coding_lang] = typeof row.solution_template === "object"
-                ? row.solution_template.template || ""
-                : String(row.solution_template);
-              availableLanguages.push(row.coding_lang);
+            if (row.coding_lang && row.solution_template !== undefined) {
+              solutionTemplate[row.coding_lang] = row.solution_template;
+              if (constraints.length === 0 && row.constraints) {
+                constraints.push(...row.constraints);
+              }
             }
           });
 
@@ -243,7 +244,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
               output: example.output,
               explanation: example.explanation,
             })) || [],
-            constraints: codingLangRows?.[0]?.constraints || [],
+            constraints: constraints,
             solutionTemplate,
             userSolution: {},
             testCases: testCasesData?.map(testCase => ({
