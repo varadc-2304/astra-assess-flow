@@ -27,6 +27,7 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
   const [mcqOptions, setMcqOptions] = useState<MCQOption[]>([]);
   const [codingDetails, setCodingDetails] = useState<CodingQuestion | null>(null);
   const [testCases, setTestCases] = useState<TestCase[]>([]);
+  const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
 
   useEffect(() => {
     if (question) {
@@ -48,23 +49,21 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
         if (mcqError) throw mcqError;
         setMcqOptions(options || []);
       } else if (question.type === 'code') {
-        // Fetch coding question details
+        // Fetch coding question details - now we need to get all language variants
         const { data: codingData, error: codingError } = await supabase
           .from('coding_questions')
           .select('*')
-          .eq('question_id', question.id)
-          .single();
+          .eq('question_id', question.id);
 
         if (codingError) throw codingError;
         
-        // Convert solution_template from Json to Record<string, string>
-        // This fixes the type error by explicitly casting the solution_template
-        if (codingData) {
-          const typedCodingData: CodingQuestion = {
-            ...codingData,
-            solution_template: codingData.solution_template as unknown as Record<string, string>
-          };
-          setCodingDetails(typedCodingData);
+        if (codingData && codingData.length > 0) {
+          // Set the first row as our coding details
+          setCodingDetails(codingData[0]);
+          
+          // Extract available languages from all rows
+          const languages = codingData.map(row => row.coding_lang);
+          setAvailableLanguages(languages);
         }
 
         // Fetch test cases
@@ -173,7 +172,7 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-2">Available Languages</h3>
                 <div className="flex flex-wrap gap-2">
-                  {Object.keys(codingDetails.solution_template).map((lang) => (
+                  {availableLanguages.map((lang) => (
                     <Badge key={lang} variant="outline" className="capitalize">
                       {lang}
                     </Badge>
