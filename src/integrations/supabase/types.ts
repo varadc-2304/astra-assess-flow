@@ -152,6 +152,7 @@ export type Database = {
       }
       coding_questions: {
         Row: {
+          coding_lang: string
           constraints: string[] | null
           created_at: string | null
           id: string
@@ -159,6 +160,7 @@ export type Database = {
           solution_template: Json
         }
         Insert: {
+          coding_lang: string
           constraints?: string[] | null
           created_at?: string | null
           id?: string
@@ -166,6 +168,7 @@ export type Database = {
           solution_template?: Json
         }
         Update: {
+          coding_lang?: string
           constraints?: string[] | null
           created_at?: string | null
           id?: string

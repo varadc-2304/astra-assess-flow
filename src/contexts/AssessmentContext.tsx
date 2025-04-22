@@ -186,51 +186,52 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           
           questions.push(mcqQuestion);
         } else if (questionData.type === 'code') {
-          const { data: codeData, error: codeError } = await supabase
+          const { data: codingLangRows, error: codeError } = await supabase
             .from('coding_questions')
             .select('*')
-            .eq('question_id', questionData.id)
-            .single();
-            
+            .eq('question_id', questionData.id);
+
           if (codeError) {
             console.error('Failed to load coding details for question', questionData.id, codeError);
             continue;
           }
-          
+
           const { data: examplesData, error: examplesError } = await supabase
             .from('coding_examples')
             .select('*')
             .eq('question_id', questionData.id)
             .order('order_index', { ascending: true });
-            
+
           if (examplesError) {
             console.error('Failed to load examples for question', questionData.id, examplesError);
             continue;
           }
-          
-          console.log(`Found ${examplesData?.length || 0} examples for coding question ID:`, questionData.id);
-          
+
           const { data: testCasesData, error: testCasesError } = await supabase
             .from('test_cases')
             .select('*')
             .eq('question_id', questionData.id)
             .order('order_index', { ascending: true });
-            
+
           if (testCasesError) {
             console.error('Failed to load test cases for question', questionData.id, testCasesError);
             continue;
           }
-          
+
+          const solutionTemplate: Record<string, string> = {};
+          const availableLanguages: string[] = [];
+          (codingLangRows || []).forEach((row: any) => {
+            if (row.coding_lang && row.solution_template) {
+              solutionTemplate[row.coding_lang] = typeof row.solution_template === "object"
+                ? row.solution_template.template || ""
+                : String(row.solution_template);
+              availableLanguages.push(row.coding_lang);
+            }
+          });
+
           const testCaseMarks = testCasesData?.reduce((sum, tc) => sum + (tc.marks || 0), 0) || 0;
           totalPossibleMarks += testCaseMarks;
-          
-          const solutionTemplate = codeData?.solution_template ? 
-            Object.fromEntries(
-              Object.entries(codeData.solution_template as Record<string, any>)
-                .map(([key, value]) => [key, String(value)])
-            ) : 
-            {};
-            
+
           const codeQuestion: CodeQuestion = {
             id: questionData.id,
             assessmentId: assessmentData.id,
@@ -240,20 +241,20 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             examples: examplesData?.map(example => ({
               input: example.input,
               output: example.output,
-              explanation: example.explanation
+              explanation: example.explanation,
             })) || [],
-            constraints: codeData?.constraints || [],
-            solutionTemplate: solutionTemplate,
+            constraints: codingLangRows?.[0]?.constraints || [],
+            solutionTemplate,
             userSolution: {},
             testCases: testCasesData?.map(testCase => ({
               input: testCase.input,
               output: testCase.output,
               marks: testCase.marks,
-              is_hidden: testCase.is_hidden
+              is_hidden: testCase.is_hidden,
             })) || [],
-            marks: testCaseMarks
+            marks: testCaseMarks,
           };
-          
+
           questions.push(codeQuestion);
         }
       }
