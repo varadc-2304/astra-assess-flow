@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -48,17 +47,14 @@ const AssessmentPage = () => {
   const { isFullscreen, enterFullscreen, exitFullscreen, addFullscreenWarning, fullscreenWarnings } = useFullscreen();
 
   useEffect(() => {
-    // Redirect if assessment is not started
     if (!assessmentStarted && assessment) {
       navigate('/instructions');
     }
     
-    // Enter fullscreen when component mounts
     if (assessment && !isFullscreen) {
       enterFullscreen();
     }
     
-    // Clean up
     return () => {
       if (isFullscreen) {
         exitFullscreen();
@@ -66,7 +62,6 @@ const AssessmentPage = () => {
     };
   }, [assessment, assessmentStarted, navigate, isFullscreen, enterFullscreen, exitFullscreen]);
   
-  // Handle fullscreen violation
   useEffect(() => {
     if (assessment && assessmentStarted && !isFullscreen) {
       addFullscreenWarning();
@@ -77,12 +72,10 @@ const AssessmentPage = () => {
         variant: "destructive",
       });
       
-      // Re-enter fullscreen after warning
       setTimeout(() => {
         enterFullscreen();
       }, 2000);
       
-      // Record fullscreen violation
       if (user && assessment) {
         const recordViolation = async () => {
           const { data: submissions, error: fetchError } = await supabase
@@ -134,7 +127,6 @@ const AssessmentPage = () => {
     }
   }, [isFullscreen, assessment, assessmentStarted, user, fullscreenWarnings, toast, navigate, endAssessment, enterFullscreen, addFullscreenWarning]);
   
-  // Set up timer completion handler
   const handleTimeUp = () => {
     toast({
       title: "Time's Up!",
@@ -151,7 +143,6 @@ const AssessmentPage = () => {
     setIsSubmitting(true);
     
     try {
-      // Get the current submission
       const { data: submissions, error: fetchError } = await supabase
         .from('submissions')
         .select('id')
@@ -170,8 +161,8 @@ const AssessmentPage = () => {
       
       const submissionId = submissions[0].id;
       
-      // Update the submission as completed
       const now = new Date().toISOString();
+      
       const { error: updateError } = await supabase
         .from('submissions')
         .update({ completed_at: now })
@@ -181,7 +172,6 @@ const AssessmentPage = () => {
         throw new Error(`Error updating submission: ${updateError.message}`);
       }
       
-      // Create result record
       const percentage = totalPossibleMarks > 0 
         ? Math.round((totalMarksObtained / totalPossibleMarks) * 100)
         : 0;
@@ -205,7 +195,6 @@ const AssessmentPage = () => {
       
       await endAssessment();
       
-      // Navigate to summary page
       navigate('/summary');
     } catch (error) {
       console.error('Error submitting assessment:', error);
@@ -228,11 +217,9 @@ const AssessmentPage = () => {
   const isPreviousEnabled = currentQuestionIndex > 0;
   const isNextEnabled = currentQuestionIndex < assessment.questions.length - 1;
   
-  // Create pagination items
   const paginationItems = [];
   for (let i = 0; i < assessment.questions.length; i++) {
     const question = assessment.questions[i];
-    // Check if the question is answered based on its type
     const isAnswered = question.type === 'mcq' ? 
       !!question.selectedOption : 
       !!(question.type === 'code' && Object.keys(question.userSolution || {}).length > 0);
@@ -330,7 +317,7 @@ const AssessmentPage = () => {
                     <CodeEditor 
                       question={currentQuestion}
                       onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
-                      onMarksUpdate={(marks) => updateMarksObtained(currentQuestion.id, marks)}
+                      onMarksUpdate={(marks) => updateMarksObtained(currentQuestion.id, Number(marks))}
                     />
                   </TabsContent>
                 </div>

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -82,11 +81,7 @@ const InstructionsPage = () => {
           <h1 className="text-2xl font-bold mb-6 text-center">Enter Assessment Code</h1>
           
           <div className="mb-6">
-            <AssessmentCodeInput 
-              code={assessmentCode}
-              setCode={setAssessmentCode}
-              onSubmit={handleLoadAssessment}
-            />
+            <AssessmentCodeInput />
           </div>
           
           {error && (

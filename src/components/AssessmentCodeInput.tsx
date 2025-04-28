@@ -9,13 +9,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { supabase } from '@/integrations/supabase/client';
 
-const AssessmentCodeInput = () => {
-  const [code, setCode] = useState('');
-  const [loading, setLoading] = useState(false);
+const AssessmentCodeInput: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-  const { loadAssessment } = useAssessment();
+  const { assessmentCode, setAssessmentCode, loadAssessment } = useAssessment();
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +25,7 @@ const AssessmentCodeInput = () => {
       const { data: assessmentData, error: assessmentError } = await supabase
         .from('assessments')
         .select('*')
-        .eq('code', code.trim().toUpperCase())
+        .eq('code', assessmentCode.trim().toUpperCase())
         .single();
 
       if (assessmentError || !assessmentData) {
@@ -69,7 +68,7 @@ const AssessmentCodeInput = () => {
       }
 
       // Load the assessment and navigate to instructions
-      const success = await loadAssessment(code);
+      const success = await loadAssessment(assessmentCode);
       if (success) {
         toast({
           title: "Assessment Loaded",
@@ -91,28 +90,18 @@ const AssessmentCodeInput = () => {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle>Enter Assessment Code</CardTitle>
-        <CardDescription>
-          Please enter your assessment code to begin
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            placeholder="Enter code..."
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="uppercase"
-            disabled={loading}
-          />
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Verifying..." : "Start Assessment"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <Input
+        placeholder="Enter code..."
+        value={assessmentCode}
+        onChange={(e) => setAssessmentCode(e.target.value)}
+        className="uppercase"
+        disabled={loading}
+      />
+      <Button type="submit" className="w-full" disabled={loading || !assessmentCode}>
+        {loading ? "Verifying..." : "Start Assessment"}
+      </Button>
+    </form>
   );
 };
 
