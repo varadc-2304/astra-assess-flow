@@ -1,83 +1,87 @@
 
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import { AssessmentProvider } from "./contexts/AssessmentContext";
-import Login from "./pages/Login";
-import StudentDashboard from "./pages/student/Dashboard";
-import AdminDashboard from "./pages/admin/Dashboard";
-import InstructionsPage from "./pages/student/InstructionsPage";
-import AssessmentPage from "./pages/student/AssessmentPage";
-import SummaryPage from "./pages/student/SummaryPage";
-import NotFound from "./pages/NotFound";
-import ResultsPage from "./pages/admin/ResultsPage";
-import AssessmentForm from "@/components/admin/AssessmentForm";
-import AssessmentDetail from "@/pages/admin/AssessmentDetail";
-import QuestionForm from "@/components/admin/QuestionForm";
-import { Toaster } from "@/components/ui/toaster"; // Import the Toaster
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from "@/components/ui/toaster";
+import { AuthProvider } from '@/contexts/AuthContext';
+import { AssessmentProvider } from '@/contexts/AssessmentContext';
+import RoleGuard from '@/components/RoleGuard';
 
-const queryClient = new QueryClient();
+// Admin pages
+import AdminDashboard from '@/pages/admin/Dashboard';
+import AssessmentDetail from '@/pages/admin/AssessmentDetail';
+import ResultsPage from '@/pages/admin/ResultsPage';
 
-// Protected route component
-const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode; requiredRole?: 'student' | 'admin' }) => {
-  const { user } = useAuth();
+// Student pages
+import StudentDashboard from '@/pages/student/Dashboard';
+import InstructionsPage from '@/pages/student/InstructionsPage';
+import AssessmentPage from '@/pages/student/AssessmentPage';
+import SummaryPage from '@/pages/student/SummaryPage';
 
-  if (!user) {
-    return <Navigate to="/" replace />;
-  }
+// Shared pages
+import IndexPage from '@/pages/Index';
+import LoginPage from '@/pages/Login';
+import NotFound from '@/pages/NotFound';
 
-  if (requiredRole && user.role !== requiredRole) {
-    return <Navigate to={user.role === 'admin' ? '/admin' : '/student'} replace />;
-  }
+import './App.css';
 
-  return <>{children}</>;
-};
-
-// Auth route redirects logged in users to their dashboard
-const AuthRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user } = useAuth();
-
-  if (user) {
-    return <Navigate to={user.role === 'admin' ? '/admin' : '/student'} replace />;
-  }
-
-  return <>{children}</>;
-};
-
-const AppRoutes = () => (
-  <Routes>
-    <Route path="/" element={<AuthRoute><Login /></AuthRoute>} />
-    
-    {/* Student Routes */}
-    <Route path="/student" element={<ProtectedRoute requiredRole="student"><StudentDashboard /></ProtectedRoute>} />
-    <Route path="/instructions" element={<ProtectedRoute requiredRole="student"><InstructionsPage /></ProtectedRoute>} />
-    <Route path="/assessment" element={<ProtectedRoute requiredRole="student"><AssessmentPage /></ProtectedRoute>} />
-    <Route path="/summary" element={<ProtectedRoute requiredRole="student"><SummaryPage /></ProtectedRoute>} />
-    
-    {/* Admin Routes */}
-    <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
-    <Route path="/admin/results" element={<ProtectedRoute requiredRole="admin"><ResultsPage /></ProtectedRoute>} />
-    <Route path="/admin/assessments/:id" element={<ProtectedRoute requiredRole="admin"><AssessmentDetail /></ProtectedRoute>} />
-    
-    {/* 404 Route */}
-    <Route path="*" element={<NotFound />} />
-  </Routes>
-);
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <BrowserRouter>
-        <AuthProvider>
-          <AssessmentProvider>
-            <AppRoutes />
-            <Toaster /> {/* Add the Toaster component here */}
-          </AssessmentProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+function App() {
+  return (
+    <AuthProvider>
+      <AssessmentProvider>
+        <div className="container mx-auto flex flex-col min-h-screen">
+          <Routes>
+            {/* Public routes */}
+            <Route path="/" element={<IndexPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            
+            {/* Admin routes */}
+            <Route path="/admin" element={
+              <RoleGuard allowedRole="admin">
+                <AdminDashboard />
+              </RoleGuard>
+            } />
+            <Route path="/admin/assessment/:id" element={
+              <RoleGuard allowedRole="admin">
+                <AssessmentDetail />
+              </RoleGuard>
+            } />
+            <Route path="/admin/results" element={
+              <RoleGuard allowedRole="admin">
+                <ResultsPage />
+              </RoleGuard>
+            } />
+            
+            {/* Student routes */}
+            <Route path="/student" element={
+              <RoleGuard allowedRole="student">
+                <StudentDashboard />
+              </RoleGuard>
+            } />
+            <Route path="/instructions" element={
+              <RoleGuard allowedRole="student">
+                <InstructionsPage />
+              </RoleGuard>
+            } />
+            <Route path="/assessment" element={
+              <RoleGuard allowedRole="student">
+                <AssessmentPage />
+              </RoleGuard>
+            } />
+            <Route path="/summary" element={
+              <RoleGuard allowedRole="student">
+                <SummaryPage />
+              </RoleGuard>
+            } />
+            
+            {/* 404 route */}
+            <Route path="/404" element={<NotFound />} />
+            <Route path="*" element={<Navigate to="/404" replace />} />
+          </Routes>
+        </div>
+        
+        <Toaster />
+      </AssessmentProvider>
+    </AuthProvider>
+  );
+}
 
 export default App;

@@ -1,11 +1,10 @@
-
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Assessment, 
+  Assessment as DBAssessment, 
   MCQQuestion as DBMCQQuestion,
   CodingQuestion as DBCodingQuestion,
   MCQOption,
@@ -30,6 +29,7 @@ export type MCQQuestion = {
   options: QuestionOption[];
   selectedOption?: string;
   marks?: number;
+  assessmentId?: string;
 };
 
 export type CodeQuestion = {
@@ -59,21 +59,14 @@ export type CodeQuestion = {
 
 export type Question = MCQQuestion | CodeQuestion;
 
-export type Assessment = {
-  id: string;
-  code: string;
-  name: string;
-  instructions: string;
+export interface AssessmentWithQuestions extends DBAssessment {
+  questions: Question[];
   mcqCount: number;
   codingCount: number;
-  durationMinutes: number;
-  startTime: string; // ISO string
-  endTime?: string; // ISO string
-  questions: Question[];
-};
+}
 
 interface AssessmentContextType {
-  assessment: Assessment | null;
+  assessment: AssessmentWithQuestions | null;
   currentQuestionIndex: number;
   assessmentStarted: boolean;
   assessmentEnded: boolean;
@@ -101,7 +94,7 @@ interface AssessmentContextType {
 const AssessmentContext = createContext<AssessmentContextType | undefined>(undefined);
 
 export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
-  const [assessment, setAssessment] = useState<Assessment | null>(null);
+  const [assessment, setAssessment] = useState<AssessmentWithQuestions | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [assessmentStarted, setAssessmentStarted] = useState<boolean>(false);
   const [assessmentEnded, setAssessmentEnded] = useState<boolean>(false);
@@ -195,13 +188,14 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           type: 'mcq',
           title: mcqQuestion.title,
           description: mcqQuestion.description,
-          imageUrl: mcqQuestion.image_url,
+          imageUrl: mcqQuestion.image_url || undefined,
           options: optionsData?.map(option => ({
             id: option.id,
             text: option.text,
             isCorrect: option.is_correct
           })) || [],
-          marks: mcqQuestion.marks
+          marks: mcqQuestion.marks,
+          assessmentId: mcqQuestion.assessment_id
         };
         
         questions.push(question);
@@ -262,14 +256,14 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         // Create the coding question
         const question: CodeQuestion = {
           id: codingQuestion.id,
-          assessmentId: assessmentData.id,
+          assessmentId: codingQuestion.assessment_id,
           type: 'code',
           title: codingQuestion.title,
           description: codingQuestion.description,
           examples: examplesData?.map(example => ({
             input: example.input,
             output: example.output,
-            explanation: example.explanation,
+            explanation: example.explanation || undefined,
           })) || [],
           constraints: constraints,
           solutionTemplate,
@@ -303,23 +297,17 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return orderA - orderB;
       });
       
-      const loadedAssessment: Assessment = {
-        id: assessmentData.id,
-        code: assessmentData.code,
-        name: assessmentData.name,
-        instructions: assessmentData.instructions || '',
+      const loadedAssessment: AssessmentWithQuestions = {
+        ...assessmentData,
+        questions: allQuestions,
         mcqCount: mcqQuestionsData?.length || 0,
-        codingCount: codingQuestionsData?.length || 0,
-        durationMinutes: assessmentData.duration_minutes,
-        startTime: assessmentData.start_time,
-        endTime: assessmentData.end_time,
-        questions: allQuestions
+        codingCount: codingQuestionsData?.length || 0
       };
       
       console.log('Setting assessment:', loadedAssessment);
       setAssessment(loadedAssessment);
       setTotalPossibleMarks(totalPossibleMarks);
-      setTimeRemaining(loadedAssessment.durationMinutes * 60);
+      setTimeRemaining(loadedAssessment.duration_minutes * 60);
       
       toast({
         title: "Success",
@@ -436,7 +424,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             total_marks: totalPossibleMarks,
             percentage: percentage,
             is_cheated: fullscreenWarnings >= 3, // Mark as cheated if too many fullscreen violations
-            completed_at: new Date().toISOString()
+            completed_at: new Date().toISOString(),
+            contest_name: assessment.name
           });
           
         if (resultError) {
@@ -649,8 +638,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Helper function to calculate total marks obtained
-  const calculateTotalMarks = async (currentAssessment: Assessment) => {
+  const calculateTotalMarks = async (currentAssessment: AssessmentWithQuestions) => {
     if (!user || !currentAssessment) return;
     
     try {

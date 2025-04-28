@@ -26,6 +26,8 @@ export interface Assessment {
   status: string | null;
   created_at: string | null;
   questions?: Array<MCQQuestion | CodingQuestion>; // Add questions property for AssessmentContext
+  mcqCount?: number; // Helper property for UI
+  codingCount?: number; // Helper property for UI
 }
 
 export interface MCQQuestion {
@@ -37,6 +39,9 @@ export interface MCQQuestion {
   marks: number;
   order_index: number;
   created_at: string;
+  type?: 'mcq'; // Helper property for AssessmentContext
+  options?: MCQOption[]; // Helper property for AssessmentContext
+  selectedOption?: string; // Helper property for AssessmentContext
 }
 
 export interface MCQOption {
@@ -57,6 +62,13 @@ export interface CodingQuestion {
   marks: number;
   order_index: number;
   created_at: string;
+  type?: 'code'; // Helper property for AssessmentContext
+  examples?: CodingExample[]; // Helper property for AssessmentContext
+  constraints?: string[]; // Helper property for AssessmentContext
+  solutionTemplate?: Record<string, string>; // Helper property for AssessmentContext
+  userSolution?: Record<string, string>; // Helper property for AssessmentContext
+  testCases?: TestCase[]; // Helper property for AssessmentContext
+  marksObtained?: number; // Helper property for AssessmentContext
 }
 
 export interface CodingLanguage {
