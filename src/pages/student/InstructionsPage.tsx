@@ -1,222 +1,181 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { AssessmentCodeInput } from '@/components/AssessmentCodeInput';
 import { useAssessment } from '@/contexts/AssessmentContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatDate } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle, FileText, Timer, AlertCircle } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import AssessmentCodeInput from '@/components/AssessmentCodeInput';
+import { AlertCircle, CheckCircle, Clock, PenTool, ShieldAlert, Code2 } from 'lucide-react';
 
 const InstructionsPage = () => {
   const { 
     assessment, 
-    assessmentCode,
+    assessmentCode, 
+    setAssessmentCode, 
     startAssessment, 
     loadAssessment, 
-    checkReattemptAvailability,
-    loading 
+    loading, 
+    error, 
+    checkReattemptAvailability 
   } = useAssessment();
-  const [isVerifying, setIsVerifying] = useState(false);
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
+  const [loadingAssessment, setLoadingAssessment] = useState(false);
   
-  // Keep track if assessment was loaded using the loadAssessment
-  // This is for when navigating back from Assessment page, we don't want to trigger loadAssessment again
-  const [wasLoaded, setWasLoaded] = useState(false);
-
   useEffect(() => {
-    if (assessmentCode && !assessment && !wasLoaded && !loading) {
-      const loadExistingAssessment = async () => {
-        setIsVerifying(true);
-        
-        try {
-          const result = await loadAssessment(assessmentCode);
-          setWasLoaded(result);
-          
-          if (!result) {
-            toast({
-              title: "Assessment Not Found",
-              description: "The assessment code is invalid or the assessment is not available.",
-              variant: "destructive",
-            });
-            navigate('/student');
-          }
-        } finally {
-          setIsVerifying(false);
-        }
-      };
-      
-      loadExistingAssessment();
+    // If there's an assessment already loaded, check reattempt availability
+    if (assessment?.id) {
+      checkReattemptAvailability(assessment.id);
     }
-  }, [assessmentCode, assessment, loadAssessment, navigate, toast, wasLoaded, loading]);
-
-  const handleStartAssessment = async () => {
-    if (!assessment) return;
-    
-    setIsVerifying(true);
-    
+  }, [assessment?.id, checkReattemptAvailability]);
+  
+  const handleLoadAssessment = async () => {
+    setLoadingAssessment(true);
     try {
-      // Check if user can reattempt this assessment
-      const canAttempt = await checkReattemptAvailability(assessment.id);
-      
-      if (!canAttempt) {
-        // If reattempt is not allowed, the user will be redirected in checkReattemptAvailability
-        return;
+      const success = await loadAssessment(assessmentCode);
+      if (success) {
+        // Assessment loaded successfully, now check reattempt availability
+        if (assessment?.id) {
+          await checkReattemptAvailability(assessment.id);
+        }
       }
-      
-      startAssessment();
-      navigate('/assessment');
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to start assessment. Please try again.",
-        variant: "destructive",
-      });
-      console.error('Error starting assessment:', error);
     } finally {
-      setIsVerifying(false);
+      setLoadingAssessment(false);
     }
   };
-
-  if (!assessment) {
+  
+  const handleStartAssessment = () => {
+    startAssessment();
+    navigate('/assessment');
+  };
+  
+  if (loading || loadingAssessment) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-4">
-        <Card className="w-full max-w-lg">
-          <CardHeader>
-            <CardTitle>Enter Assessment Code</CardTitle>
-            <CardDescription>
-              Please enter the assessment code provided by your instructor.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AssessmentCodeInput />
-          </CardContent>
-        </Card>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
+        <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-md text-center">
+          <p className="text-gray-600">Loading assessment...</p>
+        </div>
       </div>
     );
   }
-
+  
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
+        <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-md text-center">
+          <AlertCircle className="mx-auto h-12 w-12 text-amber-500 mb-4" />
+          <h2 className="text-2xl font-bold mb-4">Authentication Required</h2>
+          <p className="text-gray-600 mb-6">Please log in to access the assessment.</p>
+          <Button onClick={() => navigate('/login')}>
+            Go to Login
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  
+  if (!assessment) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
+        <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-md">
+          <h1 className="text-2xl font-bold mb-6 text-center">Enter Assessment Code</h1>
+          
+          <div className="mb-6">
+            <AssessmentCodeInput 
+              value={assessmentCode} 
+              onChange={setAssessmentCode}
+              onSubmit={handleLoadAssessment}
+            />
+          </div>
+          
+          {error && (
+            <div className="p-3 mb-4 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+              <div className="flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2" />
+                <span>{error}</span>
+              </div>
+            </div>
+          )}
+          
+          <Button 
+            className="w-full" 
+            onClick={handleLoadAssessment}
+            disabled={!assessmentCode || assessmentCode.length < 6}
+          >
+            Load Assessment
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  
   return (
-    <div className="container max-w-4xl py-8">
-      <Card>
-        <CardHeader className="space-y-1">
-          <div className="flex justify-between items-start">
-            <div>
-              <CardTitle className="text-2xl">{assessment.name}</CardTitle>
-              <CardDescription className="mt-2">
-                Code: <span className="font-medium">{assessment.code}</span>
-              </CardDescription>
-            </div>
-            <Badge variant="outline" className={`
-              ${assessment.status === 'Active' ? 'bg-green-100 text-green-800 border-green-200' : ''}
-              ${assessment.status === 'Scheduled' ? 'bg-blue-100 text-blue-800 border-blue-200' : ''}
-              ${assessment.status === 'Completed' ? 'bg-gray-100 text-gray-800 border-gray-200' : ''}
-            `}>
-              {assessment.status}
-            </Badge>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
+      <div className="w-full max-w-4xl p-6 bg-white rounded-lg shadow-md">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold mb-2">{assessment.name}</h1>
+          <div className="flex items-center text-gray-500">
+            <Clock className="h-4 w-4 mr-1" />
+            <span>{assessment.duration_minutes} minutes</span>
+            <span className="mx-2">•</span>
+            <span>Starts: {formatDate(assessment.start_time)}</span>
           </div>
-        </CardHeader>
+        </div>
         
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center">
-              <Timer className="h-5 w-5 mr-2 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Duration</p>
-                <p className="text-base">{assessment.duration_minutes} minutes</p>
-              </div>
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold mb-4">Instructions</h2>
+          {assessment.instructions ? (
+            <div className="prose max-w-none">
+              {assessment.instructions}
             </div>
-            
-            <div className="flex items-center">
-              <FileText className="h-5 w-5 mr-2 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Questions</p>
-                <p className="text-base">
-                  {assessment.mcqCount + assessment.codingCount} Total ({assessment.mcqCount} MCQ, {assessment.codingCount} Coding)
-                </p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="border-t pt-4">
-            <h4 className="text-base font-medium mb-2">Instructions</h4>
-            <div className="prose prose-sm max-w-none">
-              {assessment.instructions ? (
-                <p className="whitespace-pre-line text-gray-700">{assessment.instructions}</p>
-              ) : (
-                <p className="text-gray-500 italic">No specific instructions provided.</p>
-              )}
-            </div>
-          </div>
-          
-          <div className="border-t pt-4 space-y-4">
-            <h4 className="text-base font-medium">Important Notes:</h4>
-            
-            <div className="space-y-2">
-              <div className="flex items-start">
-                <CheckCircle className="h-5 w-5 text-green-500 mr-2 mt-0.5" />
-                <p className="text-sm text-gray-700">
-                  The assessment begins at {formatDate(assessment.start_time)}.
-                </p>
-              </div>
-              
-              <div className="flex items-start">
-                <CheckCircle className="h-5 w-5 text-green-500 mr-2 mt-0.5" />
-                <p className="text-sm text-gray-700">
-                  Once started, you will have {assessment.duration_minutes} minutes to complete the assessment.
-                </p>
-              </div>
-              
-              <div className="flex items-start">
-                <CheckCircle className="h-5 w-5 text-green-500 mr-2 mt-0.5" />
-                <p className="text-sm text-gray-700">
-                  The assessment must be completed in a single session. Your progress will be automatically submitted if the time runs out.
-                </p>
-              </div>
-              
-              <div className="flex items-start">
-                <AlertCircle className="h-5 w-5 text-amber-500 mr-2 mt-0.5" />
-                <p className="text-sm text-gray-700">
-                  <strong>Important:</strong> You must stay in full-screen mode during the assessment. Repeatedly exiting full-screen will flag your submission.
-                </p>
-              </div>
-              
-              <div className="flex items-start">
-                <CheckCircle className="h-5 w-5 text-green-500 mr-2 mt-0.5" />
-                <p className="text-sm text-gray-700">
-                  You can navigate between questions freely and change your answers at any time before submission.
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
+          ) : (
+            <ul className="space-y-2 text-gray-700">
+              <li className="flex items-start">
+                <CheckCircle className="h-5 w-5 mr-2 text-green-500 shrink-0" />
+                <span>This assessment consists of multiple-choice and coding questions.</span>
+              </li>
+              <li className="flex items-start">
+                <Clock className="h-5 w-5 mr-2 text-amber-500 shrink-0" />
+                <span>You have {assessment.duration_minutes} minutes to complete this assessment.</span>
+              </li>
+              <li className="flex items-start">
+                <PenTool className="h-5 w-5 mr-2 text-blue-500 shrink-0" />
+                <span>Answer all questions to the best of your ability.</span>
+              </li>
+              <li className="flex items-start">
+                <Code2 className="h-5 w-5 mr-2 text-purple-500 shrink-0" />
+                <span>For coding questions, you can write and test your code before submission.</span>
+              </li>
+              <li className="flex items-start">
+                <ShieldAlert className="h-5 w-5 mr-2 text-red-500 shrink-0" />
+                <span>Exiting fullscreen mode or navigating away will be recorded and may result in termination.</span>
+              </li>
+            </ul>
+          )}
+        </div>
         
-        <CardFooter className="flex justify-between border-t pt-6">
+        <div className="flex flex-col sm:flex-row items-center justify-between bg-gray-50 p-4 rounded-lg mb-6">
+          <div>
+            <h3 className="font-medium">Assessment Overview</h3>
+            <div className="text-sm text-gray-500 mt-1">
+              <div>MCQ Questions: {assessment.mcqCount}</div>
+              <div>Coding Questions: {assessment.codingCount}</div>
+              <div>Total Questions: {assessment.questions.length}</div>
+            </div>
+          </div>
           <Button 
-            variant="outline" 
-            onClick={() => navigate('/student')}
+            onClick={handleStartAssessment}
+            className="mt-4 sm:mt-0"
           >
-            Back to Dashboard
+            Start Assessment
           </Button>
-          <Button 
-            onClick={handleStartAssessment} 
-            disabled={isVerifying || assessment.status !== 'Active'}
-            className="bg-astra-red hover:bg-red-600 text-white"
-          >
-            {isVerifying ? (
-              <>Loading...</>
-            ) : assessment.status === 'Active' ? (
-              <>Start Assessment</>
-            ) : assessment.status === 'Scheduled' ? (
-              <>Not Available Yet</>
-            ) : (
-              <>Assessment Closed</>
-            )}
-          </Button>
-        </CardFooter>
-      </Card>
+        </div>
+        
+        <div className="text-sm text-gray-500">
+          <p>Note: Once you start the assessment, the timer will begin and you will need to remain in fullscreen mode.</p>
+        </div>
+      </div>
     </div>
   );
 };

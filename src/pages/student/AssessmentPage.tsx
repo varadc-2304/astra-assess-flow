@@ -168,16 +168,29 @@ const AssessmentPage = () => {
       // Update result with contest name if assessment exists
       if (assessment) {
         try {
-          const { data: resultData, error: resultError } = await supabase
+          // Find the latest result entry
+          const { data: resultData, error: resultFindError } = await supabase
             .from('results')
-            .update({ 
-              contest_name: assessment.name 
-            })
+            .select('*')
             .eq('assessment_id', assessment.id)
-            .eq('user_id', user?.id || '');
-          
-          if (resultError) {
-            console.error('Error updating contest name in results:', resultError);
+            .eq('user_id', user?.id || '')
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (resultFindError) {
+            console.error('Error finding result entry:', resultFindError);
+          } else if (resultData && resultData.length > 0) {
+            // Update the result entry with contest name
+            const { error: resultUpdateError } = await supabase
+              .from('results')
+              .update({
+                contest_name: assessment.name
+              })
+              .eq('id', resultData[0].id);
+
+            if (resultUpdateError) {
+              console.error('Error updating contest name in results:', resultUpdateError);
+            }
           }
         } catch (error) {
           console.error('Error updating contest name:', error);

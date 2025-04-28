@@ -1,112 +1,78 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
-import { Download, Flag, Trophy } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import ResultsTable from '@/components/admin/ResultsTable';
-import RoleGuard from '@/components/RoleGuard';
+import { supabase } from '@/integrations/supabase/client';
+import { Assessment, Result } from '@/types/database';
 
-interface FilterOptions {
+type UserExportData = {
+  name: string;
+  email: string;
+  prn: string;
+  year: string;
+  department: string;
+  division: string;
+  batch: string;
   assessment: string;
-  searchQuery: string;
-}
+  score: number;
+  totalMarks: number;
+  percentage: number;
+  completedAt: string;
+  wasCheating: boolean;
+};
 
 const ResultsPage = () => {
-  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
-    assessment: 'all',
-    searchQuery: '',
-  });
-  const [assessments, setAssessments] = useState<Array<{id: string, name: string}>>([]);
-  const [filters, setFilters] = useState<any>({
-    year: 'all',
-    department: 'all',
-    division: 'all',
-    batch: 'all',
-  });
-  const { toast } = useToast();
+  const [assessments, setAssessments] = useState<{id: string, name: string}[]>([]);
+  const [selectedAssessment, setSelectedAssessment] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showFlagged, setShowFlagged] = useState(false);
+  const [exportData, setExportData] = useState<UserExportData[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     const fetchAssessments = async () => {
       try {
-        const { data: assessmentData, error: assessmentError } = await supabase
+        const { data, error } = await supabase
           .from('assessments')
-          .select('id, name');
+          .select('id, name, code');
         
-        if (assessmentError) throw assessmentError;
+        if (error) throw error;
         
-        if (assessmentData) {
-          const uniqueAssessments = Array.from(new Set(assessmentData.map(a => a.name || 'Unknown')));
-          
-          setAssessments(
-            uniqueAssessments.map((name) => ({
-              id: name as string,
-              name: name as string,
-            }))
-          );
-        }
-        
-        // Fetch filter options (years, departments, etc.)
-        const { data: authData, error: authError } = await supabase
-          .from('auth')
-          .select('year, department, division, batch')
-          .eq('role', 'student');
-        
-        if (authError) {
-          console.error('Error fetching student data:', authError);
-          return;
-        }
-        
-        if (authData) {
-          const years = Array.from(new Set(authData.map(s => s.year || 'Unknown'))).filter(Boolean);
-          const departments = Array.from(new Set(authData.map(s => s.department || 'Unknown'))).filter(Boolean);
-          const divisions = Array.from(new Set(authData.map(s => s.division || 'Unknown'))).filter(Boolean);
-          const batches = Array.from(new Set(authData.map(s => s.batch || 'Unknown'))).filter(Boolean);
-          
-          setFilters({
-            year: 'all',
-            department: 'all',
-            division: 'all',
-            batch: 'all',
-            yearOptions: ['all', ...years],
-            departmentOptions: ['all', ...departments],
-            divisionOptions: ['all', ...divisions],
-            batchOptions: ['all', ...batches],
-          });
+        if (data) {
+          setAssessments(data.map(assessment => ({
+            id: assessment.id,
+            name: assessment.name
+          })));
         }
       } catch (error) {
         console.error('Error fetching assessments:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load assessments",
-          variant: "destructive"
-        });
       }
     };
     
     fetchAssessments();
-  }, [toast]);
+  }, []);
 
-  const handleFilterChange = (key: string, value: string) => {
-    setFilterOptions(prev => ({
-      ...prev,
-      [key]: value
-    }));
-  };
-
-  const handleDownloadCSV = async () => {
+  const handleExportCSV = async () => {
+    setIsExporting(true);
+    
     try {
-      // Fetch the filtered results
-      const { data: results, error: resultsError } = await supabase
+      // Fetch results
+      const { data: resultsData, error: resultsError } = await supabase
         .from('results')
         .select(`
-          id,
-          user_id, 
+          user_id,
           assessment_id,
           total_score,
           total_marks,
@@ -114,137 +80,139 @@ const ResultsPage = () => {
           completed_at,
           is_cheated,
           contest_name,
-          assessments:assessment_id (name)
+          assessments:assessment_id (
+            name
+          )
         `);
-        
+      
       if (resultsError) throw resultsError;
       
-      // Fetch user data
-      const { data: users, error: usersError } = await supabase
+      if (!resultsData || resultsData.length === 0) {
+        console.log('No results found');
+        setIsExporting(false);
+        return;
+      }
+      
+      // Fetch user details
+      const userIds = [...new Set(resultsData.map(r => r.user_id))];
+      
+      const { data: usersData, error: usersError } = await supabase
         .from('auth')
         .select('id, name, email, prn, year, department, division, batch');
-        
+      
       if (usersError) throw usersError;
       
-      // Map user data to results
-      interface CsvRow {
-        [key: string]: string | number | boolean | null;
-      }
-      
-      const csvData: CsvRow[] = [];
-      
-      if (results && users) {
-        results.forEach((result: any) => {
-          const user = users.find((u: any) => u.id === result.user_id) || {};
-          
-          csvData.push({
-            Name: user.name || 'Unknown',
-            Email: user.email || 'Unknown',
-            PRN: user.prn || 'Unknown',
-            Year: user.year || 'Unknown',
-            Department: user.department || 'Unknown',
-            Division: user.division || 'Unknown',
-            Batch: user.batch || 'Unknown',
-            Assessment: (result.assessments?.name) || result.contest_name || 'Unknown',
-            Score: `${result.total_score}/${result.total_marks}`,
-            Percentage: `${result.percentage}%`,
-            CompletedAt: new Date(result.completed_at).toLocaleString(),
-            Flagged: result.is_cheated ? 'Yes' : 'No'
-          });
+      const userMap: Record<string, any> = {};
+      if (usersData) {
+        usersData.forEach(user => {
+          if (user.id) {
+            userMap[user.id] = user;
+          }
         });
       }
       
-      // Filter the data based on current filters
-      let filteredData = [...csvData];
-      
-      if (filterOptions.assessment !== 'all') {
-        filteredData = filteredData.filter(row => row.Assessment === filterOptions.assessment);
-      }
-      
-      if (filterOptions.searchQuery) {
-        const query = filterOptions.searchQuery.toLowerCase();
-        filteredData = filteredData.filter(row => {
-          return (
-            String(row.Name).toLowerCase().includes(query) ||
-            String(row.Email).toLowerCase().includes(query) ||
-            String(row.PRN).toLowerCase().includes(query)
-          );
-        });
-      }
-      
-      // Convert to CSV
-      if (filteredData.length > 0) {
-        const headers = Object.keys(filteredData[0] || {}).join(',');
-        const rows = filteredData.map(row => {
-          return Object.values(row).map(value => {
-            // Wrap strings in quotes and handle special characters
-            if (typeof value === 'string') {
-              return `"${value.replace(/"/g, '""')}"`;
-            }
-            return value;
-          }).join(',');
-        });
+      // Process data for export
+      const exportItems = resultsData.map((result: any) => {
+        const user = userMap[result.user_id] || {};
+        const assessmentName = result.contest_name || 
+                              (result.assessments ? result.assessments.name : 'Unknown Assessment');
         
-        const csv = [headers, ...rows].join('\n');
-        
-        // Create download link
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.setAttribute('hidden', '');
-        a.setAttribute('href', url);
-        a.setAttribute('download', 'assessment_results.csv');
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        
-        toast({
-          title: "Success",
-          description: "Results downloaded successfully",
-        });
-      } else {
-        toast({
-          title: "No Data",
-          description: "No results to download with the current filters",
-        });
-      }
-    } catch (error) {
-      console.error('Error downloading results:', error);
-      toast({
-        title: "Error",
-        description: "Failed to download results",
-        variant: "destructive"
+        return {
+          name: user.name || 'Unknown',
+          email: user.email || 'unknown@example.com',
+          prn: user.prn || 'Unknown',
+          year: user.year || 'Unknown',
+          department: user.department || 'Unknown',
+          division: user.division || 'Unknown',
+          batch: user.batch || 'Unknown',
+          assessment: assessmentName,
+          score: result.total_score || 0,
+          totalMarks: result.total_marks || 0,
+          percentage: result.percentage || 0,
+          completedAt: result.completed_at || '',
+          wasCheating: result.is_cheated || false
+        };
       });
+      
+      setExportData(exportItems);
+      
+      // Generate & download CSV
+      const headers = [
+        'Name', 'Email', 'PRN', 'Year', 'Department', 'Division', 'Batch',
+        'Assessment', 'Score', 'Total Marks', 'Percentage', 'Completed At', 'Flagged'
+      ];
+      
+      let csvContent = headers.join(',') + '\n';
+      
+      exportItems.forEach(item => {
+        const row = [
+          `"${item.name}"`,
+          `"${item.email}"`,
+          `"${item.prn}"`,
+          `"${item.year}"`,
+          `"${item.department}"`,
+          `"${item.division}"`,
+          `"${item.batch}"`,
+          `"${item.assessment}"`,
+          item.score,
+          item.totalMarks,
+          item.percentage,
+          `"${item.completedAt}"`,
+          item.wasCheating ? 'Yes' : 'No'
+        ];
+        
+        csvContent += row.join(',') + '\n';
+      });
+      
+      // Create download link
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `assessment-results-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error exporting results:', error);
+    } finally {
+      setIsExporting(false);
     }
   };
 
   return (
-    <RoleGuard allowedRole="admin">
-      <div className="container py-8">
-        <h1 className="text-3xl font-bold mb-6">Assessment Results</h1>
+    <div className="container mx-auto p-6 max-w-7xl">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Assessment Results</h1>
+        <p className="text-gray-500">View and export student assessment results</p>
+      </div>
+
+      <Tabs defaultValue="results">
+        <TabsList className="mb-6">
+          <TabsTrigger value="results">Results Dashboard</TabsTrigger>
+          <TabsTrigger value="export">Export Data</TabsTrigger>
+        </TabsList>
         
-        <div className="space-y-6">
+        <TabsContent value="results">
           <Card>
             <CardHeader>
-              <CardTitle>Filter Results</CardTitle>
+              <CardTitle>Results</CardTitle>
               <CardDescription>
-                Filter assessment results by various criteria
+                View student performance across all assessments
               </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="assessment">Assessment</Label>
+              <div className="flex flex-col lg:flex-row gap-4 mt-4">
+                <div className="flex-1">
                   <Select 
-                    value={filterOptions.assessment}
-                    onValueChange={(value) => handleFilterChange('assessment', value)}
+                    value={selectedAssessment} 
+                    onValueChange={setSelectedAssessment}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select Assessment" />
+                      <SelectValue placeholder="Select assessment" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Assessments</SelectItem>
-                      {assessments.map((assessment) => (
+                      {assessments.map(assessment => (
                         <SelectItem key={assessment.id} value={assessment.name}>
                           {assessment.name}
                         </SelectItem>
@@ -253,70 +221,75 @@ const ResultsPage = () => {
                   </Select>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="search">Search</Label>
+                <div className="flex-1">
                   <Input 
-                    id="search"
-                    placeholder="Search by name, email, PRN..."
-                    value={filterOptions.searchQuery}
-                    onChange={(e) => handleFilterChange('searchQuery', e.target.value)}
+                    placeholder="Search by name or email" 
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
                   />
                 </div>
                 
-                <div className="lg:col-span-2 flex items-end justify-end space-x-2">
-                  <Button 
-                    variant="outline" 
-                    className="flex items-center"
-                    onClick={handleDownloadCSV}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Export CSV
-                  </Button>
+                <div className="flex items-center space-x-2">
+                  <Switch 
+                    id="flagged" 
+                    checked={showFlagged} 
+                    onCheckedChange={setShowFlagged} 
+                  />
+                  <Label htmlFor="flagged">Show only flagged</Label>
                 </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ResultsTable 
+                filters={{ assessment: selectedAssessment, searchQuery }} 
+                flagged={showFlagged}
+                topPerformers={false}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="export">
+          <Card>
+            <CardHeader>
+              <CardTitle>Export Results</CardTitle>
+              <CardDescription>
+                Download results data in CSV format
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-gray-500">
+                  Export includes student details, assessment scores, and timestamps
+                </p>
+                <Button 
+                  onClick={handleExportCSV}
+                  disabled={isExporting}
+                >
+                  {isExporting ? 'Exporting...' : 'Export to CSV'}
+                </Button>
               </div>
             </CardContent>
           </Card>
           
-          <Tabs defaultValue="all">
-            <TabsList className="mb-4">
-              <TabsTrigger value="all">All Results</TabsTrigger>
-              <TabsTrigger value="flagged" className="flex items-center">
-                <Flag className="h-4 w-4 mr-1" />
-                Flagged
-              </TabsTrigger>
-              <TabsTrigger value="top" className="flex items-center">
-                <Trophy className="h-4 w-4 mr-1" />
-                Top Performers
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="all">
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Top Performers</CardTitle>
+              <CardDescription>
+                View the highest scoring students across all assessments
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
               <ResultsTable 
-                filters={filterOptions} 
-                flagged={false} 
-                topPerformers={false} 
-              />
-            </TabsContent>
-            
-            <TabsContent value="flagged">
-              <ResultsTable 
-                filters={filterOptions} 
-                flagged={true}
-                topPerformers={false}
-              />
-            </TabsContent>
-            
-            <TabsContent value="top">
-              <ResultsTable 
-                filters={filterOptions} 
+                filters={{ assessment: 'all', searchQuery: '' }} 
                 flagged={false}
                 topPerformers={true}
               />
-            </TabsContent>
-          </Tabs>
-        </div>
-      </div>
-    </RoleGuard>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 };
 

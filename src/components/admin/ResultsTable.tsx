@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -76,7 +75,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           return;
         }
         
-        const userIds = [...new Set(resultsData.map(result => result.user_id))];
+        const userIds = [...new Set(resultsData.map(r => r.user_id))];
         
         const { data: usersData, error: usersError } = await supabase
           .from('auth')
@@ -86,7 +85,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           console.error('Error fetching user details:', usersError);
         }
         
-        const userMap: Record<string, Partial<Auth>> = {};
+        const userMap: Record<string, any> = {};
         if (usersData) {
           usersData.forEach(user => {
             if (user.id) {
@@ -98,7 +97,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         let transformedData: Student[] = [];
         
         if (resultsData) {
-          transformedData = resultsData.map((result: any) => {
+          transformedData = resultsData.map((result: Result) => {
             const userDetails = userMap[result.user_id] || {};
             const assessment = result.assessments;
             const assessmentName = result.contest_name || (assessment?.name || 'Unknown Assessment');

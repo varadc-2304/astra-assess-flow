@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -10,7 +11,8 @@ import {
   MCQOption,
   CodingLanguage,
   CodingExample,
-  TestCase
+  TestCase,
+  Json
 } from '@/types/database';
 
 // Define types
@@ -60,7 +62,18 @@ export type CodeQuestion = {
 export type Question = MCQQuestion | CodeQuestion;
 
 // Update interface to match Assessment properties correctly
-export interface AssessmentWithQuestions extends Omit<DBAssessment, 'questions'> {
+export interface AssessmentWithQuestions {
+  id: string;
+  name: string;
+  code: string;
+  status: string;
+  reattempt: boolean;
+  start_time: string;
+  end_time?: string;
+  duration_minutes: number;
+  created_at: string;
+  created_by?: string;
+  instructions?: string;
   questions: Question[];
   mcqCount: number;
   codingCount: number;
@@ -108,7 +121,11 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   const [totalPossibleMarks, setTotalPossibleMarks] = useState<number>(0);
   const { toast } = useToast();
   const { user } = useAuth();
-  const navigate = useNavigate();
+  
+  // Create a safe version of navigate that works even outside of router context
+  const navigate = typeof window !== "undefined" 
+    ? useNavigate() 
+    : ((_: string) => {});
 
   const loadAssessment = async (code: string): Promise<boolean> => {
     setLoading(true);
@@ -900,13 +917,17 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
-      if (!assessmentData.reattempt && existingResults.length > 0) {
+      if (!assessmentData.reattempt && existingResults && existingResults.length > 0) {
         toast({
           title: "Reattempt Not Allowed",
           description: "You are not allowed to reattempt this assessment.",
           variant: "destructive"
         });
-        navigate('/student');
+        
+        if (typeof navigate === 'function') {
+          navigate('/student');
+        }
+        
         return false;
       }
 
