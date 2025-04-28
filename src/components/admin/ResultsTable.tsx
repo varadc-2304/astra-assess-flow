@@ -95,34 +95,38 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           });
         }
         
-        let transformedData: Student[] = resultsData.map((result: any) => {
-          const userDetails = userMap[result.user_id] || {};
-          const assessment = result.assessments;
-          const assessmentName = result.contest_name || (assessment?.name || 'Unknown Assessment');
-          
-          const userName = userDetails?.name || 'Unknown User';
-          const userEmail = userDetails?.email || 'unknown@example.com';
-          
-          let division = userDetails?.division || 'Unknown';
-          let batch = userDetails?.batch || 'Unknown';
-          let year = userDetails?.year || 'Unknown';
-          
-          return {
-            id: result.user_id,
-            name: userName,
-            email: userEmail,
-            assessmentId: result.assessment_id,
-            assessmentName,
-            score: result.total_score,
-            totalMarks: result.total_marks,
-            percentage: result.percentage,
-            completedAt: result.completed_at,
-            isTerminated: result.is_cheated || false,
-            division,
-            batch,
-            year
-          };
-        });
+        let transformedData: Student[] = [];
+        
+        if (resultsData) {
+          transformedData = resultsData.map((result: any) => {
+            const userDetails = userMap[result.user_id] || {};
+            const assessment = result.assessments;
+            const assessmentName = result.contest_name || (assessment?.name || 'Unknown Assessment');
+            
+            const userName = userDetails?.name || 'Unknown User';
+            const userEmail = userDetails?.email || 'unknown@example.com';
+            
+            let division = userDetails?.division || 'Unknown';
+            let batch = userDetails?.batch || 'Unknown';
+            let year = userDetails?.year || 'Unknown';
+            
+            return {
+              id: result.user_id,
+              name: userName,
+              email: userEmail,
+              assessmentId: result.assessment_id,
+              assessmentName,
+              score: result.total_score,
+              totalMarks: result.total_marks,
+              percentage: result.percentage,
+              completedAt: result.completed_at,
+              isTerminated: result.is_cheated || false,
+              division,
+              batch,
+              year
+            };
+          });
+        }
         
         if (filters.assessment && filters.assessment !== 'all') {
           transformedData = transformedData.filter(s => s.assessmentName === filters.assessment);

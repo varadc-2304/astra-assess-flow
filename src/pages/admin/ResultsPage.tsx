@@ -36,18 +36,20 @@ const ResultsPage = () => {
       try {
         const { data: assessmentData, error: assessmentError } = await supabase
           .from('assessments')
-          .select('id, name, contest_name');
+          .select('id, name');
         
         if (assessmentError) throw assessmentError;
         
-        const uniqueAssessments = Array.from(new Set(assessmentData?.map(a => a.name || a.contest_name || 'Unknown')));
-        
-        setAssessments(
-          uniqueAssessments.map((name) => ({
-            id: name as string,
-            name: name as string,
-          }))
-        );
+        if (assessmentData) {
+          const uniqueAssessments = Array.from(new Set(assessmentData.map(a => a.name || 'Unknown')));
+          
+          setAssessments(
+            uniqueAssessments.map((name) => ({
+              id: name as string,
+              name: name as string,
+            }))
+          );
+        }
         
         // Fetch filter options (years, departments, etc.)
         const { data: authData, error: authError } = await supabase
@@ -111,6 +113,7 @@ const ResultsPage = () => {
           percentage,
           completed_at,
           is_cheated,
+          contest_name,
           assessments:assessment_id (name)
         `);
         
@@ -128,24 +131,28 @@ const ResultsPage = () => {
         [key: string]: string | number | boolean | null;
       }
       
-      const csvData: CsvRow[] = results.map((result: any) => {
-        const user = users.find((u: any) => u.id === result.user_id) || {};
-        
-        return {
-          Name: user.name || 'Unknown',
-          Email: user.email || 'Unknown',
-          PRN: user.prn || 'Unknown',
-          Year: user.year || 'Unknown',
-          Department: user.department || 'Unknown',
-          Division: user.division || 'Unknown',
-          Batch: user.batch || 'Unknown',
-          Assessment: (result.assessments?.name) || 'Unknown',
-          Score: `${result.total_score}/${result.total_marks}`,
-          Percentage: `${result.percentage}%`,
-          CompletedAt: new Date(result.completed_at).toLocaleString(),
-          Flagged: result.is_cheated ? 'Yes' : 'No'
-        };
-      });
+      const csvData: CsvRow[] = [];
+      
+      if (results && users) {
+        results.forEach((result: any) => {
+          const user = users.find((u: any) => u.id === result.user_id) || {};
+          
+          csvData.push({
+            Name: user.name || 'Unknown',
+            Email: user.email || 'Unknown',
+            PRN: user.prn || 'Unknown',
+            Year: user.year || 'Unknown',
+            Department: user.department || 'Unknown',
+            Division: user.division || 'Unknown',
+            Batch: user.batch || 'Unknown',
+            Assessment: (result.assessments?.name) || result.contest_name || 'Unknown',
+            Score: `${result.total_score}/${result.total_marks}`,
+            Percentage: `${result.percentage}%`,
+            CompletedAt: new Date(result.completed_at).toLocaleString(),
+            Flagged: result.is_cheated ? 'Yes' : 'No'
+          });
+        });
+      }
       
       // Filter the data based on current filters
       let filteredData = [...csvData];
@@ -166,34 +173,41 @@ const ResultsPage = () => {
       }
       
       // Convert to CSV
-      const headers = Object.keys(filteredData[0] || {}).join(',');
-      const rows = filteredData.map(row => {
-        return Object.values(row).map(value => {
-          // Wrap strings in quotes and handle special characters
-          if (typeof value === 'string') {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value;
-        }).join(',');
-      });
-      
-      const csv = [headers, ...rows].join('\n');
-      
-      // Create download link
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.setAttribute('hidden', '');
-      a.setAttribute('href', url);
-      a.setAttribute('download', 'assessment_results.csv');
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      
-      toast({
-        title: "Success",
-        description: "Results downloaded successfully",
-      });
+      if (filteredData.length > 0) {
+        const headers = Object.keys(filteredData[0] || {}).join(',');
+        const rows = filteredData.map(row => {
+          return Object.values(row).map(value => {
+            // Wrap strings in quotes and handle special characters
+            if (typeof value === 'string') {
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          }).join(',');
+        });
+        
+        const csv = [headers, ...rows].join('\n');
+        
+        // Create download link
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.setAttribute('hidden', '');
+        a.setAttribute('href', url);
+        a.setAttribute('download', 'assessment_results.csv');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        toast({
+          title: "Success",
+          description: "Results downloaded successfully",
+        });
+      } else {
+        toast({
+          title: "No Data",
+          description: "No results to download with the current filters",
+        });
+      }
     } catch (error) {
       console.error('Error downloading results:', error);
       toast({
