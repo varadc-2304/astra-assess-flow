@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { formatDate } from '@/lib/utils';
 import { AlertCircle, CheckCircle, Clock, CircleOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
 
 interface AssessmentResult {
   totalScore: number;
@@ -187,7 +188,8 @@ const SummaryPage = () => {
                   <Progress 
                     value={result.percentage} 
                     className="h-2"
-                    indicatorClassName={getProgressColor(result.percentage)}
+                    // Use the cn utility to apply custom classes
+                    className={cn("h-2", getProgressColor(result.percentage))}
                   />
                 </div>
               </div>

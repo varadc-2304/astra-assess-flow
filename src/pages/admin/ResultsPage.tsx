@@ -79,7 +79,6 @@ const ResultsPage = () => {
           percentage,
           completed_at,
           is_cheated,
-          contest_name,
           assessments:assessment_id (
             name
           )
@@ -93,8 +92,16 @@ const ResultsPage = () => {
         return;
       }
       
+      // Validate results data
+      const validResults = resultsData.filter(r => r && typeof r === 'object' && 'user_id' in r);
+      if (validResults.length === 0) {
+        console.error('No valid results found:', resultsData);
+        setIsExporting(false);
+        return;
+      }
+      
       // Fetch user details
-      const userIds = [...new Set(resultsData.map(r => r.user_id))];
+      const userIds = [...new Set(validResults.map(r => r.user_id))];
       
       const { data: usersData, error: usersError } = await supabase
         .from('auth')
@@ -112,10 +119,9 @@ const ResultsPage = () => {
       }
       
       // Process data for export
-      const exportItems = resultsData.map((result: any) => {
+      const exportItems = validResults.map((result: any) => {
         const user = userMap[result.user_id] || {};
-        const assessmentName = result.contest_name || 
-                              (result.assessments ? result.assessments.name : 'Unknown Assessment');
+        const assessmentName = result.assessments ? result.assessments.name : 'Unknown Assessment';
         
         return {
           name: user.name || 'Unknown',

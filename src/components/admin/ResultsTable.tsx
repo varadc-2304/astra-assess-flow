@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -59,7 +60,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             percentage,
             completed_at,
             is_cheated,
-            contest_name,
             assessments:assessment_id (
               id,
               name,
@@ -75,7 +75,17 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           return;
         }
         
-        const userIds = [...new Set(resultsData.map(r => r.user_id))];
+        // Make sure the results data is valid and has user_id
+        const validResults = resultsData.filter(r => r && typeof r === 'object' && 'user_id' in r);
+        
+        if (validResults.length === 0) {
+          console.error('No valid results found:', resultsData);
+          setStudents([]);
+          setIsLoading(false);
+          return;
+        }
+        
+        const userIds = [...new Set(validResults.map(r => r.user_id))];
         
         const { data: usersData, error: usersError } = await supabase
           .from('auth')
@@ -96,36 +106,34 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         
         let transformedData: Student[] = [];
         
-        if (resultsData) {
-          transformedData = resultsData.map((result: Result) => {
-            const userDetails = userMap[result.user_id] || {};
-            const assessment = result.assessments;
-            const assessmentName = result.contest_name || (assessment?.name || 'Unknown Assessment');
-            
-            const userName = userDetails?.name || 'Unknown User';
-            const userEmail = userDetails?.email || 'unknown@example.com';
-            
-            let division = userDetails?.division || 'Unknown';
-            let batch = userDetails?.batch || 'Unknown';
-            let year = userDetails?.year || 'Unknown';
-            
-            return {
-              id: result.user_id,
-              name: userName,
-              email: userEmail,
-              assessmentId: result.assessment_id,
-              assessmentName,
-              score: result.total_score,
-              totalMarks: result.total_marks,
-              percentage: result.percentage,
-              completedAt: result.completed_at,
-              isTerminated: result.is_cheated || false,
-              division,
-              batch,
-              year
-            };
-          });
-        }
+        transformedData = validResults.map((result: any) => {
+          const userDetails = userMap[result.user_id] || {};
+          const assessment = result.assessments;
+          const assessmentName = assessment?.name || 'Unknown Assessment';
+          
+          const userName = userDetails?.name || 'Unknown User';
+          const userEmail = userDetails?.email || 'unknown@example.com';
+          
+          let division = userDetails?.division || 'Unknown';
+          let batch = userDetails?.batch || 'Unknown';
+          let year = userDetails?.year || 'Unknown';
+          
+          return {
+            id: result.user_id,
+            name: userName,
+            email: userEmail,
+            assessmentId: result.assessment_id,
+            assessmentName,
+            score: result.total_score,
+            totalMarks: result.total_marks,
+            percentage: result.percentage,
+            completedAt: result.completed_at,
+            isTerminated: result.is_cheated || false,
+            division,
+            batch,
+            year
+          };
+        });
         
         if (filters.assessment && filters.assessment !== 'all') {
           transformedData = transformedData.filter(s => s.assessmentName === filters.assessment);

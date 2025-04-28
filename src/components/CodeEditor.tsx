@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,7 +39,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     question.solutionTemplate?.[selectedLanguage] ??
     '';
 
-  // Display driver code once without overwriting it
   useEffect(() => {
     if (currentCode && !question.userSolution?.[selectedLanguage]) {
       onCodeChange(selectedLanguage, currentCode);
@@ -124,7 +122,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         description: `${passedCount}/${totalTestCases} test cases passed.`,
         variant: passedCount === totalTestCases ? "default" : "destructive",
       });
-      
     } catch (error) {
       console.error('Error running code:', error);
       setOutput(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
@@ -186,9 +183,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         
         const newResult: TestResult = { 
           passed: false, 
-          actualOutput: `Error: ${plainTextError}`,
+          actual_output: `Error: ${plainTextError}`,
           marks: 0,
-          isHidden
+          is_hidden: isHidden
         };
         const updatedResults = [...allResults, newResult];
         setTestResults(updatedResults);
@@ -211,9 +208,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
       const newResult: TestResult = { 
         passed, 
-        actualOutput,
+        actual_output: actualOutput,
         marks: marksEarned,
-        isHidden
+        is_hidden: isHidden
       };
       const updatedResults = [...allResults, newResult];
       setTestResults(updatedResults);
@@ -233,9 +230,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
       const newResult: TestResult = { 
         passed: false, 
-        actualOutput: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        actual_output: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         marks: 0,
-        isHidden: testCases[index]?.is_hidden
+        is_hidden: testCases[index]?.is_hidden
       };
       const updatedResults = [...allResults, newResult];
       setTestResults(updatedResults);
@@ -277,7 +274,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
       if (user) {
         try {
-          // Get the latest submission for this assessment
           const { data: submissions, error: submissionsError } = await supabase
             .from('submissions')
             .select('*')
@@ -294,7 +290,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           let submissionId: string;
 
           if (!submissions || submissions.length === 0) {
-            // Create a new submission if none exists
             const { data: newSubmission, error: newSubmissionError } = await supabase
               .from('submissions')
               .insert({
@@ -315,7 +310,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             submissionId = submissions[0].id;
           }
 
-          // Check for existing question submissions
           const { data: existingSubmission, error: existingSubmissionError } = await supabase
             .from('question_submissions')
             .select('*')
@@ -328,13 +322,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             throw existingSubmissionError;
           }
 
-          // Create the submission data object with all required fields
-          // Convert TestResult[] to Json compatible format
           const jsonTestResults: Json = finalResults.map(result => ({
             passed: result.passed,
-            actualOutput: result.actualOutput || null,
+            actual_output: result.actual_output || null,
             marks: result.marks || 0,
-            isHidden: result.isHidden || false
+            is_hidden: result.is_hidden || false
           }));
 
           const questionSubmissionData = {
@@ -349,7 +341,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           };
 
           if (existingSubmission && existingSubmission.length > 0) {
-            // Update existing submission
             const { error: updateError } = await supabase
               .from('question_submissions')
               .update(questionSubmissionData)
@@ -360,7 +351,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
               throw updateError;
             }
           } else {
-            // Insert new submission
             const { error: insertError } = await supabase
               .from('question_submissions')
               .insert(questionSubmissionData);

@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { AssessmentCodeInput } from '@/components/AssessmentCodeInput';
+import AssessmentCodeInput from '@/components/AssessmentCodeInput';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatDate } from '@/lib/utils';

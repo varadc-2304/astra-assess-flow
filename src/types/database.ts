@@ -114,7 +114,7 @@ export interface QuestionSubmission {
 }
 
 export interface TestResult {
-  status: string;
+  status?: string;
   stdout?: string;
   stderr?: string;
   expected_output?: string;
@@ -147,7 +147,7 @@ export interface Result {
 // Support for Supabase JSON type
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-export type Database = {
+export interface Database {
   assessments: Assessment[];
   auth: Auth[];
   coding_examples: CodingExample[];
@@ -159,4 +159,4 @@ export type Database = {
   results: Result[];
   submissions: Submission[];
   test_cases: TestCase[];
-};
+}
