@@ -15,7 +15,7 @@ import { createSubmission, waitForSubmissionResult } from '@/services/judge0Serv
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { TestCase, QuestionSubmission } from '@/types/database';
+import { TestCase, QuestionSubmission, TestResult } from '@/types/database';
 
 interface CodeEditorProps {
   question: CodeQuestion;

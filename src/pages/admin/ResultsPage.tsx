@@ -44,35 +44,34 @@ const ResultsPage = () => {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        // Fetch unique contest names from results table
-        const { data: contestNamesData, error: contestNamesError } = await supabase
-          .from('results')
-          .select('contest_name')
-          .not('contest_name', 'is', null)
-          .order('contest_name');
+        // Fetch unique assessment names from assessments table
+        const { data: assessmentsData, error: assessmentsError } = await supabase
+          .from('assessments')
+          .select('name')
+          .order('name');
         
-        if (contestNamesError) {
-          console.error('Error fetching contest names:', contestNamesError);
+        if (assessmentsError) {
+          console.error('Error fetching assessments:', assessmentsError);
           return;
         }
 
         // Extract unique assessment names
         const uniqueAssessmentNames = new Set<string>();
-        if (contestNamesData) {
-          contestNamesData.forEach(item => {
-            if (item.contest_name) {
-              uniqueAssessmentNames.add(item.contest_name);
+        if (assessmentsData) {
+          assessmentsData.forEach(item => {
+            if (item.name) {
+              uniqueAssessmentNames.add(item.name);
             }
           });
         }
         
-        // Fetch unique values for other filters from users table
-        const { data: usersData, error: usersError } = await supabase
-          .from('users')
+        // Fetch unique values for other filters from auth table
+        const { data: authData, error: authError } = await supabase
+          .from('auth')
           .select('year, department, division, batch');
 
-        if (usersError) {
-          console.error('Error fetching user details:', usersError);
+        if (authError) {
+          console.error('Error fetching user details:', authError);
           return;
         }
 
@@ -81,7 +80,7 @@ const ResultsPage = () => {
         const uniqueDivisions = new Set<string>();
         const uniqueBatches = new Set<string>();
 
-        usersData?.forEach(user => {
+        authData?.forEach(user => {
           if (user.year) uniqueYears.add(user.year);
           if (user.department) uniqueDepartments.add(user.department);
           if (user.division) uniqueDivisions.add(user.division);
@@ -122,13 +121,21 @@ const ResultsPage = () => {
         total_marks,
         percentage,
         completed_at,
-        isTerminated,
-        contest_name
+        is_cheated
       `);
 
       // Apply assessment filter if not set to 'all'
       if (filters.assessment && filters.assessment !== 'all') {
-        query = query.eq('contest_name', filters.assessment);
+        // We need to join with assessments to filter by name
+        const { data: assessmentData } = await supabase
+          .from('assessments')
+          .select('id')
+          .eq('name', filters.assessment)
+          .single();
+          
+        if (assessmentData) {
+          query = query.eq('assessment_id', assessmentData.id);
+        }
       }
 
       const { data: resultsData, error: resultsError } = await query;
@@ -149,9 +156,16 @@ const ResultsPage = () => {
       
       for (const result of resultsData) {
         const { data: userData } = await supabase
-          .from('users')
+          .from('auth')
           .select('name, email, department, year, division, batch')
-          .eq('auth_ID', result.user_id)
+          .eq('id', result.user_id)
+          .single();
+          
+        // Get assessment name
+        const { data: assessmentData } = await supabase
+          .from('assessments')
+          .select('name')
+          .eq('id', result.assessment_id)
           .single();
 
         csvData.push({
@@ -161,11 +175,11 @@ const ResultsPage = () => {
           "Department": userData?.department || "N/A",
           "Division": userData?.division || "N/A",
           "Batch": userData?.batch || "N/A",
-          "Assessment": result.contest_name || "Unknown",
+          "Assessment": assessmentData?.name || "Unknown",
           "Score": result.total_score,
           "Total Marks": result.total_marks,
           "Percentage": result.percentage,
-          "Status": result.isTerminated ? "Terminated" : "Completed",
+          "Status": result.is_cheated ? "Terminated" : "Completed",
           "Completion Time": new Date(result.completed_at).toLocaleString()
         });
       }

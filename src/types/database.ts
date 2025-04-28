@@ -25,6 +25,7 @@ export interface Assessment {
   reattempt: boolean;
   status: string | null;
   created_at: string | null;
+  questions?: Array<MCQQuestion | CodingQuestion>; // Add questions property for AssessmentContext
 }
 
 export interface MCQQuestion {
@@ -100,17 +101,17 @@ export interface Submission {
 }
 
 export interface QuestionSubmission {
-  id: string;
+  id?: string;
   submission_id: string;
   question_type: 'mcq' | 'code';
   question_id: string;
-  mcq_option_id: string | null;
-  code_solution: string | null;
-  language: string | null;
+  mcq_option_id?: string | null;
+  code_solution?: string | null;
+  language?: string | null;
   marks_obtained: number;
   is_correct: boolean | null;
-  test_results: any | null;
-  created_at: string;
+  test_results?: any | null;
+  created_at?: string;
 }
 
 export interface Result {
@@ -124,18 +125,16 @@ export interface Result {
   is_cheated: boolean | null;
   completed_at: string;
   created_at: string;
+  contest_name?: string; // Add this for the ResultsPage
 }
 
-// Adding Answer interface that was missing
-export interface Answer {
-  id?: string;
-  submission_id: string;
-  question_id: string;
-  mcq_option_id?: string | null;
-  code_solution?: string | null;
-  language?: string | null;
-  marks_obtained: number;
-  is_correct: boolean | null;
-  test_results?: any;
-  created_at?: string;
+// Define Json type for consistency with Supabase
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
+// Define TestResult type
+export interface TestResult {
+  passed: boolean;
+  actualOutput?: string;
+  marks?: number;
+  isHidden?: boolean;
 }

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -20,8 +19,6 @@ interface UserData {
   name: string;
   email: string;
   role: string;
-  auth_ID?: string;
-  id?: string;
   year?: string;
   department?: string;
   division?: string;
