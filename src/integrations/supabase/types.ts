@@ -9,71 +9,10 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      answers: {
-        Row: {
-          code_solution: string | null
-          created_at: string | null
-          id: string
-          is_correct: boolean | null
-          language: string | null
-          marks_obtained: number
-          mcq_option_id: string | null
-          question_id: string
-          submission_id: string
-          test_results: Json | null
-        }
-        Insert: {
-          code_solution?: string | null
-          created_at?: string | null
-          id?: string
-          is_correct?: boolean | null
-          language?: string | null
-          marks_obtained?: number
-          mcq_option_id?: string | null
-          question_id: string
-          submission_id: string
-          test_results?: Json | null
-        }
-        Update: {
-          code_solution?: string | null
-          created_at?: string | null
-          id?: string
-          is_correct?: boolean | null
-          language?: string | null
-          marks_obtained?: number
-          mcq_option_id?: string | null
-          question_id?: string
-          submission_id?: string
-          test_results?: Json | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "answers_mcq_option_id_fkey"
-            columns: ["mcq_option_id"]
-            isOneToOne: false
-            referencedRelation: "mcq_options"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "answers_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "questions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "answers_submission_id_fkey"
-            columns: ["submission_id"]
-            isOneToOne: false
-            referencedRelation: "submissions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       assessments: {
         Row: {
           code: string
-          created_at: string | null
+          created_at: string
           created_by: string | null
           duration_minutes: number
           end_time: string | null
@@ -86,7 +25,7 @@ export type Database = {
         }
         Insert: {
           code: string
-          created_at?: string | null
+          created_at?: string
           created_by?: string | null
           duration_minutes?: number
           end_time?: string | null
@@ -99,7 +38,7 @@ export type Database = {
         }
         Update: {
           code?: string
-          created_at?: string | null
+          created_at?: string
           created_by?: string | null
           duration_minutes?: number
           end_time?: string | null
@@ -110,156 +49,301 @@ export type Database = {
           start_time?: string
           status?: string | null
         }
+        Relationships: [
+          {
+            foreignKeyName: "assessments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "auth"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      auth: {
+        Row: {
+          batch: string | null
+          created_at: string
+          department: string | null
+          division: string | null
+          email: string
+          id: string
+          name: string | null
+          password: string
+          prn: string | null
+          role: string
+          year: string | null
+        }
+        Insert: {
+          batch?: string | null
+          created_at?: string
+          department?: string | null
+          division?: string | null
+          email: string
+          id?: string
+          name?: string | null
+          password: string
+          prn?: string | null
+          role?: string
+          year?: string | null
+        }
+        Update: {
+          batch?: string | null
+          created_at?: string
+          department?: string | null
+          division?: string | null
+          email?: string
+          id?: string
+          name?: string | null
+          password?: string
+          prn?: string | null
+          role?: string
+          year?: string | null
+        }
         Relationships: []
       }
       coding_examples: {
         Row: {
-          created_at: string | null
+          coding_question_id: string
+          created_at: string
           explanation: string | null
           id: string
           input: string
           order_index: number
           output: string
-          question_id: string
         }
         Insert: {
-          created_at?: string | null
+          coding_question_id: string
+          created_at?: string
           explanation?: string | null
           id?: string
           input: string
           order_index: number
           output: string
-          question_id: string
         }
         Update: {
-          created_at?: string | null
+          coding_question_id?: string
+          created_at?: string
           explanation?: string | null
           id?: string
           input?: string
           order_index?: number
           output?: string
-          question_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "coding_examples_question_id_fkey"
-            columns: ["question_id"]
+            foreignKeyName: "coding_examples_coding_question_id_fkey"
+            columns: ["coding_question_id"]
             isOneToOne: false
-            referencedRelation: "questions"
+            referencedRelation: "coding_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coding_languages: {
+        Row: {
+          coding_lang: string
+          coding_question_id: string
+          constraints: string[] | null
+          created_at: string
+          id: string
+          solution_template: string
+        }
+        Insert: {
+          coding_lang: string
+          coding_question_id: string
+          constraints?: string[] | null
+          created_at?: string
+          id?: string
+          solution_template: string
+        }
+        Update: {
+          coding_lang?: string
+          coding_question_id?: string
+          constraints?: string[] | null
+          created_at?: string
+          id?: string
+          solution_template?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coding_languages_coding_question_id_fkey"
+            columns: ["coding_question_id"]
+            isOneToOne: false
+            referencedRelation: "coding_questions"
             referencedColumns: ["id"]
           },
         ]
       }
       coding_questions: {
         Row: {
-          coding_lang: string
-          constraints: string[] | null
-          created_at: string | null
-          id: string
-          question_id: string
-          solution_template: string
-        }
-        Insert: {
-          coding_lang: string
-          constraints?: string[] | null
-          created_at?: string | null
-          id?: string
-          question_id: string
-          solution_template: string
-        }
-        Update: {
-          coding_lang?: string
-          constraints?: string[] | null
-          created_at?: string | null
-          id?: string
-          question_id?: string
-          solution_template?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "coding_questions_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: true
-            referencedRelation: "questions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      mcq_options: {
-        Row: {
-          created_at: string | null
-          id: string
-          is_correct: boolean
-          order_index: number
-          question_id: string
-          text: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          is_correct?: boolean
-          order_index: number
-          question_id: string
-          text: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          is_correct?: boolean
-          order_index?: number
-          question_id?: string
-          text?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "mcq_options_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "questions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      questions: {
-        Row: {
           assessment_id: string
-          created_at: string | null
+          created_at: string
           description: string
           id: string
           image_url: string | null
           marks: number
           order_index: number
           title: string
-          type: string
         }
         Insert: {
           assessment_id: string
-          created_at?: string | null
+          created_at?: string
           description: string
           id?: string
           image_url?: string | null
           marks?: number
           order_index: number
           title: string
-          type: string
         }
         Update: {
           assessment_id?: string
-          created_at?: string | null
+          created_at?: string
           description?: string
           id?: string
           image_url?: string | null
           marks?: number
           order_index?: number
           title?: string
-          type?: string
         }
         Relationships: [
           {
-            foreignKeyName: "questions_assessment_id_fkey"
+            foreignKeyName: "coding_questions_assessment_id_fkey"
             columns: ["assessment_id"]
             isOneToOne: false
             referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcq_options: {
+        Row: {
+          created_at: string
+          id: string
+          is_correct: boolean
+          mcq_question_id: string
+          order_index: number
+          text: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_correct?: boolean
+          mcq_question_id: string
+          order_index: number
+          text: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_correct?: boolean
+          mcq_question_id?: string
+          order_index?: number
+          text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcq_options_mcq_question_id_fkey"
+            columns: ["mcq_question_id"]
+            isOneToOne: false
+            referencedRelation: "mcq_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mcq_questions: {
+        Row: {
+          assessment_id: string
+          created_at: string
+          description: string
+          id: string
+          image_url: string | null
+          marks: number
+          order_index: number
+          title: string
+        }
+        Insert: {
+          assessment_id: string
+          created_at?: string
+          description: string
+          id?: string
+          image_url?: string | null
+          marks?: number
+          order_index: number
+          title: string
+        }
+        Update: {
+          assessment_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          image_url?: string | null
+          marks?: number
+          order_index?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mcq_questions_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      question_submissions: {
+        Row: {
+          code_solution: string | null
+          created_at: string
+          id: string
+          is_correct: boolean | null
+          language: string | null
+          marks_obtained: number
+          mcq_option_id: string | null
+          question_id: string
+          question_type: string
+          submission_id: string
+          test_results: Json | null
+        }
+        Insert: {
+          code_solution?: string | null
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          language?: string | null
+          marks_obtained?: number
+          mcq_option_id?: string | null
+          question_id: string
+          question_type: string
+          submission_id: string
+          test_results?: Json | null
+        }
+        Update: {
+          code_solution?: string | null
+          created_at?: string
+          id?: string
+          is_correct?: boolean | null
+          language?: string | null
+          marks_obtained?: number
+          mcq_option_id?: string | null
+          question_id?: string
+          question_type?: string
+          submission_id?: string
+          test_results?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "question_submissions_mcq_option_id_fkey"
+            columns: ["mcq_option_id"]
+            isOneToOne: false
+            referencedRelation: "mcq_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "question_submissions_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "submissions"
             referencedColumns: ["id"]
           },
         ]
@@ -268,11 +352,11 @@ export type Database = {
         Row: {
           assessment_id: string
           completed_at: string
-          contest_name: string | null
-          created_at: string | null
+          created_at: string
           id: string
-          isTerminated: boolean | null
+          is_cheated: boolean | null
           percentage: number
+          submission_id: string
           total_marks: number
           total_score: number
           user_id: string
@@ -280,11 +364,11 @@ export type Database = {
         Insert: {
           assessment_id: string
           completed_at: string
-          contest_name?: string | null
-          created_at?: string | null
+          created_at?: string
           id?: string
-          isTerminated?: boolean | null
+          is_cheated?: boolean | null
           percentage?: number
+          submission_id: string
           total_marks?: number
           total_score?: number
           user_id: string
@@ -292,11 +376,11 @@ export type Database = {
         Update: {
           assessment_id?: string
           completed_at?: string
-          contest_name?: string | null
-          created_at?: string | null
+          created_at?: string
           id?: string
-          isTerminated?: boolean | null
+          is_cheated?: boolean | null
           percentage?: number
+          submission_id?: string
           total_marks?: number
           total_score?: number
           user_id?: string
@@ -309,13 +393,27 @@ export type Database = {
             referencedRelation: "assessments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "results_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "submissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "results_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "auth"
+            referencedColumns: ["id"]
+          },
         ]
       }
       submissions: {
         Row: {
           assessment_id: string
           completed_at: string | null
-          created_at: string | null
+          created_at: string
           fullscreen_violations: number | null
           id: string
           is_terminated: boolean | null
@@ -325,7 +423,7 @@ export type Database = {
         Insert: {
           assessment_id: string
           completed_at?: string | null
-          created_at?: string | null
+          created_at?: string
           fullscreen_violations?: number | null
           id?: string
           is_terminated?: boolean | null
@@ -335,7 +433,7 @@ export type Database = {
         Update: {
           assessment_id?: string
           completed_at?: string | null
-          created_at?: string | null
+          created_at?: string
           fullscreen_violations?: number | null
           id?: string
           is_terminated?: boolean | null
@@ -350,93 +448,55 @@ export type Database = {
             referencedRelation: "assessments"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "submissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "auth"
+            referencedColumns: ["id"]
+          },
         ]
       }
       test_cases: {
         Row: {
-          created_at: string | null
+          coding_question_id: string
+          created_at: string
           id: string
           input: string
           is_hidden: boolean
           marks: number
           order_index: number
           output: string
-          question_id: string
         }
         Insert: {
-          created_at?: string | null
+          coding_question_id: string
+          created_at?: string
           id?: string
           input: string
           is_hidden?: boolean
           marks?: number
           order_index: number
           output: string
-          question_id: string
         }
         Update: {
-          created_at?: string | null
+          coding_question_id?: string
+          created_at?: string
           id?: string
           input?: string
           is_hidden?: boolean
           marks?: number
           order_index?: number
           output?: string
-          question_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "test_cases_question_id_fkey"
-            columns: ["question_id"]
+            foreignKeyName: "test_cases_coding_question_id_fkey"
+            columns: ["coding_question_id"]
             isOneToOne: false
-            referencedRelation: "questions"
+            referencedRelation: "coding_questions"
             referencedColumns: ["id"]
           },
         ]
-      }
-      users: {
-        Row: {
-          auth_ID: string | null
-          batch: string | null
-          created_at: string
-          department: string | null
-          division: string | null
-          email: string
-          id: string
-          name: string
-          password: string
-          prn: string | null
-          role: string
-          year: string | null
-        }
-        Insert: {
-          auth_ID?: string | null
-          batch?: string | null
-          created_at?: string
-          department?: string | null
-          division?: string | null
-          email: string
-          id?: string
-          name: string
-          password: string
-          prn?: string | null
-          role: string
-          year?: string | null
-        }
-        Update: {
-          auth_ID?: string | null
-          batch?: string | null
-          created_at?: string
-          department?: string | null
-          division?: string | null
-          email?: string
-          id?: string
-          name?: string
-          password?: string
-          prn?: string | null
-          role?: string
-          year?: string | null
-        }
-        Relationships: []
       }
     }
     Views: {
@@ -448,6 +508,10 @@ export type Database = {
         Returns: number
       }
       calculate_coding_question_marks: {
+        Args: { question_id: string }
+        Returns: number
+      }
+      calculate_mcq_question_marks: {
         Args: { question_id: string }
         Returns: number
       }

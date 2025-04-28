@@ -7,21 +7,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { Eye, FileCode, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import QuestionViewDialog from './QuestionViewDialog';
+import { MCQQuestion, CodingQuestion } from '@/types/database';
 
 interface QuestionListProps {
   assessmentId: string;
 }
 
-type QuestionListItem = {
-  id: string;
-  type: 'mcq' | 'code';
-  title: string;
-  marks: number;
-  order_index: number;
-};
+type QuestionWithType = (MCQQuestion | CodingQuestion) & { type: 'mcq' | 'code' };
 
 const QuestionList: React.FC<QuestionListProps> = ({ assessmentId }) => {
-  const [questions, setQuestions] = useState<QuestionListItem[]>([]);
+  const [questions, setQuestions] = useState<QuestionWithType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
   const [selectedQuestionType, setSelectedQuestionType] = useState<'mcq' | 'code' | null>(null);
@@ -39,7 +34,7 @@ const QuestionList: React.FC<QuestionListProps> = ({ assessmentId }) => {
       // Fetch MCQ questions
       const { data: mcqData, error: mcqError } = await supabase
         .from('mcq_questions')
-        .select('id, title, marks, order_index')
+        .select('*')
         .eq('assessment_id', assessmentId);
 
       if (mcqError) throw mcqError;
@@ -47,18 +42,18 @@ const QuestionList: React.FC<QuestionListProps> = ({ assessmentId }) => {
       // Fetch coding questions
       const { data: codingData, error: codingError } = await supabase
         .from('coding_questions')
-        .select('id, title, marks, order_index')
+        .select('*')
         .eq('assessment_id', assessmentId);
 
       if (codingError) throw codingError;
       
       // Combine and format the questions
-      const mcqQuestions: QuestionListItem[] = (mcqData || []).map(q => ({ 
+      const mcqQuestions: QuestionWithType[] = (mcqData || []).map(q => ({ 
         ...q, 
         type: 'mcq' as const 
       }));
       
-      const codingQuestions: QuestionListItem[] = (codingData || []).map(q => ({ 
+      const codingQuestions: QuestionWithType[] = (codingData || []).map(q => ({ 
         ...q, 
         type: 'code' as const 
       }));
