@@ -1,160 +1,126 @@
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAssessment } from '@/contexts/AssessmentContext';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect } from 'react';
 
-export const MAX_WARNINGS = 2;
+interface UseFullscreenReturn {
+  isFullscreen: boolean;
+  enterFullscreen: () => Promise<void>;
+  exitFullscreen: () => void;
+  fullscreenWarnings: number;
+  showExitWarning: boolean;
+  terminateAssessment: () => void;
+  addFullscreenWarning: () => void;
+  fullscreenViolations: number;
+  setFullscreenViolations: React.Dispatch<React.SetStateAction<number>>;
+}
 
-export const useFullscreen = () => {
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showExitWarning, setShowExitWarning] = useState(false);
-  const { fullscreenWarnings, addFullscreenWarning, endAssessment, assessment } = useAssessment();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const fullscreenExitHandledRef = useRef<boolean>(false);
+export const useFullscreen = (): UseFullscreenReturn => {
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [showExitWarning, setShowExitWarning] = useState<boolean>(false);
+  const [fullscreenWarnings, setFullscreenWarnings] = useState<number>(0);
+  const [fullscreenViolations, setFullscreenViolations] = useState<number>(0);
 
-  const checkFullscreen = useCallback(() => {
-    const isDocumentFullscreen =
-      document.fullscreenElement ||
-      (document as any).webkitFullscreenElement ||
-      (document as any).mozFullScreenElement ||
-      (document as any).msFullscreenElement;
-    return !!isDocumentFullscreen;
-  }, []);
+  // Check if fullscreen is supported
+  const fullscreenSupported = typeof document !== 'undefined' && (
+    document.fullscreenEnabled ||
+    (document as any).webkitFullscreenEnabled ||
+    (document as any).mozFullScreenEnabled ||
+    (document as any).msFullscreenEnabled
+  );
 
-  const enterFullscreen = useCallback(async () => {
+  // Function to enter fullscreen
+  const enterFullscreen = async (): Promise<void> => {
     try {
-      const docElm = document.documentElement;
-      await docElm.requestFullscreen();
-      setIsFullscreen(true);
-      setShowExitWarning(false);
-      fullscreenExitHandledRef.current = false;
-    } catch (error) {
-      console.error('Failed to enter fullscreen mode:', error);
-    }
-  }, []);
-
-  const exitFullscreen = useCallback(() => {
-    try {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
-      setIsFullscreen(false);
-    } catch (error) {
-      console.error('Failed to exit fullscreen mode:', error);
-    }
-  }, []);
-
-  const recordFullscreenViolation = useCallback(async () => {
-    if (!assessment) return;
-
-    try {
-      const { data: submissions, error: submissionError } = await supabase
-        .from('submissions')
-        .select('*')
-        .eq('assessment_id', assessment.id)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (submissionError || !submissions || submissions.length === 0) {
-        console.error('Error finding submission to update:', submissionError);
+      if (!fullscreenSupported) {
+        console.error('Fullscreen not supported');
         return;
       }
 
-      const submission = submissions[0];
-      const { error: updateError } = await supabase
-        .from('submissions')
-        .update({
-          fullscreen_violations: (submission.fullscreen_violations || 0) + 1,
-          is_terminated: fullscreenWarnings + 1 >= MAX_WARNINGS
-        })
-        .eq('id', submission.id);
+      const docEl = document.documentElement;
 
-      if (updateError) {
-        console.error('Error updating submission with fullscreen violation:', updateError);
+      if (docEl.requestFullscreen) {
+        await docEl.requestFullscreen();
+      } else if ((docEl as any).mozRequestFullScreen) {
+        await (docEl as any).mozRequestFullScreen();
+      } else if ((docEl as any).webkitRequestFullscreen) {
+        await (docEl as any).webkitRequestFullscreen();
+      } else if ((docEl as any).msRequestFullscreen) {
+        await (docEl as any).msRequestFullscreen();
       }
 
-      // Update the results table if this violation leads to termination
-      if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
-        const { error: resultError } = await supabase
-          .from('results')
-          .update({ 
-            isTerminated: true,
-            completed_at: new Date().toISOString()
-          })
-          .eq('assessment_id', assessment.id)
-          .eq('user_id', submission.user_id);
-
-        if (resultError) {
-          console.error('Error updating result termination status:', resultError);
-        }
-      }
-    } catch (error) {
-      console.error('Error recording fullscreen violation:', error);
-    }
-  }, [assessment, fullscreenWarnings]);
-
-  const handleFullscreenChange = useCallback(() => {
-    const fullscreenStatus = checkFullscreen();
-    
-    if (!fullscreenStatus) {
-      if (!fullscreenExitHandledRef.current) {
-        fullscreenExitHandledRef.current = true;
-        setShowExitWarning(true);
-        addFullscreenWarning();
-        recordFullscreenViolation();
-        
-        toast({
-          title: "Warning",
-          description: "Please return to fullscreen mode immediately. This is violation " + (fullscreenWarnings + 1) + "/" + MAX_WARNINGS,
-          variant: "destructive",
-        });
-        
-        if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
-          endAssessment();
-          navigate('/summary');
-        }
-      }
-    } else {
-      fullscreenExitHandledRef.current = false;
+      setIsFullscreen(true);
       setShowExitWarning(false);
-      toast({
-        title: "Fullscreen Mode",
-        description: "You have returned to fullscreen mode.",
-      });
+    } catch (error) {
+      console.error('Error entering fullscreen:', error);
     }
-  }, [
-    checkFullscreen,
-    fullscreenWarnings,
-    recordFullscreenViolation,
-    endAssessment,
-    navigate,
-    addFullscreenWarning,
-    toast
-  ]);
+  };
 
+  // Function to exit fullscreen
+  const exitFullscreen = (): void => {
+    try {
+      if (!fullscreenSupported) {
+        console.error('Fullscreen not supported');
+        return;
+      }
+
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if ((document as any).mozCancelFullScreen) {
+        (document as any).mozCancelFullScreen();
+      } else if ((document as any).webkitExitFullscreen) {
+        (document as any).webkitExitFullscreen();
+      } else if ((document as any).msExitFullscreen) {
+        (document as any).msExitFullscreen();
+      }
+
+      setIsFullscreen(false);
+    } catch (error) {
+      console.error('Error exiting fullscreen:', error);
+    }
+  };
+
+  // Function to add a fullscreen warning
+  const addFullscreenWarning = () => {
+    setFullscreenWarnings(prev => prev + 1);
+  };
+
+  // Function to terminate assessment
+  const terminateAssessment = () => {
+    // This would be implemented by the component using this hook
+    console.log('Assessment terminated due to fullscreen violations');
+    exitFullscreen();
+  };
+
+  // Listen for fullscreen changes
   useEffect(() => {
-    const handler = () => handleFullscreenChange();
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
 
-    document.addEventListener('fullscreenchange', handler);
-    document.addEventListener('webkitfullscreenchange', handler);
-    document.addEventListener('mozfullscreenchange', handler);
-    document.addEventListener('MSFullscreenChange', handler);
+      setIsFullscreen(isCurrentlyFullscreen);
+
+      if (!isCurrentlyFullscreen) {
+        setShowExitWarning(true);
+      } else {
+        setShowExitWarning(false);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
 
     return () => {
-      document.removeEventListener('fullscreenchange', handler);
-      document.removeEventListener('webkitfullscreenchange', handler);
-      document.removeEventListener('mozfullscreenchange', handler);
-      document.removeEventListener('MSFullscreenChange', handler);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
-  }, [handleFullscreenChange]);
-
-  const terminateAssessment = useCallback(() => {
-    endAssessment();
-    navigate('/summary');
-  }, [endAssessment, navigate]);
+  }, []);
 
   return {
     isFullscreen,
@@ -163,5 +129,8 @@ export const useFullscreen = () => {
     fullscreenWarnings,
     showExitWarning,
     terminateAssessment,
+    addFullscreenWarning,
+    fullscreenViolations,
+    setFullscreenViolations
   };
 };

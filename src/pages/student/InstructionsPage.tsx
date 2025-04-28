@@ -83,8 +83,8 @@ const InstructionsPage = () => {
           
           <div className="mb-6">
             <AssessmentCodeInput 
-              value={assessmentCode} 
-              onChange={setAssessmentCode}
+              code={assessmentCode}
+              setCode={setAssessmentCode}
               onSubmit={handleLoadAssessment}
             />
           </div>

@@ -188,8 +188,7 @@ const SummaryPage = () => {
                   <Progress 
                     value={result.percentage} 
                     className="h-2"
-                    // Use the cn utility to apply custom classes
-                    className={cn("h-2", getProgressColor(result.percentage))}
+                    indicatorClassName={cn(getProgressColor(result.percentage))}
                   />
                 </div>
               </div>

@@ -8,16 +8,23 @@ type TimerProps = {
   targetTime?: string; // ISO date string for countdown to start time
   onCountdownEnd?: () => void;
   value?: number; // For manually controlled timers (fullscreen warning)
+  onTimeUp?: () => void;
+  onTick?: (seconds: number) => void;
+  initialSeconds?: number;
 };
 
 export const Timer: React.FC<TimerProps> = ({ 
   variant = 'assessment',
   targetTime,
   onCountdownEnd,
+  onTimeUp,
+  onTick,
+  initialSeconds,
   value
 }) => {
   const { timeRemaining, setTimeRemaining, endAssessment } = useAssessment();
   const [countdownTime, setCountdownTime] = useState<number | null>(null);
+  const [internalSeconds, setInternalSeconds] = useState<number>(initialSeconds || 0);
   
   // For countdown timer to assessment start
   useEffect(() => {
@@ -42,20 +49,37 @@ export const Timer: React.FC<TimerProps> = ({
   
   // For assessment timer countdown
   useEffect(() => {
-    if (variant === 'assessment' && timeRemaining > 0) {
-      const intervalId = setInterval(() => {
-        setTimeRemaining(timeRemaining - 1);
-        
-        if (timeRemaining <= 1) {
-          // End assessment when time runs out
-          clearInterval(intervalId);
-          endAssessment();
-        }
-      }, 1000);
+    if (variant === 'assessment') {
+      // Use internal or context state
+      const seconds = initialSeconds !== undefined ? internalSeconds : timeRemaining;
       
-      return () => clearInterval(intervalId);
+      if (seconds > 0) {
+        const intervalId = setInterval(() => {
+          const newTime = seconds - 1;
+          
+          // Update internal state if initialSeconds was provided
+          if (initialSeconds !== undefined) {
+            setInternalSeconds(newTime);
+            if (onTick) onTick(newTime);
+          } else if (setTimeRemaining) {
+            setTimeRemaining(newTime);
+          }
+          
+          if (newTime <= 0) {
+            // Time's up
+            clearInterval(intervalId);
+            if (onTimeUp) {
+              onTimeUp();
+            } else if (endAssessment) {
+              endAssessment();
+            }
+          }
+        }, 1000);
+        
+        return () => clearInterval(intervalId);
+      }
     }
-  }, [variant, timeRemaining, setTimeRemaining, endAssessment]);
+  }, [variant, timeRemaining, internalSeconds, initialSeconds, setTimeRemaining, endAssessment, onTimeUp, onTick]);
   
   // Format seconds to hh:mm:ss
   const formatTime = (seconds: number): string => {
@@ -72,9 +96,11 @@ export const Timer: React.FC<TimerProps> = ({
   
   // Calculate warning thresholds
   const getColorClass = (): string => {
+    const seconds = initialSeconds !== undefined ? internalSeconds : timeRemaining;
+    
     if (variant === 'assessment') {
-      if (timeRemaining <= 300) return 'text-red-500'; // Last 5 minutes
-      if (timeRemaining <= 600) return 'text-orange-500'; // Last 10 minutes
+      if (seconds <= 300) return 'text-red-500'; // Last 5 minutes
+      if (seconds <= 600) return 'text-orange-500'; // Last 10 minutes
     }
     return 'text-astra-darkGray';
   };
@@ -82,7 +108,9 @@ export const Timer: React.FC<TimerProps> = ({
   // Determine what time to display
   const displayTime = variant === 'countdown' 
     ? (countdownTime !== null ? formatTime(countdownTime) : '--:--:--')
-    : value !== undefined ? formatTime(value) : formatTime(timeRemaining);
+    : value !== undefined ? formatTime(value) 
+    : initialSeconds !== undefined ? formatTime(internalSeconds)
+    : formatTime(timeRemaining);
   
   return (
     <div className={`flex items-center gap-2 font-mono text-lg font-bold ${getColorClass()}`}>
@@ -91,3 +119,5 @@ export const Timer: React.FC<TimerProps> = ({
     </div>
   );
 };
+
+export default Timer;

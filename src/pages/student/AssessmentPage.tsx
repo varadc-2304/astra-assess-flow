@@ -21,7 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useFullscreen } from '@/hooks/useFullscreen';
 
 import MCQQuestion from '@/components/MCQQuestion';
-import Timer from '@/components/Timer';
+import { Timer } from '@/components/Timer';
 import CodeEditor from '@/components/CodeEditor';
 import { supabase } from '@/integrations/supabase/client'; 
 
@@ -32,26 +32,24 @@ const AssessmentPage = () => {
     assessment,
     currentQuestionIndex, 
     setCurrentQuestionIndex,
-    exitAssessment,
-    isAssessmentStarted,
-    remainingTime,
-    setRemainingTime,
-    submitAssessment,
-    selectedAnswers,
-    setSelectedAnswer,
-    updateCodingAnswer,
+    endAssessment,
+    assessmentStarted,
+    timeRemaining,
+    setTimeRemaining,
+    answerMCQ,
+    updateCodeSolution,
     totalMarksObtained,
     totalPossibleMarks,
-    updateMarksForQuestion
+    updateMarksObtained
   } = useAssessment();
   
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { isFullscreen, enterFullscreen, exitFullscreen, fullscreenViolations, setFullscreenViolations } = useFullscreen();
+  const { isFullscreen, enterFullscreen, exitFullscreen, addFullscreenWarning, fullscreenWarnings } = useFullscreen();
 
   useEffect(() => {
     // Redirect if assessment is not started
-    if (!isAssessmentStarted && assessment) {
+    if (!assessmentStarted && assessment) {
       navigate('/instructions');
     }
     
@@ -66,16 +64,16 @@ const AssessmentPage = () => {
         exitFullscreen();
       }
     };
-  }, [assessment, isAssessmentStarted, navigate, isFullscreen, enterFullscreen, exitFullscreen]);
+  }, [assessment, assessmentStarted, navigate, isFullscreen, enterFullscreen, exitFullscreen]);
   
   // Handle fullscreen violation
   useEffect(() => {
-    if (assessment && isAssessmentStarted && !isFullscreen) {
-      setFullscreenViolations(prev => prev + 1);
+    if (assessment && assessmentStarted && !isFullscreen) {
+      addFullscreenWarning();
       
       toast({
         title: "Warning: Fullscreen Mode Exited",
-        description: `You have left fullscreen mode. This will be recorded. (Violation ${fullscreenViolations + 1})`,
+        description: `You have left fullscreen mode. This will be recorded. (Violation ${fullscreenWarnings + 1})`,
         variant: "destructive",
       });
       
@@ -124,7 +122,7 @@ const AssessmentPage = () => {
               });
               
               setTimeout(() => {
-                exitAssessment();
+                endAssessment();
                 navigate('/student');
               }, 3000);
             }
@@ -134,7 +132,7 @@ const AssessmentPage = () => {
         recordViolation();
       }
     }
-  }, [isFullscreen, assessment, isAssessmentStarted, user, fullscreenViolations, toast, navigate, exitAssessment, enterFullscreen, setFullscreenViolations]);
+  }, [isFullscreen, assessment, assessmentStarted, user, fullscreenWarnings, toast, navigate, endAssessment, enterFullscreen, addFullscreenWarning]);
   
   // Set up timer completion handler
   const handleTimeUp = () => {
@@ -198,14 +196,14 @@ const AssessmentPage = () => {
           total_marks: totalPossibleMarks,
           total_score: totalMarksObtained,
           percentage,
-          is_cheated: fullscreenViolations >= 3
+          is_cheated: fullscreenWarnings >= 3
         });
       
       if (resultError) {
         throw new Error(`Error creating result: ${resultError.message}`);
       }
       
-      await submitAssessment();
+      await endAssessment();
       
       // Navigate to summary page
       navigate('/summary');
@@ -221,12 +219,12 @@ const AssessmentPage = () => {
     }
   };
 
-  if (!assessment || !isAssessmentStarted) {
+  if (!assessment || !assessmentStarted) {
     return <Navigate to="/instructions" />;
   }
   
   const currentQuestion = assessment.questions[currentQuestionIndex];
-  const isMCQ = 'options' in currentQuestion;
+  const isMCQ = currentQuestion.type === 'mcq';
   const isPreviousEnabled = currentQuestionIndex > 0;
   const isNextEnabled = currentQuestionIndex < assessment.questions.length - 1;
   
@@ -234,9 +232,10 @@ const AssessmentPage = () => {
   const paginationItems = [];
   for (let i = 0; i < assessment.questions.length; i++) {
     const question = assessment.questions[i];
-    const isAnswered = isMCQ ? 
-      !!selectedAnswers[question.id] : 
-      !!(question.userSolution && Object.keys(question.userSolution).length > 0);
+    // Check if the question is answered based on its type
+    const isAnswered = question.type === 'mcq' ? 
+      !!question.selectedOption : 
+      !!(question.type === 'code' && Object.keys(question.userSolution || {}).length > 0);
     
     paginationItems.push(
       <PaginationItem key={i}>
@@ -263,9 +262,7 @@ const AssessmentPage = () => {
           <div className="flex items-center">
             <Clock className="h-4 w-4 mr-1 text-red-500" />
             <Timer 
-              initialSeconds={remainingTime} 
-              onTimeUp={handleTimeUp}
-              onTick={(seconds) => setRemainingTime(seconds)}
+              variant="assessment"
             />
           </div>
           <Button 
@@ -293,8 +290,7 @@ const AssessmentPage = () => {
             {isMCQ ? (
               <MCQQuestion 
                 question={currentQuestion} 
-                selectedOption={selectedAnswers[currentQuestion.id] || null}
-                onOptionSelect={(optionId) => setSelectedAnswer(currentQuestion.id, optionId)}
+                onAnswerSelect={(optionId) => answerMCQ(currentQuestion.id, optionId)}
               />
             ) : (
               <Tabs defaultValue="question" className="flex-1 flex flex-col">
@@ -308,7 +304,7 @@ const AssessmentPage = () => {
                       <h3>{currentQuestion.title}</h3>
                       <div dangerouslySetInnerHTML={{ __html: currentQuestion.description }} />
                       
-                      {currentQuestion.examples && currentQuestion.examples.length > 0 && (
+                      {currentQuestion.type === 'code' && currentQuestion.examples && currentQuestion.examples.length > 0 && (
                         <div className="mt-6">
                           <h4 className="text-lg font-medium">Examples</h4>
                           {currentQuestion.examples.map((example, index) => (
@@ -333,8 +329,8 @@ const AssessmentPage = () => {
                   <TabsContent value="solution" className="flex-1 h-full m-0">
                     <CodeEditor 
                       question={currentQuestion}
-                      onCodeChange={(language, code) => updateCodingAnswer(currentQuestion.id, language, code)}
-                      onMarksUpdate={updateMarksForQuestion}
+                      onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
+                      onMarksUpdate={(marks) => updateMarksObtained(currentQuestion.id, marks)}
                     />
                   </TabsContent>
                 </div>
