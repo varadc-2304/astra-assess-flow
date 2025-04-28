@@ -8,69 +8,104 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { FileCode, HelpCircle } from 'lucide-react';
-import { Question, MCQOption, CodingQuestion, TestCase } from '@/types/database';
+import { 
+  MCQQuestion, 
+  CodingQuestion,
+  MCQOption, 
+  TestCase, 
+  CodingLanguage, 
+  CodingExample 
+} from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface QuestionViewDialogProps {
-  question: Question | null;
+  questionId: string | null;
+  questionType: 'mcq' | 'code' | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
-  question,
+  questionId,
+  questionType,
   open,
   onOpenChange,
 }) => {
   const { toast } = useToast();
+  const [mcqQuestion, setMcqQuestion] = useState<MCQQuestion | null>(null);
+  const [codingQuestion, setCodingQuestion] = useState<CodingQuestion | null>(null);
   const [mcqOptions, setMcqOptions] = useState<MCQOption[]>([]);
-  const [codingDetails, setCodingDetails] = useState<CodingQuestion | null>(null);
+  const [codingLanguages, setCodingLanguages] = useState<CodingLanguage[]>([]);
+  const [codingExamples, setCodingExamples] = useState<CodingExample[]>([]);
   const [testCases, setTestCases] = useState<TestCase[]>([]);
-  const [availableLanguages, setAvailableLanguages] = useState<string[]>([]);
 
   useEffect(() => {
-    if (question) {
+    if (questionId && questionType && open) {
       fetchQuestionDetails();
     }
-  }, [question]);
+  }, [questionId, questionType, open]);
 
   const fetchQuestionDetails = async () => {
-    if (!question) return;
+    if (!questionId || !questionType) return;
 
     try {
-      if (question.type === 'mcq') {
-        const { data: options, error: mcqError } = await supabase
-          .from('mcq_options')
+      if (questionType === 'mcq') {
+        // Fetch MCQ question
+        const { data: mcqData, error: mcqError } = await supabase
+          .from('mcq_questions')
           .select('*')
-          .eq('question_id', question.id)
-          .order('order_index');
+          .eq('id', questionId)
+          .single();
 
         if (mcqError) throw mcqError;
+        setMcqQuestion(mcqData);
+        
+        // Fetch MCQ options
+        const { data: options, error: optionsError } = await supabase
+          .from('mcq_options')
+          .select('*')
+          .eq('mcq_question_id', questionId)
+          .order('order_index');
+
+        if (optionsError) throw optionsError;
         setMcqOptions(options || []);
-      } else if (question.type === 'code') {
-        // Fetch coding question details - now we need to get all language variants
+        
+      } else if (questionType === 'code') {
+        // Fetch coding question
         const { data: codingData, error: codingError } = await supabase
           .from('coding_questions')
           .select('*')
-          .eq('question_id', question.id);
+          .eq('id', questionId)
+          .single();
 
         if (codingError) throw codingError;
+        setCodingQuestion(codingData);
         
-        if (codingData && codingData.length > 0) {
-          // Set the first row as our coding details
-          setCodingDetails(codingData[0]);
-          
-          // Extract available languages from all rows
-          const languages = codingData.map(row => row.coding_lang);
-          setAvailableLanguages(languages);
-        }
+        // Fetch coding languages
+        const { data: languagesData, error: languagesError } = await supabase
+          .from('coding_languages')
+          .select('*')
+          .eq('coding_question_id', questionId);
 
+        if (languagesError) throw languagesError;
+        setCodingLanguages(languagesData || []);
+        
+        // Fetch coding examples
+        const { data: examplesData, error: examplesError } = await supabase
+          .from('coding_examples')
+          .select('*')
+          .eq('coding_question_id', questionId)
+          .order('order_index');
+
+        if (examplesError) throw examplesError;
+        setCodingExamples(examplesData || []);
+        
         // Fetch test cases
         const { data: testCasesData, error: testCasesError } = await supabase
           .from('test_cases')
           .select('*')
-          .eq('question_id', question.id)
+          .eq('coding_question_id', questionId)
           .order('order_index');
 
         if (testCasesError) throw testCasesError;
@@ -85,6 +120,9 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
     }
   };
 
+  if (!questionId || !questionType) return null;
+  
+  const question = questionType === 'mcq' ? mcqQuestion : codingQuestion;
   if (!question) return null;
 
   return (
@@ -95,17 +133,17 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
             <Badge
               variant="outline"
               className={
-                question.type === 'mcq'
+                questionType === 'mcq'
                   ? 'bg-purple-100 text-purple-800 border-purple-200'
                   : 'bg-blue-100 text-blue-800 border-blue-200'
               }
             >
-              {question.type === 'mcq' ? (
+              {questionType === 'mcq' ? (
                 <HelpCircle className="h-3 w-3 mr-1" />
               ) : (
                 <FileCode className="h-3 w-3 mr-1" />
               )}
-              {question.type.toUpperCase()}
+              {questionType.toUpperCase()}
             </Badge>
             <span>{question.title}</span>
           </DialogTitle>
@@ -137,7 +175,7 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
           )}
 
           {/* MCQ Options */}
-          {question.type === 'mcq' && mcqOptions.length > 0 && (
+          {questionType === 'mcq' && mcqOptions.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-gray-500 mb-2">Options</h3>
               <div className="space-y-2">
@@ -166,29 +204,65 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
           )}
 
           {/* Coding Question Details */}
-          {question.type === 'code' && codingDetails && (
+          {questionType === 'code' && (
             <>
               {/* Programming Languages */}
-              <div>
-                <h3 className="text-sm font-medium text-gray-500 mb-2">Available Languages</h3>
-                <div className="flex flex-wrap gap-2">
-                  {availableLanguages.map((lang) => (
-                    <Badge key={lang} variant="outline" className="capitalize">
-                      {lang}
-                    </Badge>
-                  ))}
+              {codingLanguages.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500 mb-2">Available Languages</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {codingLanguages.map((lang) => (
+                      <Badge key={lang.id} variant="outline" className="capitalize">
+                        {lang.coding_lang}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Constraints */}
-              {codingDetails.constraints && codingDetails.constraints.length > 0 && (
+              {codingLanguages.length > 0 && codingLanguages[0].constraints && codingLanguages[0].constraints.length > 0 && (
                 <div>
                   <h3 className="text-sm font-medium text-gray-500 mb-2">Constraints</h3>
                   <ul className="list-disc list-inside space-y-1 text-gray-600">
-                    {codingDetails.constraints.map((constraint, index) => (
+                    {codingLanguages[0].constraints.map((constraint, index) => (
                       <li key={index}>{constraint}</li>
                     ))}
                   </ul>
+                </div>
+              )}
+
+              {/* Examples */}
+              {codingExamples.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-500 mb-2">Examples</h3>
+                  <div className="space-y-4">
+                    {codingExamples.map((example, index) => (
+                      <div 
+                        key={example.id} 
+                        className="border rounded-md p-3 space-y-2"
+                      >
+                        <div>
+                          <p className="text-sm text-gray-500">Input:</p>
+                          <pre className="mt-1 p-2 bg-gray-50 rounded-md text-sm font-mono">
+                            {example.input}
+                          </pre>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-500">Output:</p>
+                          <pre className="mt-1 p-2 bg-gray-50 rounded-md text-sm font-mono">
+                            {example.output}
+                          </pre>
+                        </div>
+                        {example.explanation && (
+                          <div>
+                            <p className="text-sm text-gray-500">Explanation:</p>
+                            <p className="mt-1 text-sm">{example.explanation}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 

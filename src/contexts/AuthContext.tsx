@@ -2,7 +2,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Session, User } from '@supabase/supabase-js';
+import { Auth } from '@/types/database';
 
 type UserRole = 'student' | 'admin';
 
@@ -11,12 +11,16 @@ type UserData = {
   name: string;
   email: string;
   role: UserRole;
+  prn?: string;
+  year?: string;
+  department?: string;
+  division?: string;
+  batch?: string;
 };
 
 interface AuthContextType {
   user: UserData | null;
-  session: Session | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
   isLoading: boolean;
 }
@@ -25,139 +29,127 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserData | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const { toast } = useToast();
 
-  // Initialize auth state from supabase
+  // Check for existing login on mount
   useEffect(() => {
-    // First set up auth listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, currentSession) => {
-        setSession(currentSession);
+    const checkAuth = async () => {
+      setIsLoading(true);
+      try {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         
-        // Map Supabase user to our UserData type
-        if (currentSession?.user) {
-          // For demo, we're mapping specific emails to roles
-          // In production, this would come from a user_roles table
-          const email = currentSession.user.email || '';
-          const role: UserRole = email.includes('admin') ? 'admin' : 'student';
-          
-          setUser({
-            id: currentSession.user.id,
-            email: currentSession.user.email || '',
-            name: currentSession.user.user_metadata.name || email.split('@')[0],
-            role: role
-          });
-        } else {
-          setUser(null);
-        }
-      }
-    );
-
-    // Then check for existing session
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      setSession(currentSession);
-      
-      // Map Supabase user to our UserData type
-      if (currentSession?.user) {
-        // For demo, we're mapping specific emails to roles
-        // In production, this would come from a user_roles table
-        const email = currentSession.user.email || '';
-        const role: UserRole = email.includes('admin') ? 'admin' : 'student';
-        
-        setUser({
-          id: currentSession.user.id,
-          email: currentSession.user.email || '',
-          name: currentSession.user.user_metadata.name || email.split('@')[0],
-          role: role
-        });
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  // Login function - handles both demo login and regular login
-  const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    
-    try {
-      console.log("Attempting login with:", email, password);
-      
-      // Handle demo credentials specifically
-      if ((email === 'student@example.com' || email === 'admin@example.com') && password === 'password') {
-        console.log("Demo credentials detected");
-        
-        // First try to sign in
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
-        
-        console.log("Sign in result:", { data, error });
-        
-        // If login fails for demo user, create the account first
-        if (error) {
-          console.log("Creating demo account");
-          // Create the demo user
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              data: {
-                name: email === 'admin@example.com' ? 'Admin User' : 'Student User',
-              }
-            }
-          });
-          
-          console.log("Sign up result:", { signUpData, signUpError });
-          
-          if (signUpError) {
-            throw signUpError;
-          }
-          
-          // Try to login again after account creation
-          const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-            email,
-            password
-          });
-          
-          console.log("Second sign in result:", { loginData, loginError });
-          
-          if (loginError) {
-            throw loginError;
-          }
-          
-          toast({
-            title: "Demo account created",
-            description: "Successfully created demo account and logged you in",
-          });
-          
+        if (sessionError) {
+          console.error("Error checking auth session:", sessionError);
           return;
         }
         
-        toast({
-          title: "Demo login successful",
-          description: `Welcome to AstraAssessments, ${email === 'admin@example.com' ? 'Admin' : 'Student'}!`,
-        });
+        if (sessionData?.session?.user) {
+          const { data: userData, error: userError } = await supabase
+            .from('auth')
+            .select('*')
+            .eq('id', sessionData.session.user.id)
+            .single();
+            
+          if (userError) {
+            console.error("Error fetching user data:", userError);
+            return;
+          }
+            
+          if (userData) {
+            setUser({
+              id: userData.id,
+              name: userData.name || '',
+              email: userData.email,
+              role: userData.role as UserRole,
+              prn: userData.prn || undefined,
+              year: userData.year || undefined,
+              department: userData.department || undefined,
+              division: userData.division || undefined,
+              batch: userData.batch || undefined,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Auth check error:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkAuth();
+  }, []);
+
+  // Login function
+  const login = async (email: string, password: string, role: UserRole) => {
+    setIsLoading(true);
+    
+    try {
+      // Check if user exists
+      const { data: existingUsers, error: checkError } = await supabase
+        .from('auth')
+        .select('*')
+        .eq('email', email);
         
-        return;
+      if (checkError) throw checkError;
+      
+      let userId: string;
+      
+      if (!existingUsers || existingUsers.length === 0) {
+        // Create new user if doesn't exist
+        const { data: newUser, error: createError } = await supabase
+          .from('auth')
+          .insert({
+            email,
+            password, // In a production app, you would hash this password
+            role,
+            name: email.split('@')[0] // Simple name extraction from email
+          })
+          .select()
+          .single();
+          
+        if (createError) throw createError;
+        userId = newUser.id;
+      } else {
+        const user = existingUsers[0];
+        
+        // Verify password (simple comparison for demo)
+        if (user.password !== password) {
+          throw new Error('Invalid email or password');
+        }
+        
+        // Check role
+        if (user.role !== role) {
+          throw new Error(`This account is not registered as a ${role}`);
+        }
+        
+        userId = user.id;
       }
       
-      // Regular login for non-demo accounts
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
+      // Get user data to set in state
+      const { data: userData, error: fetchError } = await supabase
+        .from('auth')
+        .select('*')
+        .eq('id', userId)
+        .single();
+        
+      if (fetchError) throw fetchError;
       
-      if (error) throw error;
+      setUser({
+        id: userData.id,
+        name: userData.name || '',
+        email: userData.email,
+        role: userData.role as UserRole,
+        prn: userData.prn || undefined,
+        year: userData.year || undefined,
+        department: userData.department || undefined,
+        division: userData.division || undefined,
+        batch: userData.batch || undefined,
+      });
       
       toast({
         title: "Login successful",
-        description: `Welcome back, ${data.user?.email}!`,
+        description: `Welcome back, ${userData.name || userData.email}!`,
       });
     } catch (error: any) {
       console.error("Login error:", error);
@@ -176,7 +168,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     setIsLoading(true);
     try {
-      await supabase.auth.signOut();
+      setUser(null);
       toast({
         title: "Logged out",
         description: "You have been logged out successfully",
@@ -193,7 +185,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

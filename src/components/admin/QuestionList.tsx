@@ -6,17 +6,26 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Eye, FileCode, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Question } from '@/types/database';
+import { MCQQuestion, CodingQuestion } from '@/types/database';
 import QuestionViewDialog from './QuestionViewDialog';
 
 interface QuestionListProps {
   assessmentId: string;
 }
 
+type QuestionListItem = {
+  id: string;
+  type: 'mcq' | 'code';
+  title: string;
+  marks: number;
+  order_index: number;
+};
+
 const QuestionList: React.FC<QuestionListProps> = ({ assessmentId }) => {
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questions, setQuestions] = useState<QuestionListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null);
+  const [selectedQuestionType, setSelectedQuestionType] = useState<'mcq' | 'code' | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
 
@@ -26,19 +35,31 @@ const QuestionList: React.FC<QuestionListProps> = ({ assessmentId }) => {
 
   const fetchQuestions = async () => {
     try {
-      const { data, error } = await supabase
-        .from('questions')
-        .select('*')
-        .eq('assessment_id', assessmentId)
-        .order('order_index', { ascending: true });
+      setIsLoading(true);
+      
+      // Fetch MCQ questions
+      const { data: mcqData, error: mcqError } = await supabase
+        .from('mcq_questions')
+        .select('id, title, marks, order_index')
+        .eq('assessment_id', assessmentId);
 
-      if (error) throw error;
+      if (mcqError) throw mcqError;
       
-      const validQuestions = (data || []).filter(
-        question => question.type === 'mcq' || question.type === 'code'
-      ) as Question[];
+      // Fetch coding questions
+      const { data: codingData, error: codingError } = await supabase
+        .from('coding_questions')
+        .select('id, title, marks, order_index')
+        .eq('assessment_id', assessmentId);
+
+      if (codingError) throw codingError;
       
-      setQuestions(validQuestions);
+      // Combine and format the questions
+      const mcqQuestions = (mcqData || []).map(q => ({ ...q, type: 'mcq' as const }));
+      const codingQuestions = (codingData || []).map(q => ({ ...q, type: 'code' as const }));
+      
+      const allQuestions = [...mcqQuestions, ...codingQuestions].sort((a, b) => a.order_index - b.order_index);
+      
+      setQuestions(allQuestions);
     } catch (error: any) {
       toast({
         title: "Error fetching questions",
@@ -50,8 +71,9 @@ const QuestionList: React.FC<QuestionListProps> = ({ assessmentId }) => {
     }
   };
 
-  const handleViewQuestion = (question: Question) => {
-    setSelectedQuestion(question);
+  const handleViewQuestion = (id: string, type: 'mcq' | 'code') => {
+    setSelectedQuestionId(id);
+    setSelectedQuestionType(type);
     setDialogOpen(true);
   };
 
@@ -108,7 +130,7 @@ const QuestionList: React.FC<QuestionListProps> = ({ assessmentId }) => {
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      onClick={() => handleViewQuestion(question)}
+                      onClick={() => handleViewQuestion(question.id, question.type)}
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
@@ -121,7 +143,8 @@ const QuestionList: React.FC<QuestionListProps> = ({ assessmentId }) => {
       </div>
 
       <QuestionViewDialog
-        question={selectedQuestion}
+        questionId={selectedQuestionId}
+        questionType={selectedQuestionType}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
       />

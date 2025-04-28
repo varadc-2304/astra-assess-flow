@@ -1,8 +1,18 @@
+
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { 
+  Assessment, 
+  MCQQuestion as DBMCQQuestion,
+  CodingQuestion as DBCodingQuestion,
+  MCQOption,
+  CodingLanguage,
+  CodingExample,
+  TestCase
+} from '@/types/database';
 
 // Define types
 export type QuestionOption = {
@@ -37,6 +47,7 @@ export type CodeQuestion = {
   solutionTemplate: Record<string, string>;
   userSolution: Record<string, string>;
   testCases: Array<{
+    id: string;
     input: string;
     output: string;
     marks?: number;
@@ -133,147 +144,176 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       const assessmentData = assessmentsData[0];
       console.log('Selected assessment data:', assessmentData);
       
-      const { data: questionsData, error: questionsError } = await supabase
-        .from('questions')
+      // Fetch MCQ Questions
+      const { data: mcqQuestionsData, error: mcqQuestionsError } = await supabase
+        .from('mcq_questions')
         .select('*')
         .eq('assessment_id', assessmentData.id)
         .order('order_index', { ascending: true });
         
-      if (questionsError) {
-        console.error('Failed to load questions:', questionsError);
-        throw new Error(`Failed to load questions: ${questionsError.message}`);
+      if (mcqQuestionsError) {
+        console.error('Failed to load MCQ questions:', mcqQuestionsError);
+        throw new Error(`Failed to load MCQ questions: ${mcqQuestionsError.message}`);
       }
       
-      console.log(`Found ${questionsData?.length || 0} questions for assessment ID:`, assessmentData.id);
-      
-      if (!questionsData || questionsData.length === 0) {
-        console.warn('No questions found for this assessment');
+      // Fetch Coding Questions
+      const { data: codingQuestionsData, error: codingQuestionsError } = await supabase
+        .from('coding_questions')
+        .select('*')
+        .eq('assessment_id', assessmentData.id)
+        .order('order_index', { ascending: true });
+        
+      if (codingQuestionsError) {
+        console.error('Failed to load coding questions:', codingQuestionsError);
+        throw new Error(`Failed to load coding questions: ${codingQuestionsError.message}`);
       }
+      
+      console.log(`Found ${mcqQuestionsData?.length || 0} MCQ questions and ${codingQuestionsData?.length || 0} coding questions`);
       
       const questions: Question[] = [];
       let totalPossibleMarks = 0;
       
-      for (const questionData of questionsData || []) {
-        if (questionData.type === 'mcq') {
-          totalPossibleMarks += questionData.marks || 0;
+      // Process MCQ Questions
+      for (const mcqQuestion of mcqQuestionsData || []) {
+        totalPossibleMarks += mcqQuestion.marks || 0;
+        
+        const { data: optionsData, error: optionsError } = await supabase
+          .from('mcq_options')
+          .select('*')
+          .eq('mcq_question_id', mcqQuestion.id)
+          .order('order_index', { ascending: true });
           
-          const { data: optionsData, error: optionsError } = await supabase
-            .from('mcq_options')
-            .select('*')
-            .eq('question_id', questionData.id)
-            .order('order_index', { ascending: true });
-            
-          if (optionsError) {
-            console.error('Failed to load options for question', questionData.id, optionsError);
-            continue;
-          }
-          
-          console.log(`Found ${optionsData?.length || 0} options for MCQ question ID:`, questionData.id);
-          
-          const mcqQuestion: MCQQuestion = {
-            id: questionData.id,
-            type: 'mcq',
-            title: questionData.title,
-            description: questionData.description,
-            imageUrl: questionData.image_url,
-            options: optionsData?.map(option => ({
-              id: option.id,
-              text: option.text,
-              isCorrect: option.is_correct
-            })) || [],
-            marks: questionData.marks
-          };
-          
-          questions.push(mcqQuestion);
-        } else if (questionData.type === 'code') {
-          const { data: codingLangRows, error: codeError } = await supabase
-            .from('coding_questions')
-            .select('*')
-            .eq('question_id', questionData.id);
-
-          if (codeError) {
-            console.error('Failed to load coding details for question', questionData.id, codeError);
-            continue;
-          }
-
-          const { data: examplesData, error: examplesError } = await supabase
-            .from('coding_examples')
-            .select('*')
-            .eq('question_id', questionData.id)
-            .order('order_index', { ascending: true });
-
-          if (examplesError) {
-            console.error('Failed to load examples for question', questionData.id, examplesError);
-            continue;
-          }
-
-          const { data: testCasesData, error: testCasesError } = await supabase
-            .from('test_cases')
-            .select('*')
-            .eq('question_id', questionData.id)
-            .order('order_index', { ascending: true });
-
-          if (testCasesError) {
-            console.error('Failed to load test cases for question', questionData.id, testCasesError);
-            continue;
-          }
-
-          const solutionTemplate: Record<string, string> = {};
-          const constraints: string[] = [];
-
-          (codingLangRows || []).forEach((row: any) => {
-            if (row.coding_lang && row.solution_template !== undefined) {
-              solutionTemplate[row.coding_lang] = row.solution_template;
-              if (constraints.length === 0 && row.constraints) {
-                constraints.push(...row.constraints);
-              }
-            }
-          });
-
-          const testCaseMarks = testCasesData?.reduce((sum, tc) => sum + (tc.marks || 0), 0) || 0;
-          totalPossibleMarks += testCaseMarks;
-
-          const codeQuestion: CodeQuestion = {
-            id: questionData.id,
-            assessmentId: assessmentData.id,
-            type: 'code',
-            title: questionData.title,
-            description: questionData.description,
-            examples: examplesData?.map(example => ({
-              input: example.input,
-              output: example.output,
-              explanation: example.explanation,
-            })) || [],
-            constraints: constraints,
-            solutionTemplate,
-            userSolution: {},
-            testCases: testCasesData?.map(testCase => ({
-              input: testCase.input,
-              output: testCase.output,
-              marks: testCase.marks,
-              is_hidden: testCase.is_hidden,
-            })) || [],
-            marks: testCaseMarks,
-          };
-
-          questions.push(codeQuestion);
+        if (optionsError) {
+          console.error('Failed to load options for question', mcqQuestion.id, optionsError);
+          continue;
         }
+        
+        console.log(`Found ${optionsData?.length || 0} options for MCQ question ID:`, mcqQuestion.id);
+        
+        const question: MCQQuestion = {
+          id: mcqQuestion.id,
+          type: 'mcq',
+          title: mcqQuestion.title,
+          description: mcqQuestion.description,
+          imageUrl: mcqQuestion.image_url,
+          options: optionsData?.map(option => ({
+            id: option.id,
+            text: option.text,
+            isCorrect: option.is_correct
+          })) || [],
+          marks: mcqQuestion.marks
+        };
+        
+        questions.push(question);
+      }
+      
+      // Process Coding Questions
+      for (const codingQuestion of codingQuestionsData || []) {
+        // Get coding languages
+        const { data: languagesData, error: languagesError } = await supabase
+          .from('coding_languages')
+          .select('*')
+          .eq('coding_question_id', codingQuestion.id);
+
+        if (languagesError) {
+          console.error('Failed to load languages for coding question', codingQuestion.id, languagesError);
+          continue;
+        }
+        
+        // Get coding examples
+        const { data: examplesData, error: examplesError } = await supabase
+          .from('coding_examples')
+          .select('*')
+          .eq('coding_question_id', codingQuestion.id)
+          .order('order_index', { ascending: true });
+
+        if (examplesError) {
+          console.error('Failed to load examples for coding question', codingQuestion.id, examplesError);
+          continue;
+        }
+
+        // Get test cases
+        const { data: testCasesData, error: testCasesError } = await supabase
+          .from('test_cases')
+          .select('*')
+          .eq('coding_question_id', codingQuestion.id)
+          .order('order_index', { ascending: true });
+
+        if (testCasesError) {
+          console.error('Failed to load test cases for coding question', codingQuestion.id, testCasesError);
+          continue;
+        }
+
+        // Calculate total marks from test cases
+        const testCaseMarks = testCasesData?.reduce((sum, tc) => sum + (tc.marks || 0), 0) || 0;
+        totalPossibleMarks += testCaseMarks;
+        
+        // Create solution template object
+        const solutionTemplate: Record<string, string> = {};
+        languagesData?.forEach((lang) => {
+          solutionTemplate[lang.coding_lang] = lang.solution_template;
+        });
+        
+        // Get constraints from the first language (they should be the same for all languages)
+        const constraints = languagesData && languagesData.length > 0 
+          ? languagesData[0].constraints || [] 
+          : [];
+
+        // Create the coding question
+        const question: CodeQuestion = {
+          id: codingQuestion.id,
+          assessmentId: assessmentData.id,
+          type: 'code',
+          title: codingQuestion.title,
+          description: codingQuestion.description,
+          examples: examplesData?.map(example => ({
+            input: example.input,
+            output: example.output,
+            explanation: example.explanation,
+          })) || [],
+          constraints: constraints,
+          solutionTemplate,
+          userSolution: {},
+          testCases: testCasesData?.map(testCase => ({
+            id: testCase.id,
+            input: testCase.input,
+            output: testCase.output,
+            marks: testCase.marks,
+            is_hidden: testCase.is_hidden,
+          })) || [],
+          marks: testCaseMarks,
+        };
+
+        questions.push(question);
       }
       
       console.log(`Total questions processed: ${questions.length}`);
       console.log(`Total possible marks: ${totalPossibleMarks}`);
+      
+      // Sort all questions by their order index
+      const allQuestions = questions.sort((a, b) => {
+        const orderA = a.type === 'mcq' 
+          ? mcqQuestionsData?.find(q => q.id === a.id)?.order_index || 0
+          : codingQuestionsData?.find(q => q.id === a.id)?.order_index || 0;
+        
+        const orderB = b.type === 'mcq'
+          ? mcqQuestionsData?.find(q => q.id === b.id)?.order_index || 0
+          : codingQuestionsData?.find(q => q.id === b.id)?.order_index || 0;
+          
+        return orderA - orderB;
+      });
       
       const loadedAssessment: Assessment = {
         id: assessmentData.id,
         code: assessmentData.code,
         name: assessmentData.name,
         instructions: assessmentData.instructions || '',
-        mcqCount: questions.filter(q => q.type === 'mcq').length,
-        codingCount: questions.filter(q => q.type === 'code').length,
+        mcqCount: mcqQuestionsData?.length || 0,
+        codingCount: codingQuestionsData?.length || 0,
         durationMinutes: assessmentData.duration_minutes,
         startTime: assessmentData.start_time,
         endTime: assessmentData.end_time,
-        questions: questions
+        questions: allQuestions
       };
       
       console.log('Setting assessment:', loadedAssessment);
@@ -322,17 +362,10 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           .order('created_at', { ascending: false })
           .limit(1);
           
-        if (submissionError) {
-          console.error('Error finding submission:', submissionError);
-          toast({
-            title: "Error",
-            description: "There was an error finding your submission.",
-            variant: "destructive",
-          });
-          return false;
-        }
-        
-        if (!submissions || submissions.length === 0) {
+        if (submissionError || !submissions || submissions.length === 0) {
+          console.error('Error finding submission to update:', submissionError);
+          
+          // Create a new submission if none exists
           const { data: newSubmission, error: newSubmissionError } = await supabase
             .from('submissions')
             .insert({
@@ -378,14 +411,31 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           ? Math.round((totalMarksObtained / totalPossibleMarks) * 100)
           : 0;
         
+        // Get the latest submission for this assessment
+        const { data: latestSubmission, error: latestSubmissionError } = await supabase
+          .from('submissions')
+          .select('*')
+          .eq('assessment_id', assessment.id)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+          
+        if (latestSubmissionError) {
+          console.error('Error finding latest submission:', latestSubmissionError);
+          return false;
+        }
+        
         const { error: resultError } = await supabase
           .from('results')
           .insert({
             user_id: user.id,
             assessment_id: assessment.id,
+            submission_id: latestSubmission.id,
             total_score: totalMarksObtained,
             total_marks: totalPossibleMarks,
             percentage: percentage,
+            is_cheated: fullscreenWarnings >= 3, // Mark as cheated if too many fullscreen violations
             completed_at: new Date().toISOString()
           });
           
@@ -418,107 +468,401 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const answerMCQ = (questionId: string, optionId: string) => {
-    if (!assessment) return;
+  const answerMCQ = async (questionId: string, optionId: string) => {
+    if (!assessment || !user) return;
     
-    setAssessment({
-      ...assessment,
-      questions: assessment.questions.map(q => {
-        if (q.id === questionId && q.type === 'mcq') {
-          return {
-            ...q,
-            selectedOption: optionId
-          };
+    try {
+      // First, get the current submission
+      const { data: submissions, error: submissionError } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('assessment_id', assessment.id)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+        
+      if (submissionError || !submissions || submissions.length === 0) {
+        console.error('Error finding submission:', submissionError);
+        
+        // Create a new submission if none exists
+        const { data: newSubmission, error: newSubmissionError } = await supabase
+          .from('submissions')
+          .insert({
+            assessment_id: assessment.id,
+            user_id: user.id,
+            started_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+          
+        if (newSubmissionError) {
+          console.error('Error creating submission:', newSubmissionError);
+          toast({
+            title: "Error",
+            description: "There was an error recording your answer.",
+            variant: "destructive",
+          });
+          return;
         }
-        return q;
-      })
-    });
-    
-    const updatedAssessment = {
-      ...assessment,
-      questions: assessment.questions.map(q => {
-        if (q.id === questionId && q.type === 'mcq') {
-          return {
-            ...q,
-            selectedOption: optionId
-          };
-        }
-        return q;
-      })
-    };
-    
-    let newTotalMarksObtained = 0;
-    
-    updatedAssessment.questions.forEach(q => {
-      if (q.type === 'mcq' && q.selectedOption) {
-        const option = q.options.find(opt => opt.id === q.selectedOption);
-        if (option?.isCorrect) {
-          newTotalMarksObtained += q.marks || 1;
-        }
-      } else if (q.type === 'code' && q.marksObtained) {
-        newTotalMarksObtained += q.marksObtained;
+        
+        // Use the new submission
+        var submissionId = newSubmission.id;
+      } else {
+        var submissionId = submissions[0].id;
       }
-    });
-    
-    setTotalMarksObtained(newTotalMarksObtained);
-  };
-
-  const updateCodeSolution = (questionId: string, language: string, code: string) => {
-    if (!assessment) return;
-    
-    setAssessment({
-      ...assessment,
-      questions: assessment.questions.map(q => {
-        if (q.id === questionId && q.type === 'code') {
-          return {
-            ...q,
-            userSolution: {
-              ...q.userSolution,
-              [language]: code
-            }
-          };
+      
+      // Check if the selected option is correct
+      const { data: option, error: optionError } = await supabase
+        .from('mcq_options')
+        .select('*')
+        .eq('id', optionId)
+        .single();
+        
+      if (optionError) {
+        console.error('Error finding option:', optionError);
+        toast({
+          title: "Error",
+          description: "There was an error processing your answer.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Check if there's an existing question submission
+      const { data: existingSubmission, error: existingSubmissionError } = await supabase
+        .from('question_submissions')
+        .select('*')
+        .eq('submission_id', submissionId)
+        .eq('question_type', 'mcq')
+        .eq('question_id', questionId);
+        
+      if (existingSubmissionError) {
+        console.error('Error checking existing submission:', existingSubmissionError);
+        toast({
+          title: "Error",
+          description: "There was an error processing your answer.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Get the question marks
+      const { data: question, error: questionError } = await supabase
+        .from('mcq_questions')
+        .select('marks')
+        .eq('id', questionId)
+        .single();
+        
+      if (questionError) {
+        console.error('Error finding question marks:', questionError);
+        return;
+      }
+      
+      const marksObtained = option.is_correct ? (question.marks || 0) : 0;
+      
+      if (existingSubmission && existingSubmission.length > 0) {
+        // Update existing submission
+        const { error: updateError } = await supabase
+          .from('question_submissions')
+          .update({
+            mcq_option_id: optionId,
+            marks_obtained: marksObtained,
+            is_correct: option.is_correct
+          })
+          .eq('id', existingSubmission[0].id);
+          
+        if (updateError) {
+          console.error('Error updating question submission:', updateError);
+          toast({
+            title: "Error",
+            description: "There was an error updating your answer.",
+            variant: "destructive",
+          });
+          return;
         }
-        return q;
-      })
-    });
+      } else {
+        // Create new submission
+        const { error: insertError } = await supabase
+          .from('question_submissions')
+          .insert({
+            submission_id: submissionId,
+            question_type: 'mcq',
+            question_id: questionId,
+            mcq_option_id: optionId,
+            marks_obtained: marksObtained,
+            is_correct: option.is_correct
+          });
+          
+        if (insertError) {
+          console.error('Error inserting question submission:', insertError);
+          toast({
+            title: "Error",
+            description: "There was an error recording your answer.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+      
+      // Update local state
+      setAssessment({
+        ...assessment,
+        questions: assessment.questions.map(q => {
+          if (q.id === questionId && q.type === 'mcq') {
+            return {
+              ...q,
+              selectedOption: optionId
+            };
+          }
+          return q;
+        })
+      });
+      
+      // Recalculate total marks obtained
+      const updatedAssessment = {
+        ...assessment,
+        questions: assessment.questions.map(q => {
+          if (q.id === questionId && q.type === 'mcq') {
+            return {
+              ...q,
+              selectedOption: optionId
+            };
+          }
+          return q;
+        })
+      };
+      
+      // Update the total marks obtained in state
+      calculateTotalMarks(updatedAssessment);
+      
+      toast({
+        title: "Answer Recorded",
+        description: "Your answer has been saved.",
+      });
+    } catch (error) {
+      console.error('Error answering MCQ:', error);
+      toast({
+        title: "Error",
+        description: "There was an error processing your answer.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const updateMarksObtained = (questionId: string, marks: number) => {
-    if (!assessment) return;
+  // Helper function to calculate total marks obtained
+  const calculateTotalMarks = async (currentAssessment: Assessment) => {
+    if (!user || !currentAssessment) return;
     
-    setAssessment({
-      ...assessment,
-      questions: assessment.questions.map(q => {
-        if (q.id === questionId) {
-          if (q.type === 'code') {
+    try {
+      // Get the current submission
+      const { data: submissions, error: submissionError } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('assessment_id', currentAssessment.id)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+        
+      if (submissionError || !submissions || submissions.length === 0) {
+        console.error('Error finding submission for marks calculation:', submissionError);
+        return;
+      }
+      
+      // Get all question submissions
+      const { data: questionSubmissions, error: questionsError } = await supabase
+        .from('question_submissions')
+        .select('*')
+        .eq('submission_id', submissions[0].id);
+        
+      if (questionsError) {
+        console.error('Error fetching question submissions:', questionsError);
+        return;
+      }
+      
+      // Calculate total marks obtained
+      const total = questionSubmissions?.reduce((sum, qs) => sum + (qs.marks_obtained || 0), 0) || 0;
+      console.log(`Total marks calculated from submissions: ${total}`);
+      
+      setTotalMarksObtained(total);
+    } catch (error) {
+      console.error('Error calculating marks:', error);
+    }
+  };
+
+  const updateCodeSolution = async (questionId: string, language: string, code: string) => {
+    if (!assessment || !user) return;
+    
+    try {
+      // First, get the current submission
+      const { data: submissions, error: submissionError } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('assessment_id', assessment.id)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+        
+      if (submissionError || !submissions || submissions.length === 0) {
+        console.error('Error finding submission:', submissionError);
+        
+        // Create a new submission if none exists
+        const { data: newSubmission, error: newSubmissionError } = await supabase
+          .from('submissions')
+          .insert({
+            assessment_id: assessment.id,
+            user_id: user.id,
+            started_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+          
+        if (newSubmissionError) {
+          console.error('Error creating submission:', newSubmissionError);
+          return;
+        }
+        
+        // Use the new submission
+        var submissionId = newSubmission.id;
+      } else {
+        var submissionId = submissions[0].id;
+      }
+      
+      // Check if there's an existing question submission
+      const { data: existingSubmission, error: existingSubmissionError } = await supabase
+        .from('question_submissions')
+        .select('*')
+        .eq('submission_id', submissionId)
+        .eq('question_type', 'code')
+        .eq('question_id', questionId);
+        
+      if (existingSubmissionError) {
+        console.error('Error checking existing code submission:', existingSubmissionError);
+        return;
+      }
+      
+      if (existingSubmission && existingSubmission.length > 0) {
+        // Update existing submission
+        const { error: updateError } = await supabase
+          .from('question_submissions')
+          .update({
+            code_solution: code,
+            language: language
+          })
+          .eq('id', existingSubmission[0].id);
+          
+        if (updateError) {
+          console.error('Error updating code submission:', updateError);
+          return;
+        }
+      } else {
+        // Create new submission
+        const { error: insertError } = await supabase
+          .from('question_submissions')
+          .insert({
+            submission_id: submissionId,
+            question_type: 'code',
+            question_id: questionId,
+            code_solution: code,
+            language: language,
+            marks_obtained: 0
+          });
+          
+        if (insertError) {
+          console.error('Error inserting code submission:', insertError);
+          return;
+        }
+      }
+      
+      // Update local state
+      setAssessment({
+        ...assessment,
+        questions: assessment.questions.map(q => {
+          if (q.id === questionId && q.type === 'code') {
+            return {
+              ...q,
+              userSolution: {
+                ...q.userSolution,
+                [language]: code
+              }
+            };
+          }
+          return q;
+        })
+      });
+    } catch (error) {
+      console.error('Error saving code solution:', error);
+      toast({
+        title: "Error",
+        description: "There was an error saving your code.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateMarksObtained = async (questionId: string, marks: number) => {
+    if (!assessment || !user) return;
+    
+    try {
+      // Get the current submission
+      const { data: submissions, error: submissionError } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('assessment_id', assessment.id)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+        
+      if (submissionError || !submissions || submissions.length === 0) {
+        console.error('Error finding submission for marks update:', submissionError);
+        return;
+      }
+      
+      // Update the question submission
+      const { data: questionSubmission, error: questionError } = await supabase
+        .from('question_submissions')
+        .select('*')
+        .eq('submission_id', submissions[0].id)
+        .eq('question_type', 'code')
+        .eq('question_id', questionId)
+        .single();
+        
+      if (questionError) {
+        console.error('Error finding question submission:', questionError);
+        return;
+      }
+      
+      // Update marks
+      const { error: updateError } = await supabase
+        .from('question_submissions')
+        .update({
+          marks_obtained: marks
+        })
+        .eq('id', questionSubmission.id);
+        
+      if (updateError) {
+        console.error('Error updating marks:', updateError);
+        return;
+      }
+      
+      // Update local state
+      setAssessment({
+        ...assessment,
+        questions: assessment.questions.map(q => {
+          if (q.id === questionId && q.type === 'code') {
             return {
               ...q,
               marksObtained: marks
             };
           }
-        }
-        return q;
-      })
-    });
-    
-    let newTotalMarksObtained = 0;
-    
-    assessment.questions.forEach(q => {
-      if (q.type === 'mcq' && q.selectedOption) {
-        const option = q.options.find(opt => opt.id === q.selectedOption);
-        if (option?.isCorrect) {
-          newTotalMarksObtained += q.marks || 1;
-        }
-      } else if (q.type === 'code') {
-        if (q.id === questionId) {
-          newTotalMarksObtained += marks;
-        } else if (q.marksObtained) {
-          newTotalMarksObtained += q.marksObtained;
-        }
-      }
-    });
-    
-    setTotalMarksObtained(newTotalMarksObtained);
+          return q;
+        })
+      });
+      
+      // Recalculate total marks
+      calculateTotalMarks(assessment);
+    } catch (error) {
+      console.error('Error updating marks:', error);
+    }
   };
 
   const addFullscreenWarning = () => {
@@ -527,11 +871,13 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   
   const checkReattemptAvailability = async (assessmentId: string) => {
     try {
+      if (!user) return false;
+      
       const { data: existingResults, error: resultsError } = await supabase
         .from('results')
         .select('*')
         .eq('assessment_id', assessmentId)
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
 
       if (resultsError) {
         console.error('Error checking previous attempts:', resultsError);

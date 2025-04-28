@@ -157,7 +157,7 @@ export type Database = {
           created_at: string | null
           id: string
           question_id: string
-          solution_template: Json
+          solution_template: string
         }
         Insert: {
           coding_lang: string
@@ -165,7 +165,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           question_id: string
-          solution_template?: Json
+          solution_template: string
         }
         Update: {
           coding_lang?: string
@@ -173,7 +173,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           question_id?: string
-          solution_template?: Json
+          solution_template?: string
         }
         Relationships: [
           {

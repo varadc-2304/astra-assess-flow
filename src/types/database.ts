@@ -1,50 +1,16 @@
-export interface TestCase {
+
+export interface Auth {
   id: string;
-  question_id: string;
-  input: string;
-  output: string;
-  order_index: number;
-  marks: number; // Existing field, now explicitly typed
-  is_hidden: boolean; // New field added
-  created_at: string | null;
-}
-
-// Make sure required fields match Supabase schema
-export interface Submission {
-  id?: string;
-  user_id: string;
-  assessment_id: string; // Required field
-  started_at: string;
-  completed_at?: string | null;
-  is_terminated?: boolean | null;
-  fullscreen_violations?: number | null;
-  created_at?: string | null;
-}
-
-// Make sure required fields match Supabase schema
-export interface Answer {
-  id?: string;
-  submission_id: string; // Required field
-  question_id: string; // Required field
-  mcq_option_id?: string | null;
-  code_solution?: string | null;
-  language?: string | null;
-  marks_obtained: number;
-  is_correct: boolean | null;
-  test_results?: any;
-  created_at?: string | null;
-}
-
-// Make sure required fields match Supabase schema
-export interface Result {
-  id?: string;
-  user_id: string; // Required field
-  assessment_id: string; // Required field
-  total_score: number;
-  total_marks: number;
-  percentage: number;
-  completed_at: string; // Required field
-  created_at?: string | null;
+  email: string;
+  password: string;
+  name: string | null;
+  role: 'admin' | 'student';
+  prn: string | null;
+  year: string | null;
+  department: string | null;
+  division: string | null;
+  batch: string | null;
+  created_at: string;
 }
 
 export interface Assessment {
@@ -56,35 +22,106 @@ export interface Assessment {
   start_time: string;
   end_time: string | null;
   created_by: string | null;
+  reattempt: boolean;
+  status: string | null;
   created_at: string | null;
 }
 
-export interface Question {
+export interface MCQQuestion {
   id: string;
   assessment_id: string;
-  type: 'mcq' | 'code';
   title: string;
   description: string;
   image_url: string | null;
   marks: number;
   order_index: number;
-  created_at: string | null;
+  created_at: string;
 }
 
 export interface MCQOption {
   id: string;
-  question_id: string;
+  mcq_question_id: string;
   text: string;
   is_correct: boolean;
   order_index: number;
-  created_at: string | null;
+  created_at: string;
 }
 
 export interface CodingQuestion {
   id: string;
-  question_id: string;
-  coding_lang: string; // Single language for this row
+  assessment_id: string;
+  title: string;
+  description: string;
+  image_url: string | null;
+  marks: number;
+  order_index: number;
+  created_at: string;
+}
+
+export interface CodingLanguage {
+  id: string;
+  coding_question_id: string;
+  coding_lang: string;
+  solution_template: string;
   constraints: string[];
-  solution_template: string; // Changed from Record/json to plain string
-  created_at: string | null;
+  created_at: string;
+}
+
+export interface CodingExample {
+  id: string;
+  coding_question_id: string;
+  input: string;
+  output: string;
+  explanation: string | null;
+  order_index: number;
+  created_at: string;
+}
+
+export interface TestCase {
+  id: string;
+  coding_question_id: string;
+  input: string;
+  output: string;
+  marks: number;
+  is_hidden: boolean;
+  order_index: number;
+  created_at: string;
+}
+
+export interface Submission {
+  id: string;
+  user_id: string;
+  assessment_id: string;
+  started_at: string;
+  completed_at: string | null;
+  is_terminated: boolean | null;
+  fullscreen_violations: number | null;
+  created_at: string;
+}
+
+export interface QuestionSubmission {
+  id: string;
+  submission_id: string;
+  question_type: 'mcq' | 'code';
+  question_id: string;
+  mcq_option_id: string | null;
+  code_solution: string | null;
+  language: string | null;
+  marks_obtained: number;
+  is_correct: boolean | null;
+  test_results: any | null;
+  created_at: string;
+}
+
+export interface Result {
+  id: string;
+  user_id: string;
+  assessment_id: string;
+  submission_id: string;
+  total_score: number;
+  total_marks: number;
+  percentage: number;
+  is_cheated: boolean | null;
+  completed_at: string;
+  created_at: string;
 }

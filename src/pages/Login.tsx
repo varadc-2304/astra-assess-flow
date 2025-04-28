@@ -1,88 +1,144 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
+import { School, Briefcase } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const { login, isLoading } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login } = useAuth();
   const navigate = useNavigate();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
+  
+  const handleLogin = async (role: 'student' | 'admin') => {
+    setIsSubmitting(true);
     try {
-      await login(email, password);
-      // Redirect happens via route protection in App.tsx
+      await login(email, password, role);
+      navigate(role === 'admin' ? '/admin' : '/student');
     } catch (error) {
-      setError('Invalid email or password');
+      // Error is already handled in the Auth context
+      console.error('Login error', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 animate-gradient py-12 px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center">
-          <h1 className="gradient-text text-5xl font-bold mb-2 tracking-tight">Yudha</h1>
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="w-full max-w-md p-4">
+        <div className="text-center mb-6">
+          <h1 className="text-3xl font-bold mb-2">AstraAssessments</h1>
+          <p className="text-gray-500">Login to access your assessments</p>
         </div>
-
-        <Card className="glass-card">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">Sign In</CardTitle>
-            <CardDescription className="text-center">
-              Enter your credentials to access your account
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="email@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-white/50 backdrop-blur-sm border-gray-200 focus:border-astra-red focus:ring-astra-red/10"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-white/50 backdrop-blur-sm border-gray-200 focus:border-astra-red focus:ring-astra-red/10"
-                    required
-                  />
-                </div>
-              </div>
-              {error && (
-                <div className="text-red-500 text-sm text-center">{error}</div>
-              )}
-              <Button
-                type="submit"
-                className="w-full bg-gradient-to-r from-astra-red to-red-500 hover:from-red-600 hover:to-red-700 text-white shadow-lg transition-all duration-200 hover:shadow-xl disabled:opacity-50"
-                disabled={isLoading}
-              >
-                {isLoading ? 'Signing in...' : 'Sign in'}
-              </Button>
-            </form>
-          </CardContent>
-          <CardFooter>
-            <div className="w-full space-y-4">
-              <div className="relative">
-              </div>
-            </div>
-          </CardFooter>
-        </Card>
+        
+        <Tabs defaultValue="student" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="student" className="flex items-center gap-2">
+              <School className="h-4 w-4" />
+              Student
+            </TabsTrigger>
+            <TabsTrigger value="admin" className="flex items-center gap-2">
+              <Briefcase className="h-4 w-4" />
+              Admin
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="student">
+            <Card>
+              <CardHeader>
+                <CardTitle>Student Login</CardTitle>
+                <CardDescription>
+                  Enter your email and password to access your assessments.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={(e) => { e.preventDefault(); handleLogin('student'); }} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="student-email">Email</Label>
+                    <Input 
+                      id="student-email" 
+                      type="email" 
+                      placeholder="your.email@example.com" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="student-password">Password</Label>
+                    <Input 
+                      id="student-password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? 'Logging in...' : 'Login as Student'}
+                  </Button>
+                  
+                  <p className="text-xs text-center text-gray-500 mt-2">
+                    For demo: Use student@example.com / password
+                  </p>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="admin">
+            <Card>
+              <CardHeader>
+                <CardTitle>Admin Login</CardTitle>
+                <CardDescription>
+                  Enter your admin credentials to manage assessments.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={(e) => { e.preventDefault(); handleLogin('admin'); }} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-email">Email</Label>
+                    <Input 
+                      id="admin-email" 
+                      type="email" 
+                      placeholder="admin@example.com" 
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-password">Password</Label>
+                    <Input 
+                      id="admin-password" 
+                      type="password" 
+                      placeholder="••••••••" 
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? 'Logging in...' : 'Login as Admin'}
+                  </Button>
+                  
+                  <p className="text-xs text-center text-gray-500 mt-2">
+                    For demo: Use admin@example.com / password
+                  </p>
+                </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
