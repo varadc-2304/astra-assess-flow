@@ -6,7 +6,6 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Eye, FileCode, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { MCQQuestion, CodingQuestion } from '@/types/database';
 import QuestionViewDialog from './QuestionViewDialog';
 
 interface QuestionListProps {
@@ -54,8 +53,15 @@ const QuestionList: React.FC<QuestionListProps> = ({ assessmentId }) => {
       if (codingError) throw codingError;
       
       // Combine and format the questions
-      const mcqQuestions = (mcqData || []).map(q => ({ ...q, type: 'mcq' as const }));
-      const codingQuestions = (codingData || []).map(q => ({ ...q, type: 'code' as const }));
+      const mcqQuestions: QuestionListItem[] = (mcqData || []).map(q => ({ 
+        ...q, 
+        type: 'mcq' as const 
+      }));
+      
+      const codingQuestions: QuestionListItem[] = (codingData || []).map(q => ({ 
+        ...q, 
+        type: 'code' as const 
+      }));
       
       const allQuestions = [...mcqQuestions, ...codingQuestions].sort((a, b) => a.order_index - b.order_index);
       

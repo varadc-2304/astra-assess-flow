@@ -59,7 +59,7 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
           .single();
 
         if (mcqError) throw mcqError;
-        setMcqQuestion(mcqData);
+        setMcqQuestion(mcqData as MCQQuestion);
         
         // Fetch MCQ options
         const { data: options, error: optionsError } = await supabase
@@ -69,7 +69,7 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
           .order('order_index');
 
         if (optionsError) throw optionsError;
-        setMcqOptions(options || []);
+        setMcqOptions(options as MCQOption[] || []);
         
       } else if (questionType === 'code') {
         // Fetch coding question
@@ -80,7 +80,7 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
           .single();
 
         if (codingError) throw codingError;
-        setCodingQuestion(codingData);
+        setCodingQuestion(codingData as CodingQuestion);
         
         // Fetch coding languages
         const { data: languagesData, error: languagesError } = await supabase
@@ -89,7 +89,7 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
           .eq('coding_question_id', questionId);
 
         if (languagesError) throw languagesError;
-        setCodingLanguages(languagesData || []);
+        setCodingLanguages(languagesData as CodingLanguage[] || []);
         
         // Fetch coding examples
         const { data: examplesData, error: examplesError } = await supabase
@@ -99,7 +99,7 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
           .order('order_index');
 
         if (examplesError) throw examplesError;
-        setCodingExamples(examplesData || []);
+        setCodingExamples(examplesData as CodingExample[] || []);
         
         // Fetch test cases
         const { data: testCasesData, error: testCasesError } = await supabase
@@ -109,7 +109,7 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
           .order('order_index');
 
         if (testCasesError) throw testCasesError;
-        setTestCases(testCasesData || []);
+        setTestCases(testCasesData as TestCase[] || []);
       }
     } catch (error: any) {
       toast({

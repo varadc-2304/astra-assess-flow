@@ -37,38 +37,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const checkAuth = async () => {
       setIsLoading(true);
       try {
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error("Error checking auth session:", sessionError);
-          return;
-        }
-        
-        if (sessionData?.session?.user) {
-          const { data: userData, error: userError } = await supabase
-            .from('auth')
-            .select('*')
-            .eq('id', sessionData.session.user.id)
-            .single();
-            
-          if (userError) {
-            console.error("Error fetching user data:", userError);
-            return;
-          }
-            
-          if (userData) {
-            setUser({
-              id: userData.id,
-              name: userData.name || '',
-              email: userData.email,
-              role: userData.role as UserRole,
-              prn: userData.prn || undefined,
-              year: userData.year || undefined,
-              department: userData.department || undefined,
-              division: userData.division || undefined,
-              batch: userData.batch || undefined,
-            });
-          }
+        // Check if we have user data in localStorage
+        const userData = localStorage.getItem('user');
+        if (userData) {
+          setUser(JSON.parse(userData));
         }
       } catch (error) {
         console.error("Auth check error:", error);
@@ -101,7 +73,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .from('auth')
           .insert({
             email,
-            password, // In a production app, you would hash this password
+            password,
             role,
             name: email.split('@')[0] // Simple name extraction from email
           })
@@ -135,7 +107,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
       if (fetchError) throw fetchError;
       
-      setUser({
+      const userDataObj: UserData = {
         id: userData.id,
         name: userData.name || '',
         email: userData.email,
@@ -145,7 +117,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         department: userData.department || undefined,
         division: userData.division || undefined,
         batch: userData.batch || undefined,
-      });
+      };
+      
+      // Store user in localStorage
+      localStorage.setItem('user', JSON.stringify(userDataObj));
+      setUser(userDataObj);
       
       toast({
         title: "Login successful",
@@ -168,6 +144,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     setIsLoading(true);
     try {
+      // Clear localStorage
+      localStorage.removeItem('user');
       setUser(null);
       toast({
         title: "Logged out",
