@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -143,8 +144,8 @@ const AssessmentPage = () => {
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
-        .eq('assessment_id', assessment.id)
-        .eq('user_id', user?.id)
+        .eq('assessment_id', assessment?.id || '')
+        .eq('user_id', user?.id || '')
         .order('created_at', { ascending: false })
         .limit(1);
       
@@ -165,16 +166,23 @@ const AssessmentPage = () => {
       
       await endAssessment();
       
-      const { error: resultError } = await supabase
-        .from('results')
-        .update({ 
-          contest_name: assessment.name 
-        })
-        .eq('assessment_id', assessment.id)
-        .eq('user_id', user?.id);
-      
-      if (resultError) {
-        console.error('Error updating contest name in results:', resultError);
+      // Update result with contest name if assessment exists
+      if (assessment) {
+        try {
+          const { data: resultData, error: resultError } = await supabase
+            .from('results')
+            .update({ 
+              contest_name: assessment.name 
+            })
+            .eq('assessment_id', assessment.id)
+            .eq('user_id', user?.id || '');
+          
+          if (resultError) {
+            console.error('Error updating contest name in results:', resultError);
+          }
+        } catch (error) {
+          console.error('Error updating contest name:', error);
+        }
       }
       
       toast({

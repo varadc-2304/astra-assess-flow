@@ -1,145 +1,186 @@
-import React from 'react';
+
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { CheckCircle, Trophy, User, FileText, Clock, Award } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { formatDate } from '@/lib/utils';
+import { CheckCircle, BookOpen, Timer, User, ArrowRight, Award } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Result } from '@/types/database';
 
 const SummaryPage = () => {
-  const { assessment, totalMarksObtained, totalPossibleMarks } = useAssessment();
+  const { assessment, assessmentEnded, totalMarksObtained, totalPossibleMarks } = useAssessment();
+  const [result, setResult] = useState<Result | null>(null);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const navigate = useNavigate();
-
-  if (!assessment) {
-    return null;
+  const { toast } = useToast();
+  
+  useEffect(() => {
+    const fetchResult = async () => {
+      if (!user || !assessment) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('results')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('assessment_id', assessment.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (error) {
+          console.error('Error fetching result:', error);
+          return;
+        }
+        
+        setResult(data);
+      } catch (error) {
+        console.error('Error in fetchResult:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchResult();
+  }, [user, assessment]);
+  
+  // Calculate percentage
+  const percentage = totalPossibleMarks > 0 
+    ? Math.round((totalMarksObtained / totalPossibleMarks) * 100) 
+    : 0;
+  
+  // If no assessment or not ended, redirect to student dashboard
+  useEffect(() => {
+    if (!assessment && !loading) {
+      toast({
+        title: "No Assessment Found",
+        description: "Please select an assessment from your dashboard.",
+        variant: "destructive",
+      });
+      navigate('/student');
+    }
+  }, [assessment, loading, navigate, toast]);
+  
+  if (loading || !assessment) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p>Loading result...</p>
+      </div>
+    );
   }
 
-  const percentage = totalPossibleMarks > 0
-    ? Math.round((totalMarksObtained / totalPossibleMarks) * 100)
-    : 0;
-
-  const getGrade = (percent: number) => {
-    if (percent >= 90) return { grade: 'A+', color: 'text-green-600' };
-    if (percent >= 80) return { grade: 'A', color: 'text-green-500' };
-    if (percent >= 70) return { grade: 'B+', color: 'text-blue-600' };
-    if (percent >= 60) return { grade: 'B', color: 'text-blue-500' };
-    if (percent >= 50) return { grade: 'C', color: 'text-yellow-600' };
-    if (percent >= 40) return { grade: 'D', color: 'text-orange-500' };
-    return { grade: 'F', color: 'text-red-500' };
-  };
-
-  const { grade, color } = getGrade(percentage);
-
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-3xl mx-auto px-4">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center p-4 bg-green-100 rounded-full mb-4">
-            <CheckCircle className="h-12 w-12 text-green-500" />
-          </div>
-          <h1 className="text-3xl font-bold mb-2">Assessment Completed</h1>
-          <p className="text-gray-600">Your results are summarized below</p>
-        </div>
+    <div className="container max-w-4xl py-8">
+      <Card className="w-full shadow-md">
+        <CardHeader className="text-center border-b pb-6">
+          <CardTitle className="text-2xl mb-1">Assessment Completed</CardTitle>
+          <CardDescription>
+            Great job! You have successfully completed the assessment.
+          </CardDescription>
+        </CardHeader>
         
-        <Card className="shadow-lg border-0 mb-6">
-          <CardHeader className="bg-gradient-to-r from-astra-red/10 to-astra-red/5">
-            <CardTitle className="text-xl flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-astra-red" />
-              Result Summary
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="grid md:grid-cols-3 gap-6 mb-6">
-              <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg">
-                <div className={`text-4xl font-bold ${color}`}>{grade}</div>
-                <div className="text-sm text-gray-500 mt-1">Grade</div>
+        <CardContent className="pt-6 space-y-6">
+          <div className="text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-2">
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            </div>
+            <h3 className="text-xl font-medium">Your Result</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-medium text-gray-700 mb-1 flex items-center">
+                  <BookOpen className="h-4 w-4 mr-2" />
+                  Assessment Details
+                </h4>
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <div>
+                    <p className="text-sm text-gray-500">Name</p>
+                    <p className="font-medium">{assessment.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Duration</p>
+                    <p>{assessment.duration_minutes} minutes</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Completed On</p>
+                    <p>{result ? formatDate(result.completed_at) : "Just now"}</p>
+                  </div>
+                </div>
               </div>
-              <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-4xl font-bold text-astra-red">{percentage}%</div>
-                <div className="text-sm text-gray-500 mt-1">Score</div>
-              </div>
-              <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-4xl font-bold">{totalMarksObtained}/{totalPossibleMarks}</div>
-                <div className="text-sm text-gray-500 mt-1">Marks</div>
+              
+              <div>
+                <h4 className="font-medium text-gray-700 mb-1 flex items-center">
+                  <User className="h-4 w-4 mr-2" />
+                  Your Information
+                </h4>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Name</p>
+                    <p className="font-medium">{user?.name || user?.email}</p>
+                  </div>
+                </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-        
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card className="shadow border-0">
-            <CardHeader className="bg-gradient-to-r from-gray-100 to-gray-50">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <User className="h-5 w-5 text-gray-700" />
-                Student Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm text-gray-500">Name</h3>
-                  <p className="font-medium">{user?.name || 'N/A'}</p>
+            
+            <div>
+              <h4 className="font-medium text-gray-700 mb-1 flex items-center">
+                <Award className="h-4 w-4 mr-2" />
+                Score Summary
+              </h4>
+              <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                <div className="text-center">
+                  <div className="text-3xl font-bold mb-1">{totalMarksObtained}/{totalPossibleMarks}</div>
+                  <p className="text-gray-500">Total Score</p>
                 </div>
-                <Separator />
-                <div>
-                  <h3 className="text-sm text-gray-500">Email</h3>
-                  <p className="font-medium">{user?.email || 'N/A'}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="shadow border-0">
-            <CardHeader className="bg-gradient-to-r from-gray-100 to-gray-50">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <FileText className="h-5 w-5 text-gray-700" />
-                Assessment Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm text-gray-500">Assessment Name</h3>
-                  <p className="font-medium">{assessment.name}</p>
-                </div>
-                <Separator />
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="text-sm text-gray-500">Code</h3>
-                    <p className="font-medium">{assessment.code}</p>
+                
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-sm">
+                    <span>Your Performance</span>
+                    <span className="font-medium">{percentage}%</span>
                   </div>
-                  <div>
-                    <h3 className="text-sm text-gray-500">Duration</h3>
-                    <p className="font-medium">{assessment.durationMinutes} minutes</p>
-                  </div>
+                  <Progress value={percentage} className="h-2" />
                 </div>
-                <Separator />
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="text-sm text-gray-500">MCQ Questions</h3>
-                    <p className="font-medium">{assessment.mcqCount}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm text-gray-500">Coding Questions</h3>
-                    <p className="font-medium">{assessment.codingCount}</p>
+                
+                <div className="pt-2 border-t mt-4">
+                  <div className="text-center">
+                    {percentage >= 70 ? (
+                      <div className="text-green-600 font-medium flex items-center justify-center">
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Well done!
+                      </div>
+                    ) : percentage >= 40 ? (
+                      <div className="text-amber-600 font-medium">
+                        Good effort!
+                      </div>
+                    ) : (
+                      <div className="text-red-600 font-medium">
+                        Keep practicing!
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </div>
+        </CardContent>
         
-        <div className="text-center mt-8">
-          <Button 
-            onClick={() => navigate('/student')}
-            className="bg-astra-red hover:bg-red-600 text-white"
-          >
+        <CardFooter className="border-t pt-6 flex justify-between items-center">
+          <Button variant="outline" onClick={() => navigate('/student')}>
             Back to Dashboard
           </Button>
-        </div>
-      </div>
+          <div className="text-sm text-gray-500">
+            Thank you for completing the assessment!
+          </div>
+        </CardFooter>
+      </Card>
     </div>
   );
 };

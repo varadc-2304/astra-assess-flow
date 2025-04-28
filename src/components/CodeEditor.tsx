@@ -15,7 +15,7 @@ import { createSubmission, waitForSubmissionResult } from '@/services/judge0Serv
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { QuestionSubmission, TestCase, TestResult } from '@/types/database';
+import { QuestionSubmission, TestCase, TestResult, Json } from '@/types/database';
 import Editor from '@monaco-editor/react';
 
 interface CodeEditorProps {
@@ -329,6 +329,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           }
 
           // Create the submission data object with all required fields
+          // Convert TestResult[] to Json compatible format
+          const jsonTestResults: Json = finalResults.map(result => ({
+            passed: result.passed,
+            actualOutput: result.actualOutput || null,
+            marks: result.marks || 0,
+            isHidden: result.isHidden || false
+          }));
+
           const questionSubmissionData = {
             submission_id: submissionId,
             question_id: question.id,
@@ -337,7 +345,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             language: selectedLanguage,
             is_correct: allPassed,
             marks_obtained: totalMarksEarned,
-            test_results: finalResults
+            test_results: jsonTestResults
           };
 
           if (existingSubmission && existingSubmission.length > 0) {

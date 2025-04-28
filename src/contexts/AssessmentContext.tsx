@@ -59,7 +59,8 @@ export type CodeQuestion = {
 
 export type Question = MCQQuestion | CodeQuestion;
 
-export interface AssessmentWithQuestions extends DBAssessment {
+// Update interface to match Assessment properties correctly
+export interface AssessmentWithQuestions extends Omit<DBAssessment, 'questions'> {
   questions: Question[];
   mcqCount: number;
   codingCount: number;
@@ -594,21 +595,25 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Update local state
-      setAssessment({
-        ...assessment,
-        questions: assessment.questions.map(q => {
-          if (q.id === questionId && q.type === 'mcq') {
-            return {
-              ...q,
-              selectedOption: optionId
-            };
-          }
-          return q;
-        })
+      setAssessment((prevAssessment) => {
+        if (!prevAssessment) return null;
+        
+        return {
+          ...prevAssessment,
+          questions: prevAssessment.questions.map(q => {
+            if (q.id === questionId && q.type === 'mcq') {
+              return {
+                ...q,
+                selectedOption: optionId
+              };
+            }
+            return q;
+          })
+        };
       });
       
       // Recalculate total marks obtained
-      const updatedAssessment = {
+      const updatedAssessment = assessment ? {
         ...assessment,
         questions: assessment.questions.map(q => {
           if (q.id === questionId && q.type === 'mcq') {
@@ -619,10 +624,12 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           }
           return q;
         })
-      };
+      } : null;
       
       // Update the total marks obtained in state
-      calculateTotalMarks(updatedAssessment);
+      if (updatedAssessment) {
+        calculateTotalMarks(updatedAssessment);
+      }
       
       toast({
         title: "Answer Recorded",
@@ -762,20 +769,24 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Update local state
-      setAssessment({
-        ...assessment,
-        questions: assessment.questions.map(q => {
-          if (q.id === questionId && q.type === 'code') {
-            return {
-              ...q,
-              userSolution: {
-                ...q.userSolution,
-                [language]: code
-              }
-            };
-          }
-          return q;
-        })
+      setAssessment((prevAssessment) => {
+        if (!prevAssessment) return null;
+        
+        return {
+          ...prevAssessment,
+          questions: prevAssessment.questions.map(q => {
+            if (q.id === questionId && q.type === 'code') {
+              return {
+                ...q,
+                userSolution: {
+                  ...q.userSolution,
+                  [language]: code
+                }
+              };
+            }
+            return q;
+          })
+        };
       });
     } catch (error) {
       console.error('Error saving code solution:', error);
@@ -833,21 +844,27 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Update local state
-      setAssessment({
-        ...assessment,
-        questions: assessment.questions.map(q => {
-          if (q.id === questionId && q.type === 'code') {
-            return {
-              ...q,
-              marksObtained: marks
-            };
-          }
-          return q;
-        })
+      setAssessment((prevAssessment) => {
+        if (!prevAssessment) return null;
+        
+        return {
+          ...prevAssessment,
+          questions: prevAssessment.questions.map(q => {
+            if (q.id === questionId && q.type === 'code') {
+              return {
+                ...q,
+                marksObtained: marks
+              };
+            }
+            return q;
+          })
+        };
       });
       
       // Recalculate total marks
-      calculateTotalMarks(assessment);
+      if (assessment) {
+        calculateTotalMarks(assessment);
+      }
     } catch (error) {
       console.error('Error updating marks:', error);
     }

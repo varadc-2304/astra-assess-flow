@@ -122,7 +122,7 @@ export interface QuestionSubmission {
   language?: string | null;
   marks_obtained: number;
   is_correct: boolean | null;
-  test_results?: any | null;
+  test_results?: Json | null;
   created_at?: string;
 }
 
@@ -143,10 +143,11 @@ export interface Result {
 // Define Json type for consistency with Supabase
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-// Define TestResult type
+// Define TestResult type - making it JSON compatible
 export interface TestResult {
   passed: boolean;
   actualOutput?: string;
   marks?: number;
   isHidden?: boolean;
+  [key: string]: Json | undefined; // Add index signature to make it compatible with Json type
 }

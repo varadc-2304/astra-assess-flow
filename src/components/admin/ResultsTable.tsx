@@ -66,8 +66,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
               name,
               code
             )
-          `)
-          .order('completed_at', { ascending: false });
+          `);
         
         if (resultsError) throw resultsError;
         
@@ -81,14 +80,13 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         
         const { data: usersData, error: usersError } = await supabase
           .from('auth')
-          .select('id, name, email, role, year, department, division, batch')
-          .in('id', userIds);
+          .select('id, name, email, role, year, department, division, batch');
         
         if (usersError) {
           console.error('Error fetching user details:', usersError);
         }
         
-        const userMap: Record<string, Auth> = {};
+        const userMap: Record<string, Partial<Auth>> = {};
         if (usersData) {
           usersData.forEach(user => {
             if (user.id) {
@@ -97,10 +95,10 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           });
         }
         
-        let transformedData: Student[] = resultsData.map((result) => {
-          const userDetails = userMap[result.user_id];
+        let transformedData: Student[] = resultsData.map((result: any) => {
+          const userDetails = userMap[result.user_id] || {};
           const assessment = result.assessments;
-          const assessmentName = result.contest_name || assessment?.name || 'Unknown Assessment';
+          const assessmentName = result.contest_name || (assessment?.name || 'Unknown Assessment');
           
           const userName = userDetails?.name || 'Unknown User';
           const userEmail = userDetails?.email || 'unknown@example.com';

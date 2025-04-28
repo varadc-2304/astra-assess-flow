@@ -1,383 +1,300 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, FileDown, Filter } from 'lucide-react';
-import ResultsTable from '@/components/admin/ResultsTable';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Download, Flag, Trophy } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import ResultsTable from '@/components/admin/ResultsTable';
+import RoleGuard from '@/components/RoleGuard';
 
-interface UserFilters {
+interface FilterOptions {
   assessment: string;
-  year: string;
-  department: string;
-  division: string;
-  batch: string;
   searchQuery: string;
 }
 
 const ResultsPage = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState('all');
-  const [filters, setFilters] = useState<UserFilters>({
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
     assessment: 'all',
+    searchQuery: '',
+  });
+  const [assessments, setAssessments] = useState<Array<{id: string, name: string}>>([]);
+  const [filters, setFilters] = useState<any>({
     year: 'all',
     department: 'all',
     division: 'all',
     batch: 'all',
-    searchQuery: ''
   });
-  const [isExporting, setIsExporting] = useState(false);
-  const [assessmentOptions, setAssessmentOptions] = useState<{ name: string }[]>([]);
-  const [yearOptions, setYearOptions] = useState<string[]>([]);
-  const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
-  const [divisionOptions, setDivisionOptions] = useState<string[]>([]);
-  const [batchOptions, setBatchOptions] = useState<string[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
-    const fetchOptions = async () => {
+    const fetchAssessments = async () => {
       try {
-        // Fetch unique assessment names from assessments table
-        const { data: assessmentsData, error: assessmentsError } = await supabase
+        const { data: assessmentData, error: assessmentError } = await supabase
           .from('assessments')
-          .select('name')
-          .order('name');
+          .select('id, name, contest_name');
         
-        if (assessmentsError) {
-          console.error('Error fetching assessments:', assessmentsError);
-          return;
-        }
-
-        // Extract unique assessment names
-        const uniqueAssessmentNames = new Set<string>();
-        if (assessmentsData) {
-          assessmentsData.forEach(item => {
-            if (item.name) {
-              uniqueAssessmentNames.add(item.name);
-            }
-          });
-        }
+        if (assessmentError) throw assessmentError;
         
-        // Fetch unique values for other filters from auth table
+        const uniqueAssessments = Array.from(new Set(assessmentData?.map(a => a.name || a.contest_name || 'Unknown')));
+        
+        setAssessments(
+          uniqueAssessments.map((name) => ({
+            id: name as string,
+            name: name as string,
+          }))
+        );
+        
+        // Fetch filter options (years, departments, etc.)
         const { data: authData, error: authError } = await supabase
           .from('auth')
-          .select('year, department, division, batch');
-
+          .select('year, department, division, batch')
+          .eq('role', 'student');
+        
         if (authError) {
-          console.error('Error fetching user details:', authError);
+          console.error('Error fetching student data:', authError);
           return;
         }
-
-        const uniqueYears = new Set<string>();
-        const uniqueDepartments = new Set<string>();
-        const uniqueDivisions = new Set<string>();
-        const uniqueBatches = new Set<string>();
-
-        authData?.forEach(user => {
-          if (user.year) uniqueYears.add(user.year);
-          if (user.department) uniqueDepartments.add(user.department);
-          if (user.division) uniqueDivisions.add(user.division);
-          if (user.batch) uniqueBatches.add(user.batch);
-        });
-
-        setAssessmentOptions(Array.from(uniqueAssessmentNames).map(name => ({ name })));
-        setYearOptions(Array.from(uniqueYears));
-        setDepartmentOptions(Array.from(uniqueDepartments));
-        setDivisionOptions(Array.from(uniqueDivisions));
-        setBatchOptions(Array.from(uniqueBatches));
-
-      } catch (error) {
-        console.error('Error fetching options:', error);
-      }
-    };
-
-    fetchOptions();
-  }, []);
-
-  const handleFilterChange = (key: string, value: string) => {
-    setFilters({
-      ...filters,
-      [key]: value
-    });
-  };
-
-  const exportToCSV = async () => {
-    try {
-      setIsExporting(true);
-
-      // Fetch results based on filters
-      let query = supabase.from('results').select(`
-        id,
-        user_id,
-        assessment_id,
-        total_score,
-        total_marks,
-        percentage,
-        completed_at,
-        is_cheated
-      `);
-
-      // Apply assessment filter if not set to 'all'
-      if (filters.assessment && filters.assessment !== 'all') {
-        // We need to join with assessments to filter by name
-        const { data: assessmentData } = await supabase
-          .from('assessments')
-          .select('id')
-          .eq('name', filters.assessment)
-          .single();
+        
+        if (authData) {
+          const years = Array.from(new Set(authData.map(s => s.year || 'Unknown'))).filter(Boolean);
+          const departments = Array.from(new Set(authData.map(s => s.department || 'Unknown'))).filter(Boolean);
+          const divisions = Array.from(new Set(authData.map(s => s.division || 'Unknown'))).filter(Boolean);
+          const batches = Array.from(new Set(authData.map(s => s.batch || 'Unknown'))).filter(Boolean);
           
-        if (assessmentData) {
-          query = query.eq('assessment_id', assessmentData.id);
+          setFilters({
+            year: 'all',
+            department: 'all',
+            division: 'all',
+            batch: 'all',
+            yearOptions: ['all', ...years],
+            departmentOptions: ['all', ...departments],
+            divisionOptions: ['all', ...divisions],
+            batchOptions: ['all', ...batches],
+          });
         }
-      }
-
-      const { data: resultsData, error: resultsError } = await query;
-
-      if (resultsError) throw resultsError;
-      
-      if (!resultsData || resultsData.length === 0) {
+      } catch (error) {
+        console.error('Error fetching assessments:', error);
         toast({
-          title: "No data to export",
-          description: "There are no results matching your filter criteria",
+          title: "Error",
+          description: "Failed to load assessments",
           variant: "destructive"
         });
-        return;
       }
+    };
+    
+    fetchAssessments();
+  }, [toast]);
 
-      // Fetch user data for each result
-      const csvData = [];
+  const handleFilterChange = (key: string, value: string) => {
+    setFilterOptions(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const handleDownloadCSV = async () => {
+    try {
+      // Fetch the filtered results
+      const { data: results, error: resultsError } = await supabase
+        .from('results')
+        .select(`
+          id,
+          user_id, 
+          assessment_id,
+          total_score,
+          total_marks,
+          percentage,
+          completed_at,
+          is_cheated,
+          assessments:assessment_id (name)
+        `);
+        
+      if (resultsError) throw resultsError;
       
-      for (const result of resultsData) {
-        const { data: userData } = await supabase
-          .from('auth')
-          .select('name, email, department, year, division, batch')
-          .eq('id', result.user_id)
-          .single();
-          
-        // Get assessment name
-        const { data: assessmentData } = await supabase
-          .from('assessments')
-          .select('name')
-          .eq('id', result.assessment_id)
-          .single();
-
-        csvData.push({
-          "Student Name": userData?.name || "Unknown",
-          "Email": userData?.email || "unknown@example.com",
-          "Year": userData?.year || "N/A",
-          "Department": userData?.department || "N/A",
-          "Division": userData?.division || "N/A",
-          "Batch": userData?.batch || "N/A",
-          "Assessment": assessmentData?.name || "Unknown",
-          "Score": result.total_score,
-          "Total Marks": result.total_marks,
-          "Percentage": result.percentage,
-          "Status": result.is_cheated ? "Terminated" : "Completed",
-          "Completion Time": new Date(result.completed_at).toLocaleString()
+      // Fetch user data
+      const { data: users, error: usersError } = await supabase
+        .from('auth')
+        .select('id, name, email, prn, year, department, division, batch');
+        
+      if (usersError) throw usersError;
+      
+      // Map user data to results
+      interface CsvRow {
+        [key: string]: string | number | boolean | null;
+      }
+      
+      const csvData: CsvRow[] = results.map((result: any) => {
+        const user = users.find((u: any) => u.id === result.user_id) || {};
+        
+        return {
+          Name: user.name || 'Unknown',
+          Email: user.email || 'Unknown',
+          PRN: user.prn || 'Unknown',
+          Year: user.year || 'Unknown',
+          Department: user.department || 'Unknown',
+          Division: user.division || 'Unknown',
+          Batch: user.batch || 'Unknown',
+          Assessment: (result.assessments?.name) || 'Unknown',
+          Score: `${result.total_score}/${result.total_marks}`,
+          Percentage: `${result.percentage}%`,
+          CompletedAt: new Date(result.completed_at).toLocaleString(),
+          Flagged: result.is_cheated ? 'Yes' : 'No'
+        };
+      });
+      
+      // Filter the data based on current filters
+      let filteredData = [...csvData];
+      
+      if (filterOptions.assessment !== 'all') {
+        filteredData = filteredData.filter(row => row.Assessment === filterOptions.assessment);
+      }
+      
+      if (filterOptions.searchQuery) {
+        const query = filterOptions.searchQuery.toLowerCase();
+        filteredData = filteredData.filter(row => {
+          return (
+            String(row.Name).toLowerCase().includes(query) ||
+            String(row.Email).toLowerCase().includes(query) ||
+            String(row.PRN).toLowerCase().includes(query)
+          );
         });
       }
-
-      // Create and download CSV
-      const headers = Object.keys(csvData[0]);
-      const csvContent = [
-        headers.join(','),
-        ...csvData.map(row => headers.map(header => 
-          JSON.stringify(row[header as keyof typeof row])
-        ).join(','))
-      ].join('\n');
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `assessment_results_${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      
+      // Convert to CSV
+      const headers = Object.keys(filteredData[0] || {}).join(',');
+      const rows = filteredData.map(row => {
+        return Object.values(row).map(value => {
+          // Wrap strings in quotes and handle special characters
+          if (typeof value === 'string') {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value;
+        }).join(',');
+      });
+      
+      const csv = [headers, ...rows].join('\n');
+      
+      // Create download link
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.setAttribute('hidden', '');
+      a.setAttribute('href', url);
+      a.setAttribute('download', 'assessment_results.csv');
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
       
       toast({
         title: "Success",
-        description: "Results exported successfully",
+        description: "Results downloaded successfully",
       });
-
     } catch (error) {
-      console.error("CSV export error:", error);
+      console.error('Error downloading results:', error);
       toast({
         title: "Error",
-        description: "Failed to export results",
+        description: "Failed to download results",
         variant: "destructive"
       });
-    } finally {
-      setIsExporting(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <header className="bg-white border-b border-gray-200 py-4 px-6 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/admin')}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold text-astra-red">Yudha</h1>
-              <p className="text-sm text-gray-600">Results Dashboard</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm">Admin: {user?.name}</span>
-            <Button 
-              onClick={exportToCSV} 
-              disabled={isExporting}
-              className="bg-astra-red hover:bg-red-600 text-white"
-            >
-              <FileDown className="h-4 w-4 mr-2" />
-              {isExporting ? 'Exporting...' : 'Export to CSV'}
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <div className="flex-1 p-6">
-        <div className="max-w-7xl mx-auto space-y-6">
+    <RoleGuard allowedRole="admin">
+      <div className="container py-8">
+        <h1 className="text-3xl font-bold mb-6">Assessment Results</h1>
+        
+        <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center">
-                <Filter className="h-4 w-4 mr-2" /> Filter Results
-              </CardTitle>
+              <CardTitle>Filter Results</CardTitle>
+              <CardDescription>
+                Filter assessment results by various criteria
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Select
-                  value={filters.assessment}
-                  onValueChange={(value) => handleFilterChange('assessment', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Assessment" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Assessments</SelectItem>
-                    {assessmentOptions.map((item, index) => (
-                      <SelectItem key={`${item.name}-${index}`} value={item.name}>
-                        {item.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={filters.year}
-                  onValueChange={(value) => handleFilterChange('year', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Year" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Years</SelectItem>
-                    {yearOptions.map((year) => (
-                      <SelectItem key={year} value={year}>
-                        {year}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={filters.department}
-                  onValueChange={(value) => handleFilterChange('department', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    {departmentOptions.map((dept) => (
-                      <SelectItem key={dept} value={dept}>
-                        {dept}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={filters.division}
-                  onValueChange={(value) => handleFilterChange('division', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Division" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Divisions</SelectItem>
-                    {divisionOptions.map((div) => (
-                      <SelectItem key={div} value={div}>
-                        {div}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={filters.batch}
-                  onValueChange={(value) => handleFilterChange('batch', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Batch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Batches</SelectItem>
-                    {batchOptions.map((batch) => (
-                      <SelectItem key={batch} value={batch}>
-                        {batch}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Input
-                  type="text"
-                  placeholder="Search by student name or ID"
-                  value={filters.searchQuery}
-                  onChange={(e) => handleFilterChange('searchQuery', e.target.value)}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="assessment">Assessment</Label>
+                  <Select 
+                    value={filterOptions.assessment}
+                    onValueChange={(value) => handleFilterChange('assessment', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Assessment" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Assessments</SelectItem>
+                      {assessments.map((assessment) => (
+                        <SelectItem key={assessment.id} value={assessment.name}>
+                          {assessment.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="search">Search</Label>
+                  <Input 
+                    id="search"
+                    placeholder="Search by name, email, PRN..."
+                    value={filterOptions.searchQuery}
+                    onChange={(e) => handleFilterChange('searchQuery', e.target.value)}
+                  />
+                </div>
+                
+                <div className="lg:col-span-2 flex items-end justify-end space-x-2">
+                  <Button 
+                    variant="outline" 
+                    className="flex items-center"
+                    onClick={handleDownloadCSV}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export CSV
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
           
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid grid-cols-3 md:w-[400px]">
+          <Tabs defaultValue="all">
+            <TabsList className="mb-4">
               <TabsTrigger value="all">All Results</TabsTrigger>
-              <TabsTrigger value="flagged">Flagged</TabsTrigger>
-              <TabsTrigger value="top">Top Performers</TabsTrigger>
+              <TabsTrigger value="flagged" className="flex items-center">
+                <Flag className="h-4 w-4 mr-1" />
+                Flagged
+              </TabsTrigger>
+              <TabsTrigger value="top" className="flex items-center">
+                <Trophy className="h-4 w-4 mr-1" />
+                Top Performers
+              </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="all" className="mt-4">
+            <TabsContent value="all">
               <ResultsTable 
-                filters={filters}
-                flagged={false}
-                topPerformers={false}
+                filters={filterOptions} 
+                flagged={false} 
+                topPerformers={false} 
               />
             </TabsContent>
             
-            <TabsContent value="flagged" className="mt-4">
+            <TabsContent value="flagged">
               <ResultsTable 
-                filters={filters}
+                filters={filterOptions} 
                 flagged={true}
                 topPerformers={false}
               />
             </TabsContent>
             
-            <TabsContent value="top" className="mt-4">
+            <TabsContent value="top">
               <ResultsTable 
-                filters={filters}
+                filters={filterOptions} 
                 flagged={false}
                 topPerformers={true}
               />
@@ -385,7 +302,7 @@ const ResultsPage = () => {
           </Tabs>
         </div>
       </div>
-    </div>
+    </RoleGuard>
   );
 };
 
