@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,7 +21,7 @@ import Editor from '@monaco-editor/react';
 interface CodeEditorProps {
   question: CodeQuestion;
   onCodeChange: (language: string, code: string) => void;
-  onMarksUpdate?: (questionId: string, marks: number) => void;
+  onMarksUpdate?: (marks: number) => void;
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarksUpdate }) => {
@@ -269,7 +270,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       const correctPercentage = totalPossibleMarks > 0 ? (totalMarksEarned / totalPossibleMarks) * 100 : 0;
       
       if (onMarksUpdate) {
-        onMarksUpdate(question.id, totalMarksEarned);
+        onMarksUpdate(totalMarksEarned);
       }
       
       if (user) {

@@ -37,7 +37,7 @@ const RoleGuard: React.FC<RoleGuardProps> = ({
       
       toast({
         title: "Access denied",
-        description: `You don't have permission to access this page`,
+        description: `You don't have permission to access this page as ${user.role}`,
         variant: "destructive",
       });
       
@@ -45,7 +45,7 @@ const RoleGuard: React.FC<RoleGuardProps> = ({
     }
   }, [user, allowedRole, navigate, fallbackPath, toast]);
 
-  // If user has the right role, render children
+  // Only render children if user has the correct role
   if (user && user.role === allowedRole) {
     return <>{children}</>;
   }
