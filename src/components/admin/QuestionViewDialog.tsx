@@ -138,7 +138,7 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
                         <span className="font-medium">{String.fromCharCode(65 + index)}.</span>
                         <span>{option.text}</span>
                         {option.is_correct && (
-                          <Badge className="ml-auto" variant="success">
+                          <Badge className="ml-auto" variant="outline">
                             Correct Answer
                           </Badge>
                         )}

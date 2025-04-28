@@ -1,3 +1,4 @@
+
 export interface Auth {
   id: string;
   email: string;
@@ -123,4 +124,18 @@ export interface Result {
   is_cheated: boolean | null;
   completed_at: string;
   created_at: string;
+}
+
+// Adding Answer interface that was missing
+export interface Answer {
+  id?: string;
+  submission_id: string;
+  question_id: string;
+  mcq_option_id?: string | null;
+  code_solution?: string | null;
+  language?: string | null;
+  marks_obtained: number;
+  is_correct: boolean | null;
+  test_results?: any;
+  created_at?: string;
 }

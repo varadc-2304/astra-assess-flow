@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -12,13 +13,15 @@ import { useToast } from '@/hooks/use-toast';
 import { Flag } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDate } from '@/lib/utils';
+import { Auth } from '@/types/database';
 
 interface UserData {
   id: string;
   name: string;
   email: string;
   role: string;
-  auth_ID: string;
+  auth_ID?: string;
+  id?: string;
   year?: string;
   department?: string;
   division?: string;
@@ -69,8 +72,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             total_marks,
             percentage,
             completed_at,
-            isTerminated,
-            contest_name,
+            is_cheated,
             assessments:assessment_id (
               id,
               name,
@@ -90,37 +92,27 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         const userIds = [...new Set(resultsData.map(result => result.user_id))];
         
         const { data: usersData, error: usersError } = await supabase
-          .from('users')
-          .select('id, name, email, role, auth_ID, year, department, division, batch')
-          .in('auth_ID', userIds);
+          .from('auth')
+          .select('id, name, email, role, year, department, division, batch')
+          .in('id', userIds);
         
         if (usersError) {
           console.error('Error fetching user details:', usersError);
         }
         
-        const userMap: Record<string, UserData> = {};
+        const userMap: Record<string, Auth> = {};
         if (usersData) {
           usersData.forEach(user => {
-            if (user.auth_ID) {
-              userMap[user.auth_ID] = {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                auth_ID: user.auth_ID,
-                year: user.year,
-                department: user.department,
-                division: user.division,
-                batch: user.batch
-              };
+            if (user.id) {
+              userMap[user.id] = user;
             }
           });
         }
         
         let transformedData: Student[] = resultsData.map((result) => {
           const userDetails = userMap[result.user_id];
-          const assessment = typeof result.assessments === 'object' ? result.assessments : null;
-          const assessmentName = result.contest_name || assessment?.name || 'Unknown Assessment';
+          const assessment = result.assessments;
+          const assessmentName = assessment?.name || 'Unknown Assessment';
           
           const userName = userDetails?.name || 'Unknown User';
           const userEmail = userDetails?.email || 'unknown@example.com';
@@ -151,10 +143,10 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             totalMarks: result.total_marks,
             percentage: result.percentage,
             completedAt: result.completed_at,
-            isTerminated: result.isTerminated || false,
-            division,
-            batch,
-            year
+            isTerminated: result.is_cheated || false,
+            division: division || 'Unknown',
+            batch: batch || 'Unknown',
+            year: year || 'Unknown'
           };
         });
         

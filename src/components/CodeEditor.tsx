@@ -15,7 +15,7 @@ import { createSubmission, waitForSubmissionResult } from '@/services/judge0Serv
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Submission, Answer, TestCase } from '@/types/database';
+import { TestCase, QuestionSubmission } from '@/types/database';
 
 interface CodeEditorProps {
   question: CodeQuestion;
@@ -71,7 +71,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       const { data: testCases, error: testCasesError } = await supabase
         .from('test_cases')
         .select('*')
-        .eq('question_id', question.id)
+        .eq('coding_question_id', question.id)
         .eq('is_hidden', false)
         .order('order_index', { ascending: true });
         
@@ -140,7 +140,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       const { data: testCases, error } = await supabase
         .from('test_cases')
         .select('*')
-        .eq('question_id', questionId)
+        .eq('coding_question_id', questionId)
         .order('order_index', { ascending: true });
         
       if (error) {
@@ -273,11 +273,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
       if (user) {
         try {
-          const submissionData: Submission = {
+          const submissionData = {
             assessment_id: question.assessmentId || '',
             user_id: user.id,
-            started_at: new Date().toISOString(),
-            completed_at: new Date().toISOString()
+            started_at: new Date().toISOString()
           };
 
           console.log('Creating submission with data:', submissionData);
@@ -299,9 +298,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
 
           console.log('Submission created:', submissionResult);
 
-          const answerData: Answer = {
+          const questionSubmissionData: Partial<QuestionSubmission> = {
             submission_id: submissionResult.id,
             question_id: question.id,
+            question_type: 'code',
             code_solution: currentCode,
             language: selectedLanguage,
             is_correct: allPassed,
@@ -309,14 +309,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             test_results: finalResults
           };
 
-          console.log('Creating answer with data:', answerData);
+          console.log('Creating question submission with data:', questionSubmissionData);
 
           const { error: answerError } = await supabase
-            .from('answers')
-            .insert(answerData);
+            .from('question_submissions')
+            .insert(questionSubmissionData);
 
           if (answerError) {
-            console.error('Error storing answer:', answerError);
+            console.error('Error storing question submission:', answerError);
             throw answerError;
           }
           
