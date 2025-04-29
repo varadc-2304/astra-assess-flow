@@ -432,7 +432,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     glyphMargin: false,
     contextmenu: false,
     snippetSuggestions: 'none',
-    
+    lightbulb: { enabled: 'off' },  // Fixed: Using 'off' string value instead of boolean false
     suggest: { 
       showIcons: false,
       showWords: false,
