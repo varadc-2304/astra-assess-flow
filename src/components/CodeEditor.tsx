@@ -415,7 +415,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     tabSize: 2,
     formatOnPaste: true,
     formatOnType: true,
-    autoIndent: 'advanced',
+    autoIndent: 'advanced' as 'advanced',
     quickSuggestions: true,
     suggestOnTriggerCharacters: true,
     fixedOverflowWidgets: true,
@@ -518,3 +518,4 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
 };
 
 export default CodeEditor;
+
