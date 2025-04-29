@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { TestCase, QuestionSubmission, TestResult, Json } from '@/types/database';
-import Editor from '@monaco-editor/react';
+import Editor, { Monaco } from '@monaco-editor/react';
 
 interface CodeEditorProps {
   question: CodeQuestion;
@@ -33,6 +33,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
+  const editorRef = useRef<any>(null);
 
   const currentCode =
     question.userSolution[selectedLanguage] ??
@@ -409,27 +410,58 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    wordWrap: 'on' as const,
+    wordWrap: 'on',
     automaticLayout: true,
     tabSize: 2,
     formatOnPaste: false,
     formatOnType: false,
-    autoIndent: 'advanced' as 'advanced',
+    autoIndent: 'advanced',
     quickSuggestions: true,
-    cursorBlinking: 'solid' as const,
-    cursorSmoothCaretAnimation: 'off' as const,
-    cursorStyle: 'line' as const,
+    cursorBlinking: 'solid',
+    cursorSmoothCaretAnimation: 'off',
+    cursorStyle: 'line',
     mouseWheelZoom: false,
-    renderWhitespace: 'none' as 'none',
-    renderLineHighlight: 'line' as 'line',
-    lineNumbers: 'on' as const,
-    renderValidationDecorations: 'on' as const
+    renderWhitespace: 'none',
+    renderLineHighlight: 'line',
+    lineNumbers: 'on',
+    renderValidationDecorations: 'on',
+    folding: false,
+    glyphMargin: false,
+    contextmenu: false,
+    snippetSuggestions: 'none',
+    lightbulb: { enabled: false },
+    suggest: { 
+      showIcons: false,
+      showWords: false,
+      snippetsPreventQuickSuggestions: true,
+    },
   };
 
-  const handleEditorDidMount = (editor: any) => {
+  const handleEditorDidMount = (editor: any, monaco: Monaco) => {
+    editorRef.current = editor;
+    
+    monaco.editor.setTheme('vs-dark');
+    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: true,
+      noSyntaxValidation: false
+    });
+    
+    editor.updateOptions({
+      domReadOnly: false,
+      readOnly: false,
+      renderWhitespace: 'none',
+      roundedSelection: false,
+    });
+    
     requestAnimationFrame(() => {
       editor.layout();
       editor.focus();
+      const model = editor.getModel();
+      if (model) {
+        const lastLineNumber = model.getLineCount();
+        const lastColumn = model.getLineMaxColumn(lastLineNumber);
+        editor.setPosition({ lineNumber: lastLineNumber, column: lastColumn });
+      }
     });
   };
 
