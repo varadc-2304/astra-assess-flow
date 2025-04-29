@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,7 +34,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const { toast } = useToast();
   const { user } = useAuth();
 
-  // Get the current code from user solution or template
   const currentCode =
     question.userSolution[selectedLanguage] ??
     question.solutionTemplate[selectedLanguage] ??
@@ -175,7 +173,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
       if (result.status.id >= 6) {
         const errorOutput = result.compile_output || result.stderr || 'An error occurred while running your code';
-        // Clean up error output for better readability
         const cleanErrorOutput = errorOutput.replace(/\x1b\[[0-9;]*m/g, '').trim();
         
         setOutput(prev => `${prev}\nError in test case ${index + 1}: ${cleanErrorOutput}`);
@@ -268,7 +265,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       const totalPossibleMarks = testCases.reduce((sum, tc) => sum + (tc.marks || 0), 0);
       const correctPercentage = totalPossibleMarks > 0 ? (totalMarksEarned / totalPossibleMarks) * 100 : 0;
     
-      // Only update marks when the submit button is pressed
       if (onMarksUpdate) {
         onMarksUpdate(question.id, totalMarksEarned);
       }
@@ -290,7 +286,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           let submissionId: string;
           
           if (!submissions || submissions.length === 0) {
-            // Create new submission if none exists
             const { data: newSubmission, error: submissionError } = await supabase
               .from('submissions')
               .insert({
@@ -311,7 +306,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             submissionId = submissions[0].id;
           }
 
-          // Check for existing question submission
           const { data: existingSubmission, error: existingError } = await supabase
             .from('question_submissions')
             .select('*')
@@ -323,7 +317,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             throw existingError;
           }
 
-          // Fixed: make sure required fields are included
           const questionSubmissionData = {
             submission_id: submissionId,
             question_id: question.id,
@@ -332,11 +325,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             language: selectedLanguage,
             is_correct: allPassed,
             marks_obtained: totalMarksEarned,
-            test_results: finalResults
+            test_results: finalResults as Json
           };
 
           if (existingSubmission && existingSubmission.length > 0) {
-            // Update existing submission
             const { error: updateError } = await supabase
               .from('question_submissions')
               .update(questionSubmissionData)
@@ -347,7 +339,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
               throw updateError;
             }
           } else {
-            // Create new submission
             const { error: insertError } = await supabase
               .from('question_submissions')
               .insert(questionSubmissionData);
@@ -394,7 +385,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     }
   };
 
-  // Editor theme and options
   const editorOptions = {
     minimap: { enabled: true },
     scrollBeyondLastLine: false,

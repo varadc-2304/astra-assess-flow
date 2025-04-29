@@ -169,7 +169,7 @@ const AssessmentPage = () => {
         .from('results')
         .update({ 
           contest_name: assessment?.name 
-        })
+        } as any)
         .eq('assessment_id', assessment?.id || '')
         .eq('user_id', user?.id || '');
       

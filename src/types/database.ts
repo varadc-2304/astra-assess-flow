@@ -1,4 +1,3 @@
-
 export interface Auth {
   id: string;
   email: string;
@@ -30,6 +29,7 @@ export interface Assessment {
   durationMinutes?: number;
   startTime?: string;
   questions?: Array<MCQQuestion | CodingQuestion>; 
+  contest_name?: string; // Add this to support the contest_name field in results
 }
 
 export interface MCQQuestion {
@@ -134,7 +134,7 @@ export interface QuestionSubmission {
   language?: string | null;
   marks_obtained: number;
   is_correct: boolean | null;
-  test_results?: any | null;
+  test_results?: Json | null; // This should be Json type, not TestResult[]
   created_at?: string;
 }
 
@@ -149,18 +149,19 @@ export interface Result {
   is_cheated: boolean | null;
   completed_at: string;
   created_at: string;
-  contest_name?: string; // Add this for the ResultsPage
+  contest_name?: string; // Add this field to match the AssessmentPage.tsx usage
 }
 
 // Define Json type for consistency with Supabase
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-// Define TestResult type
+// Define TestResult type to be compatible with Json
 export interface TestResult {
   passed: boolean;
   actualOutput?: string;
   marks?: number;
   isHidden?: boolean;
+  [key: string]: Json | undefined; // Add this to make TestResult compatible with Json
 }
 
 // Define QuestionOption type for frontend
