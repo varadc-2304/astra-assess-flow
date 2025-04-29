@@ -48,8 +48,8 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({ question, onAnswerSelect }) =
             <div className="relative rounded-lg overflow-hidden border border-gray-200">
               <img 
                 src={question.imageUrl} 
-                alt={question.title} 
-                className="w-full h-auto object-cover"
+                alt="Question image" 
+                className="max-w-full rounded-md object-contain max-h-64"
               />
             </div>
           )}
