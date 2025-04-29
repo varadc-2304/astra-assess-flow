@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -432,7 +431,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     glyphMargin: false,
     contextmenu: false,
     snippetSuggestions: 'none',
-    lightbulb: { enabled: 'off' },  // Fixed: 'off' instead of false
+    lightbulb: { enabled: false },  // Using boolean false directly instead of string 'off'
     suggest: { 
       showIcons: false,
       showWords: false,
