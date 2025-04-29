@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -419,7 +418,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     autoIndent: 'advanced',
     quickSuggestions: true,
     cursorBlinking: 'solid' as 'blink' | 'solid' | 'smooth' | 'phase' | 'expand',
-    cursorSmoothCaretAnimation: 'off',
+    cursorSmoothCaretAnimation: 'off' as 'on' | 'off' | 'explicit',
     cursorStyle: 'line',
     mouseWheelZoom: false,
     renderWhitespace: 'none',
@@ -441,12 +440,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const handleEditorDidMount = (editor: any, monaco: Monaco) => {
     editorRef.current = editor;
     
+    // Configure Monaco to be more like VS Code
     monaco.editor.setTheme('vs-dark');
     monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
       noSemanticValidation: true,
       noSyntaxValidation: false
     });
     
+    // Additional VS Code-like settings
     editor.updateOptions({
       domReadOnly: false,
       readOnly: false,
@@ -548,4 +549,3 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
 };
 
 export default CodeEditor;
-
