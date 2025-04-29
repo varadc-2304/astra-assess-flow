@@ -25,7 +25,11 @@ export interface Assessment {
   reattempt: boolean;
   status: string | null;
   created_at: string | null;
-  questions?: Array<MCQQuestion | CodingQuestion>; // Add questions property for AssessmentContext
+  mcqCount?: number;   // Add frontend properties
+  codingCount?: number;
+  durationMinutes?: number;
+  startTime?: string;
+  questions?: Array<MCQQuestion | CodingQuestion>; 
 }
 
 export interface MCQQuestion {
@@ -37,6 +41,9 @@ export interface MCQQuestion {
   marks: number;
   order_index: number;
   created_at: string;
+  type?: 'mcq';  // Add frontend property
+  options?: Array<QuestionOption>; // Add frontend property
+  selectedOption?: string; // Add frontend property
 }
 
 export interface MCQOption {
@@ -57,6 +64,23 @@ export interface CodingQuestion {
   marks: number;
   order_index: number;
   created_at: string;
+  type?: 'code';  // Add frontend property
+  examples?: Array<{
+    input: string;
+    output: string;
+    explanation?: string;
+  }>;
+  constraints?: string[];
+  solutionTemplate?: Record<string, string>;
+  userSolution?: Record<string, string>;
+  testCases?: Array<{
+    id: string;
+    input: string;
+    output: string;
+    marks?: number;
+    is_hidden?: boolean;
+  }>;
+  marksObtained?: number;
 }
 
 export interface CodingLanguage {
@@ -137,4 +161,11 @@ export interface TestResult {
   actualOutput?: string;
   marks?: number;
   isHidden?: boolean;
+}
+
+// Define QuestionOption type for frontend
+export interface QuestionOption {
+  id: string;
+  text: string;
+  isCorrect: boolean;
 }

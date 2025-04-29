@@ -275,7 +275,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
       if (user) {
         try {
-          const { data: submissions, error: submissionsError } = await supabase
+          const { data: submissions, error: submissionError } = await supabase
             .from('submissions')
             .select('*')
             .eq('assessment_id', question.assessmentId || '')
@@ -283,8 +283,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             .order('created_at', { ascending: false })
             .limit(1);
             
-          if (submissionsError) {
-            throw submissionsError;
+          if (submissionError) {
+            throw submissionError;
           }
           
           let submissionId: string;
@@ -323,10 +323,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             throw existingError;
           }
 
-          const questionSubmissionData: Partial<QuestionSubmission> = {
+          // Fixed: make sure required fields are included
+          const questionSubmissionData = {
             submission_id: submissionId,
             question_id: question.id,
-            question_type: 'code',
+            question_type: 'code' as const,
             code_solution: currentCode,
             language: selectedLanguage,
             is_correct: allPassed,

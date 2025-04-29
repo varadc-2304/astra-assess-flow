@@ -52,7 +52,7 @@ const InstructionsPage = () => {
       <div className="max-w-3xl mx-auto px-4">
         <header className="text-center mb-8">
           <h1 className="text-3xl font-bold text-astra-red">Yudha</h1>
-          <p className="text-gray-600">{assessment.name}</p>
+          <p className="text-gray-600">{assessment?.name}</p>
         </header>
         
         <Card className="mb-6 shadow-lg border-0">
@@ -62,7 +62,7 @@ const InstructionsPage = () => {
           <CardContent className="space-y-4">
             <div>
               <h3 className="text-lg font-medium">Instructions</h3>
-              <p className="text-gray-600 mt-1">{assessment.instructions}</p>
+              <p className="text-gray-600 mt-1">{assessment?.instructions}</p>
             </div>
             
             <Separator />
@@ -72,7 +72,7 @@ const InstructionsPage = () => {
                 <ClipboardList className="h-5 w-5 text-astra-red" />
                 <div>
                   <p className="text-sm text-gray-500">MCQ Questions</p>
-                  <p className="font-semibold">{assessment.mcqCount}</p>
+                  <p className="font-semibold">{assessment?.mcqCount}</p>
                 </div>
               </div>
               
@@ -80,7 +80,7 @@ const InstructionsPage = () => {
                 <Code className="h-5 w-5 text-astra-red" />
                 <div>
                   <p className="text-sm text-gray-500">Coding Questions</p>
-                  <p className="font-semibold">{assessment.codingCount}</p>
+                  <p className="font-semibold">{assessment?.codingCount}</p>
                 </div>
               </div>
               
@@ -88,7 +88,7 @@ const InstructionsPage = () => {
                 <Clock className="h-5 w-5 text-astra-red" />
                 <div>
                   <p className="text-sm text-gray-500">Duration</p>
-                  <p className="font-semibold">{assessment.durationMinutes} minutes</p>
+                  <p className="font-semibold">{assessment?.durationMinutes} minutes</p>
                 </div>
               </div>
             </div>
@@ -117,7 +117,7 @@ const InstructionsPage = () => {
               <div className="flex justify-center my-4">
                 <Timer 
                   variant="countdown"
-                  targetTime={assessment.startTime}
+                  targetTime={assessment?.startTime || ''}
                   onCountdownEnd={handleCountdownEnd}
                 />
               </div>

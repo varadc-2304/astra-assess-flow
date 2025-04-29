@@ -4,20 +4,15 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Assessment, 
-  MCQQuestion as DBMCQQuestion,
-  CodingQuestion as DBCodingQuestion,
+  Assessment as DbAssessment, 
+  MCQQuestion as DbMCQQuestion,
+  CodingQuestion as DbCodingQuestion,
   MCQOption,
   CodingLanguage,
   CodingExample,
-  TestCase
+  TestCase,
+  QuestionOption
 } from '@/types/database';
-
-export type QuestionOption = {
-  id: string;
-  text: string;
-  isCorrect: boolean;
-};
 
 export type MCQQuestion = {
   id: string;
@@ -787,7 +782,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             return {
               ...q,
               userSolution: {
-                ...q.userSolution,
+                ...(q as CodeQuestion).userSolution,
                 [language]: code
               }
             };

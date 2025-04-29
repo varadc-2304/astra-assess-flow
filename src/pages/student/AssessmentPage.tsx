@@ -143,8 +143,8 @@ const AssessmentPage = () => {
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
-        .eq('assessment_id', assessment.id)
-        .eq('user_id', user?.id)
+        .eq('assessment_id', assessment?.id || '')
+        .eq('user_id', user?.id || '')
         .order('created_at', { ascending: false })
         .limit(1);
       
@@ -168,10 +168,10 @@ const AssessmentPage = () => {
       const { error: resultError } = await supabase
         .from('results')
         .update({ 
-          contest_name: assessment.name 
+          contest_name: assessment?.name 
         })
-        .eq('assessment_id', assessment.id)
-        .eq('user_id', user?.id);
+        .eq('assessment_id', assessment?.id || '')
+        .eq('user_id', user?.id || '');
       
       if (resultError) {
         console.error('Error updating contest name in results:', resultError);

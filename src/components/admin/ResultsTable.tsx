@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -16,13 +17,16 @@ import { Auth } from '@/types/database';
 
 interface UserData {
   id: string;
-  name: string;
+  name: string | null;
   email: string;
   role: string;
-  year?: string;
-  department?: string;
-  division?: string;
-  batch?: string;
+  year?: string | null;
+  department?: string | null;
+  division?: string | null;
+  batch?: string | null;
+  prn?: string | null;
+  password: string;
+  created_at: string;
 }
 
 interface Student {
@@ -90,18 +94,17 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         
         const { data: usersData, error: usersError } = await supabase
           .from('auth')
-          .select('id, name, email, role, year, department, division, batch')
-          .in('id', userIds);
+          .select('id, name, email, role, year, department, division, batch, password, created_at, prn');
         
         if (usersError) {
           console.error('Error fetching user details:', usersError);
         }
         
-        const userMap: Record<string, Auth> = {};
+        const userMap: Record<string, UserData> = {};
         if (usersData) {
           usersData.forEach(user => {
             if (user.id) {
-              userMap[user.id] = user;
+              userMap[user.id] = user as UserData;
             }
           });
         }
@@ -132,7 +135,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           
           return {
             id: result.user_id,
-            name: userName,
+            name: userName || 'Unknown',
             email: userEmail,
             assessmentId: result.assessment_id,
             assessmentName,
