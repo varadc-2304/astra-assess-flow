@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,7 +15,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { TestCase, QuestionSubmission, TestResult, Json } from '@/types/database';
-import Editor, { Monaco } from '@monaco-editor/react';
+import Editor, { Monaco, EditorProps } from '@monaco-editor/react';
+import type { editor } from 'monaco-editor';
 
 interface CodeEditorProps {
   question: CodeQuestion;
@@ -34,7 +34,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
   const currentCode =
     question.userSolution[selectedLanguage] ??
@@ -407,11 +407,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     }
   };
 
-  const editorOptions = {
+  // Editor options with correct TypeScript types for Monaco editor
+  const editorOptions: editor.IStandaloneEditorConstructionOptions = {
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    wordWrap: 'on' as const,
+    wordWrap: 'on',
     automaticLayout: true,
     tabSize: 2,
     formatOnPaste: false,
@@ -423,14 +424,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     cursorStyle: 'line',
     mouseWheelZoom: false,
     renderWhitespace: 'none',
-    renderLineHighlight: 'line' as const,
-    lineNumbers: 'on' as const,
-    renderValidationDecorations: 'on' as 'on' | 'off' | 'editable',
+    renderLineHighlight: 'line',
+    lineNumbers: 'on',
+    renderValidationDecorations: 'on',
     folding: false,
     glyphMargin: false,
     contextmenu: false,
     snippetSuggestions: 'none',
-    lightbulb: { enabled: false },
+    lightbulb: { enabled: false as const },
     suggest: { 
       showIcons: false,
       showWords: false,
@@ -438,7 +439,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     },
   };
 
-  const handleEditorDidMount = (editor: any, monaco: Monaco) => {
+  const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
     editorRef.current = editor;
     
     monaco.editor.setTheme('vs-dark');
@@ -448,21 +449,31 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     });
     
     editor.updateOptions({
-      domReadOnly: false,
       readOnly: false,
       renderWhitespace: 'none',
       roundedSelection: false,
     });
     
+    // Fix cursor jumping issues by setting cursor position only once at mount
     requestAnimationFrame(() => {
-      editor.layout();
       editor.focus();
+      
+      // Don't force cursor to end of file on every render - this causes jumping
+      // Only position cursor at end on initial mount if the editor is empty or shows template
       const model = editor.getModel();
+      
       if (model) {
-        const lastLineNumber = model.getLineCount();
-        const lastColumn = model.getLineMaxColumn(lastLineNumber);
-        editor.setPosition({ lineNumber: lastLineNumber, column: lastColumn });
+        // Only set cursor position when editor first loads with template code
+        const isTemplateCode = currentCode === question.solutionTemplate[selectedLanguage];
+        if (isTemplateCode) {
+          const lastLineNumber = model.getLineCount();
+          const lastColumn = model.getLineMaxColumn(lastLineNumber);
+          editor.setPosition({ lineNumber: lastLineNumber, column: lastColumn });
+          editor.revealPositionInCenter({ lineNumber: lastLineNumber, column: lastColumn });
+        }
       }
+      
+      editor.layout();
     });
   };
 
