@@ -1,13 +1,11 @@
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileCode, Clock, Award, Loader2 } from 'lucide-react';
+import { FileCode, Clock, Award } from 'lucide-react';
 import { Assessment } from '@/types/database';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface PracticeAssessmentCardProps {
   assessment: Assessment;
@@ -17,53 +15,6 @@ interface PracticeAssessmentCardProps {
 
 const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 0 }: PracticeAssessmentCardProps) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [marks, setMarks] = useState<number>(marksObtained);
-  const [totalMarks, setTotalMarks] = useState<number>((assessment as any).marks || 0);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  
-  useEffect(() => {
-    if (user && assessment && isSolved) {
-      fetchMarks();
-    } else {
-      setMarks(marksObtained);
-    }
-  }, [user, assessment, isSolved, marksObtained]);
-  
-  const fetchMarks = async () => {
-    if (!user) return;
-    
-    setIsLoading(true);
-    try {
-      // First get the total possible marks for this assessment
-      const { data: totalMarksData, error: totalMarksError } = await supabase
-        .rpc('calculate_assessment_total_marks', { assessment_id: assessment.id });
-      
-      if (!totalMarksError && totalMarksData !== null) {
-        setTotalMarks(totalMarksData || 0);
-      }
-      
-      // Get the latest result for this user and assessment
-      const { data: results, error: resultsError } = await supabase
-        .from('results')
-        .select('total_score, total_marks')
-        .eq('user_id', user.id)
-        .eq('assessment_id', assessment.id)
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      if (!resultsError && results && results.length > 0) {
-        setMarks(results[0].total_score || 0);
-        if (results[0].total_marks && results[0].total_marks > 0) {
-          setTotalMarks(results[0].total_marks);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching marks:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
   
   const handleStart = () => {
     localStorage.setItem('assessmentCode', assessment.code);
@@ -98,17 +49,8 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
           </div>
           {isSolved && (
             <div className="flex items-center text-sm text-green-600">
-              {isLoading ? (
-                <div className="flex items-center">
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  <span>Loading marks...</span>
-                </div>
-              ) : (
-                <>
-                  <Award className="mr-2 h-4 w-4" />
-                  <span>Marks: {marks}/{totalMarks}</span>
-                </>
-              )}
+              <Award className="mr-2 h-4 w-4" />
+              <span>Marks: {marksObtained}/{(assessment as any).marks || 0}</span>
             </div>
           )}
         </div>

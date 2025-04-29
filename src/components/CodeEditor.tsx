@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -16,8 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { TestCase, QuestionSubmission, TestResult, Json } from '@/types/database';
-import Editor, { Monaco, EditorProps } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
+import Editor from '@monaco-editor/react';
 
 interface CodeEditorProps {
   question: CodeQuestion;
@@ -35,7 +34,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
-  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
   const currentCode =
     question.userSolution[selectedLanguage] ??
@@ -408,74 +406,34 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     }
   };
 
-  // Editor options with correct TypeScript types for Monaco editor
-  const editorOptions: editor.IStandaloneEditorConstructionOptions = {
-    minimap: { enabled: false },
+  const editorOptions = {
+    minimap: { enabled: true },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    wordWrap: 'on',
+    wordWrap: 'on' as 'on',
     automaticLayout: true,
     tabSize: 2,
-    formatOnPaste: false,
-    formatOnType: false,
-    autoIndent: 'advanced',
+    formatOnPaste: true,
+    formatOnType: true,
+    autoIndent: 'advanced' as 'advanced',
     quickSuggestions: true,
-    cursorBlinking: 'solid',
-    cursorSmoothCaretAnimation: 'off',
-    cursorStyle: 'line',
-    mouseWheelZoom: false,
-    renderWhitespace: 'none',
-    renderLineHighlight: 'line',
-    lineNumbers: 'on',
-    renderValidationDecorations: 'on',
-    folding: false,
-    glyphMargin: false,
-    contextmenu: false,
-    snippetSuggestions: 'none',
-    lightbulb: { enabled: 'off' },  // Fixed: Using 'off' string value instead of boolean false
-    suggest: { 
-      showIcons: false,
-      showWords: false,
-      snippetsPreventQuickSuggestions: true,
-    },
+    suggestOnTriggerCharacters: true,
+    fixedOverflowWidgets: true,
+    cursorBlinking: 'smooth' as 'smooth',
+    cursorSmoothCaretAnimation: 'on' as 'on',
+    cursorStyle: 'line' as 'line',
+    mouseWheelZoom: true,
+    renderWhitespace: 'selection' as 'selection',
+    renderLineHighlight: 'all' as 'all',
+    lineNumbers: 'on' as const,
+    renderValidationDecorations: 'on' as const
   };
 
-  const handleEditorDidMount = (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
-    editorRef.current = editor;
-    
-    monaco.editor.setTheme('vs-dark');
-    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
-      noSemanticValidation: true,
-      noSyntaxValidation: false
-    });
-    
-    editor.updateOptions({
-      readOnly: false,
-      renderWhitespace: 'none',
-      roundedSelection: false,
-    });
-    
-    // Fix cursor jumping issues by setting cursor position only once at mount
-    requestAnimationFrame(() => {
-      editor.focus();
-      
-      // Don't force cursor to end of file on every render - this causes jumping
-      // Only position cursor at end on initial mount if the editor is empty or shows template
-      const model = editor.getModel();
-      
-      if (model) {
-        // Only set cursor position when editor first loads with template code
-        const isTemplateCode = currentCode === question.solutionTemplate[selectedLanguage];
-        if (isTemplateCode) {
-          const lastLineNumber = model.getLineCount();
-          const lastColumn = model.getLineMaxColumn(lastLineNumber);
-          editor.setPosition({ lineNumber: lastLineNumber, column: lastColumn });
-          editor.revealPositionInCenter({ lineNumber: lastLineNumber, column: lastColumn });
-        }
-      }
-      
+  const handleEditorDidMount = (editor: any) => {
+    setTimeout(() => {
       editor.layout();
-    });
+      editor.focus();
+    }, 100);
   };
 
   return (
