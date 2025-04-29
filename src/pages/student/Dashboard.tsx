@@ -119,21 +119,8 @@ const StudentDashboard = () => {
 
   const getMarksObtained = (assessmentId: string) => {
     // Find the most recent result for this assessment
-    const matchingResults = results.filter(result => result.assessment_id === assessmentId);
-    
-    if (matchingResults.length === 0) {
-      return 0;
-    }
-    
-    // Sort by created_at in descending order to get the latest result
-    matchingResults.sort((a, b) => {
-      const dateA = new Date(a.created_at);
-      const dateB = new Date(b.created_at);
-      return dateB.getTime() - dateA.getTime();
-    });
-    
-    // Return the score from the most recent attempt
-    return matchingResults[0].total_score;
+    const result = results.find(result => result.assessment_id === assessmentId);
+    return result ? result.total_score : 0;
   };
 
   return (

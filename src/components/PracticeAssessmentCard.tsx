@@ -21,8 +21,6 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
   const handleStart = () => {
     // Clear any previous assessment data from localStorage
     localStorage.removeItem('assessmentCode');
-    localStorage.removeItem('assessmentState');
-    
     // Set the new assessment code
     localStorage.setItem('assessmentCode', assessment.code);
     
@@ -32,7 +30,6 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
       duration: 1000
     });
     
-    // Ensure we navigate to instructions page with a fresh state
     navigate('/instructions');
   };
   
