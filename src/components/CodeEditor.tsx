@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -7,7 +8,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CodeQuestion } from '@/contexts/AssessmentContext';
 import { Terminal, Play, Check, Loader2 } from 'lucide-react';
@@ -16,18 +16,12 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { TestCase, QuestionSubmission, TestResult } from '@/types/database';
+import Editor from '@monaco-editor/react';
 
 interface CodeEditorProps {
   question: CodeQuestion;
   onCodeChange: (language: string, code: string) => void;
   onMarksUpdate?: (questionId: string, marks: number) => void;
-}
-
-interface TestResult {
-  passed: boolean;
-  actualOutput?: string;
-  marks?: number;
-  isHidden?: boolean;
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarksUpdate }) => {
@@ -41,6 +35,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const { toast } = useToast();
   const { user } = useAuth();
 
+  // Get the current code from user solution or template
   const currentCode =
     question.userSolution[selectedLanguage] ??
     question.solutionTemplate[selectedLanguage] ??
@@ -50,8 +45,10 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     setSelectedLanguage(language);
   };
 
-  const handleCodeChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    onCodeChange(selectedLanguage, e.target.value);
+  const handleCodeChange = (value: string | undefined) => {
+    if (value !== undefined) {
+      onCodeChange(selectedLanguage, value);
+    }
   };
 
   const handleRunCode = async () => {
@@ -123,7 +120,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
     } catch (error) {
       console.error('Error running code:', error);
-      setOutput(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setOutput(`Error: ${errorMessage}`);
       
       toast({
         title: "Error",
@@ -177,11 +175,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
       if (result.status.id >= 6) {
         const errorOutput = result.compile_output || result.stderr || 'An error occurred while running your code';
-        setOutput(prev => `${prev}\nError in test case ${index + 1}: ${errorOutput}`);
+        // Clean up error output for better readability
+        const cleanErrorOutput = errorOutput.replace(/\x1b\[[0-9;]*m/g, '').trim();
+        
+        setOutput(prev => `${prev}\nError in test case ${index + 1}: ${cleanErrorOutput}`);
         
         const newResult: TestResult = { 
           passed: false, 
-          actualOutput: `Error: ${errorOutput}`,
+          actualOutput: `Error: ${cleanErrorOutput}`,
           marks: 0,
           isHidden
         };
@@ -224,11 +225,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       return processTestCase(index + 1, testCases, updatedResults, updatedTotalMarks);
     } catch (error) {
       console.error(`Error processing test case ${index + 1}:`, error);
-      setOutput(prev => `${prev}\nError processing test case ${index + 1}: ${error instanceof Error ? error.message : 'Unknown error'}\n`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setOutput(prev => `${prev}\nError processing test case ${index + 1}: ${errorMessage}\n`);
       
       const newResult: TestResult = { 
         passed: false, 
-        actualOutput: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        actualOutput: `Error: ${errorMessage}`,
         marks: 0,
         isHidden: testCases[index]?.is_hidden
       };
@@ -266,40 +268,63 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       const totalPossibleMarks = testCases.reduce((sum, tc) => sum + (tc.marks || 0), 0);
       const correctPercentage = totalPossibleMarks > 0 ? (totalMarksEarned / totalPossibleMarks) * 100 : 0;
     
-      
+      // Only update marks when the submit button is pressed
       if (onMarksUpdate) {
         onMarksUpdate(question.id, totalMarksEarned);
       }
       
       if (user) {
         try {
-          const submissionData = {
-            assessment_id: question.assessmentId || '',
-            user_id: user.id,
-            started_at: new Date().toISOString()
-          };
-
-          console.log('Creating submission with data:', submissionData);
-
-          const { data: submissionResult, error: submissionError } = await supabase
+          const { data: submissions, error: submissionsError } = await supabase
             .from('submissions')
-            .insert(submissionData)
-            .select()
-            .single();
+            .select('*')
+            .eq('assessment_id', question.assessmentId || '')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+            
+          if (submissionsError) {
+            throw submissionsError;
+          }
+          
+          let submissionId: string;
+          
+          if (!submissions || submissions.length === 0) {
+            // Create new submission if none exists
+            const { data: newSubmission, error: submissionError } = await supabase
+              .from('submissions')
+              .insert({
+                assessment_id: question.assessmentId || '',
+                user_id: user.id,
+                started_at: new Date().toISOString()
+              })
+              .select()
+              .single();
 
-          if (submissionError) {
-            console.error('Error creating submission:', submissionError);
-            throw submissionError;
+            if (submissionError || !newSubmission) {
+              console.error('Error creating submission:', submissionError);
+              throw new Error('No submission result returned');
+            }
+
+            submissionId = newSubmission.id;
+          } else {
+            submissionId = submissions[0].id;
           }
 
-          if (!submissionResult) {
-            throw new Error('No submission result returned');
+          // Check for existing question submission
+          const { data: existingSubmission, error: existingError } = await supabase
+            .from('question_submissions')
+            .select('*')
+            .eq('submission_id', submissionId)
+            .eq('question_id', question.id)
+            .eq('question_type', 'code');
+            
+          if (existingError) {
+            throw existingError;
           }
-
-          console.log('Submission created:', submissionResult);
 
           const questionSubmissionData: Partial<QuestionSubmission> = {
-            submission_id: submissionResult.id,
+            submission_id: submissionId,
             question_id: question.id,
             question_type: 'code',
             code_solution: currentCode,
@@ -309,16 +334,34 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             test_results: finalResults
           };
 
-          console.log('Creating question submission with data:', questionSubmissionData);
+          if (existingSubmission && existingSubmission.length > 0) {
+            // Update existing submission
+            const { error: updateError } = await supabase
+              .from('question_submissions')
+              .update(questionSubmissionData)
+              .eq('id', existingSubmission[0].id);
+              
+            if (updateError) {
+              console.error('Error updating question submission:', updateError);
+              throw updateError;
+            }
+          } else {
+            // Create new submission
+            const { error: insertError } = await supabase
+              .from('question_submissions')
+              .insert(questionSubmissionData);
 
-          const { error: answerError } = await supabase
-            .from('question_submissions')
-            .insert(questionSubmissionData);
-
-          if (answerError) {
-            console.error('Error storing question submission:', answerError);
-            throw answerError;
+            if (insertError) {
+              console.error('Error storing question submission:', insertError);
+              throw insertError;
+            }
           }
+          
+          toast({
+            title: "Submission Successful",
+            description: `Your solution was evaluated. You scored ${totalMarksEarned}/${totalPossibleMarks} marks.`,
+            variant: allPassed ? "default" : "default",
+          });
           
         } catch (dbError) {
           console.error('Error storing results:', dbError);
@@ -337,7 +380,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       }
     } catch (error) {
       console.error('Error submitting code:', error);
-      setOutput(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setOutput(`Error: ${errorMessage}`);
       
       toast({
         title: "Error",
@@ -349,46 +393,16 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const target = e.target as HTMLTextAreaElement;
-      const start = target.selectionStart;
-      const end = target.selectionEnd;
-      const spaces = '    '; // 4 spaces for indentation
-      
-      const value = target.value;
-      const newValue = value.substring(0, start) + spaces + value.substring(end);
-      
-      onCodeChange(selectedLanguage, newValue);
-      
-      // Restore cursor position after indent
-      setTimeout(() => {
-        target.selectionStart = target.selectionEnd = start + 4;
-      }, 0);
-    } else if (e.key === '(' || e.key === '{' || e.key === '[' || e.key === '"' || e.key === "'") {
-      e.preventDefault();
-      const target = e.target as HTMLTextAreaElement;
-      const start = target.selectionStart;
-      const pairs: Record<string, string> = {
-        '(': ')',
-        '{': '}',
-        '[': ']',
-        '"': '"',
-        "'": "'"
-      };
-      const closingChar = pairs[e.key];
-      
-      const value = target.value;
-      const newValue = value.substring(0, start) + e.key + closingChar + value.substring(start);
-      
-      onCodeChange(selectedLanguage, newValue);
-      
-      // Place cursor between the brackets
-      setTimeout(() => {
-        target.selectionStart = target.selectionEnd = start + 1;
-      }, 0);
-    }
+  // Editor theme and options
+  const editorOptions = {
+    minimap: { enabled: true },
+    scrollBeyondLastLine: false,
+    fontSize: 14,
+    wordWrap: 'on' as const,
+    automaticLayout: true,
+    tabSize: 2,
+    formatOnPaste: true,
+    formatOnType: true,
   };
 
   return (
@@ -443,13 +457,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         </TabsList>
         <div className="flex-1 flex">
           <TabsContent value="code" className="flex-1 h-full m-0">
-            <Textarea
-              value={currentCode}
-              onChange={handleCodeChange}
-              onKeyDown={handleKeyDown}
-              className="h-full font-mono text-sm resize-none p-4"
-              spellCheck="false"
-            />
+            <div className="h-[calc(100vh-280px)] border border-gray-200 rounded-md overflow-hidden">
+              <Editor
+                height="100%"
+                defaultLanguage={selectedLanguage}
+                language={selectedLanguage}
+                value={currentCode}
+                onChange={handleCodeChange}
+                theme="vs-dark"
+                options={editorOptions}
+              />
+            </div>
           </TabsContent>
           <TabsContent value="output" className="flex-1 h-full m-0">
             <div className="h-[calc(100vh-280px)] bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto">

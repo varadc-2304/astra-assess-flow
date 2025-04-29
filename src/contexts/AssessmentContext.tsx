@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -14,7 +13,6 @@ import {
   TestCase
 } from '@/types/database';
 
-// Define types
 export type QuestionOption = {
   id: string;
   text: string;
@@ -144,7 +142,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       const assessmentData = assessmentsData[0];
       console.log('Selected assessment data:', assessmentData);
       
-      // Fetch MCQ Questions
+      // Fetch MCQ Questions with proper selection to include id field
       const { data: mcqQuestionsData, error: mcqQuestionsError } = await supabase
         .from('mcq_questions')
         .select('*')
@@ -155,6 +153,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         console.error('Failed to load MCQ questions:', mcqQuestionsError);
         throw new Error(`Failed to load MCQ questions: ${mcqQuestionsError.message}`);
       }
+
+      console.log('MCQ Questions data:', mcqQuestionsData);
       
       // Fetch Coding Questions
       const { data: codingQuestionsData, error: codingQuestionsError } = await supabase
@@ -189,6 +189,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
         
         console.log(`Found ${optionsData?.length || 0} options for MCQ question ID:`, mcqQuestion.id);
+        console.log('MCQ options data:', optionsData);
         
         const question: MCQQuestion = {
           id: mcqQuestion.id,
@@ -472,6 +473,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     if (!assessment || !user) return;
     
     try {
+      console.log(`Answering MCQ question ${questionId} with option ${optionId}`);
+      
       // First, get the current submission
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
@@ -481,9 +484,14 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         .order('created_at', { ascending: false })
         .limit(1);
         
-      if (submissionError || !submissions || submissions.length === 0) {
+      if (submissionError) {
         console.error('Error finding submission:', submissionError);
-        
+        throw submissionError;
+      }
+      
+      let submissionId: string;
+      
+      if (!submissions || submissions.length === 0) {
         // Create a new submission if none exists
         const { data: newSubmission, error: newSubmissionError } = await supabase
           .from('submissions')
@@ -495,7 +503,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           .select()
           .single();
           
-        if (newSubmissionError) {
+        if (newSubmissionError || !newSubmission) {
           console.error('Error creating submission:', newSubmissionError);
           toast({
             title: "Error",
@@ -505,10 +513,9 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
         
-        // Use the new submission
-        var submissionId = newSubmission.id;
+        submissionId = newSubmission.id;
       } else {
-        var submissionId = submissions[0].id;
+        submissionId = submissions[0].id;
       }
       
       // Check if the selected option is correct
@@ -649,7 +656,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Helper function to calculate total marks obtained
   const calculateTotalMarks = async (currentAssessment: Assessment) => {
     if (!user || !currentAssessment) return;
     
