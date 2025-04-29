@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,7 +15,7 @@ import { createSubmission, waitForSubmissionResult } from '@/services/judge0Serv
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { TestCase, QuestionSubmission, TestResult } from '@/types/database';
+import { TestCase, QuestionSubmission, TestResult, Json } from '@/types/database';
 import Editor from '@monaco-editor/react';
 
 interface CodeEditorProps {
@@ -89,8 +90,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         const result = await waitForSubmissionResult(token);
         
         if (result.status.id >= 6) {
-          const errorOutput = result.compile_output || result.stderr || 'An error occurred while running your code';
-          setOutput(prev => `${prev}\nError in test case ${i + 1}: ${errorOutput}\n`);
+          // Simple text formatting for errors - no ANSI codes
+          const errorOutput = (result.compile_output || result.stderr || 'An error occurred while running your code')
+            .replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI color codes
+            .replace(/[\r\n]+/g, '\n')      // Normalize line endings
+            .trim();
+            
+          setOutput(prev => `${prev}\nError in test case ${i + 1}:\n${errorOutput}\n`);
           continue;
         }
         
@@ -173,7 +179,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
       if (result.status.id >= 6) {
         const errorOutput = result.compile_output || result.stderr || 'An error occurred while running your code';
-        const cleanErrorOutput = errorOutput.replace(/\x1b\[[0-9;]*m/g, '').trim();
+        // Clean and format error message - ensure plain text only
+        const cleanErrorOutput = errorOutput
+          .replace(/\x1b\[[0-9;]*m/g, '')  // Remove ANSI color codes
+          .replace(/[\r\n]+/g, '\n')       // Normalize line endings
+          .trim();
         
         setOutput(prev => `${prev}\nError in test case ${index + 1}: ${cleanErrorOutput}`);
         
@@ -325,7 +335,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             language: selectedLanguage,
             is_correct: allPassed,
             marks_obtained: totalMarksEarned,
-            test_results: finalResults as Json
+            test_results: finalResults as unknown as Json
           };
 
           if (existingSubmission && existingSubmission.length > 0) {
@@ -394,6 +404,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     tabSize: 2,
     formatOnPaste: true,
     formatOnType: true,
+    autoIndent: 'full',
+    quickSuggestions: true,
+    suggestOnTriggerCharacters: true
   };
 
   return (
@@ -457,16 +470,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
                 onChange={handleCodeChange}
                 theme="vs-dark"
                 options={editorOptions}
+                className="monaco-editor"
               />
             </div>
           </TabsContent>
           <TabsContent value="output" className="flex-1 h-full m-0">
-            <div className="h-[calc(100vh-280px)] bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto">
+            <div className="h-[calc(100vh-280px)] bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto whitespace-pre-wrap">
               <div className="flex items-center mb-2">
                 <Terminal className="h-4 w-4 mr-2" />
                 <span>Output</span>
               </div>
-              <pre className="whitespace-pre-wrap">{output || 'Run your code to see output here'}</pre>
+              <pre className="whitespace-pre-wrap break-words">{output || 'Run your code to see output here'}</pre>
             </div>
           </TabsContent>
         </div>
