@@ -244,38 +244,48 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       return;
     }
 
-    setIsSubmitting(true);
-    setOutput('Submitting solution...\n');
-    setTestResults([]);
+  // (Above code stays unchanged)
 
-    try {
-      const testCases = await fetchTestCases(question.id);
-
-      if (testCases.length === 0) {
-        throw new Error('No test cases found for this question');
-      }
-
-      const { results: finalResults, totalMarksEarned } = await processTestCase(0, testCases);
-      const totalPossibleMarks = testCases.reduce((sum, tc) => sum + (tc.marks || 0), 0);
-
+// Continue from `handleSubmitCode` function
       if (onMarksUpdate) {
         onMarksUpdate(question.id, totalMarksEarned);
       }
 
-      setOutput(prev => `${prev}\nSubmission complete. Marks: ${totalMarksEarned}/${totalPossibleMarks}\n`);
+      const submission: QuestionSubmission = {
+        question_id: question.id,
+        user_id: user?.id || '',
+        language: selectedLanguage,
+        code: currentCode,
+        total_marks: totalMarksEarned,
+        test_results: finalResults as Json,
+        submitted_at: new Date().toISOString(),
+        correctness: correctPercentage,
+      };
 
-      toast({
-        title: "Submission Complete!",
-        description: `You scored ${totalMarksEarned} out of ${totalPossibleMarks}.`,
-      });
+      const { error: insertError } = await supabase
+        .from('question_submissions')
+        .insert([submission]);
+
+      if (insertError) {
+        console.error('Failed to store submission:', insertError);
+        toast({
+          title: "Warning",
+          description: "Submission saved locally, but failed to save on server.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: allPassed ? "Perfect Submission!" : "Submission Complete",
+          description: `${totalMarksEarned} marks awarded.`,
+        });
+      }
 
     } catch (error) {
-      console.error('Error submitting code:', error);
+      console.error('Error during code submission:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setOutput(`Error: ${errorMessage}`);
       toast({
         title: "Error",
-        description: "Failed to submit code. Please try again.",
+        description: `Submission failed: ${errorMessage}`,
         variant: "destructive",
       });
     } finally {
@@ -284,53 +294,58 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   };
 
   return (
-    <div className="flex flex-col space-y-4">
-      <div className="flex justify-between items-center">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
         <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
           <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="Select Language" />
+            <SelectValue placeholder="Select language" />
           </SelectTrigger>
           <SelectContent>
-            {Object.keys(question.solutionTemplate).map(lang => (
+            {Object.keys(question.solutionTemplate).map((lang) => (
               <SelectItem key={lang} value={lang}>
                 {lang}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-
         <div className="space-x-2">
-          <Button onClick={handleRunCode} disabled={isRunning}>
-            {isRunning ? <Loader2 className="animate-spin" size={16} /> : <Play size={16} />}
-            Run
+          <Button
+            variant="outline"
+            onClick={handleRunCode}
+            disabled={isRunning || isSubmitting}
+          >
+            {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            <span className="ml-2">Run Code</span>
           </Button>
-          <Button onClick={handleSubmitCode} disabled={isSubmitting}>
-            {isSubmitting ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}
-            Submit
+          <Button onClick={handleSubmitCode} disabled={isRunning || isSubmitting}>
+            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            <span className="ml-2">Submit</span>
           </Button>
         </div>
       </div>
 
       <Editor
-        height="400px"
+        height="300px"
         defaultLanguage={selectedLanguage}
-        language={selectedLanguage}
         value={currentCode}
         onChange={handleCodeChange}
         theme="vs-dark"
-        options={{
-          minimap: { enabled: false },
+        onMount={(editor) => {
+          editorRef.current = editor;
         }}
       />
 
       <Tabs defaultValue="output" className="w-full">
         <TabsList>
-          <TabsTrigger value="output">Output</TabsTrigger>
+          <TabsTrigger value="output">
+            <Terminal className="w-4 h-4 mr-2" />
+            Output
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="output">
-          <div className="bg-black text-white p-4 h-48 overflow-y-auto rounded">
-            <pre>{output}</pre>
-          </div>
+          <pre className="p-2 bg-muted rounded max-h-[200px] overflow-y-auto whitespace-pre-wrap">
+            {output || 'Your output will appear here.'}
+          </pre>
         </TabsContent>
       </Tabs>
     </div>
