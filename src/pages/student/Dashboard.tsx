@@ -123,12 +123,6 @@ const StudentDashboard = () => {
     return result ? result.total_score : 0;
   };
 
-  const getTotalMarks = (assessmentId: string) => {
-    // Find the most recent result for this assessment and get total_marks
-    const result = results.find(result => result.assessment_id === assessmentId);
-    return result ? result.total_marks : 0;
-  };
-
   return (
     <div className="container mx-auto py-8">
       <div className="flex justify-between items-center mb-6">
@@ -182,7 +176,6 @@ const StudentDashboard = () => {
                 assessment={assessment}
                 isSolved={isAssessmentSolved(assessment.id)}
                 marksObtained={getMarksObtained(assessment.id)}
-                totalMarks={getTotalMarks(assessment.id)}
               />
             ))}
           </div>
