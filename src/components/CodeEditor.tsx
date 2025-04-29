@@ -419,7 +419,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     suggestOnTriggerCharacters: true,
     fixedOverflowWidgets: true,
     cursorBlinking: 'smooth' as 'smooth',
-    cursorSmoothCaretAnimation: 'on',
+    cursorSmoothCaretAnimation: 'on' as 'on',
     cursorStyle: 'line',
     mouseWheelZoom: true,
     renderWhitespace: 'selection',
