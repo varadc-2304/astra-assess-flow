@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -423,7 +424,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     cursorStyle: 'line' as 'line',
     mouseWheelZoom: true,
     renderWhitespace: 'selection' as 'selection',
-    renderLineHighlight: 'all',
+    renderLineHighlight: 'all' as 'all',
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const
   };
