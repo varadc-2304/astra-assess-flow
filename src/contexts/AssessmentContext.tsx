@@ -1,17 +1,17 @@
+
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Assessment as DBAssessment, 
+  Assessment, 
   MCQQuestion as DBMCQQuestion,
   CodingQuestion as DBCodingQuestion,
   MCQOption,
   CodingLanguage,
   CodingExample,
-  TestCase,
-  Json
+  TestCase
 } from '@/types/database';
 
 // Define types
@@ -30,7 +30,6 @@ export type MCQQuestion = {
   options: QuestionOption[];
   selectedOption?: string;
   marks?: number;
-  assessmentId?: string;
 };
 
 export type CodeQuestion = {
@@ -60,26 +59,21 @@ export type CodeQuestion = {
 
 export type Question = MCQQuestion | CodeQuestion;
 
-// Update interface to match Assessment properties correctly
-export interface AssessmentWithQuestions {
+export type Assessment = {
   id: string;
-  name: string;
   code: string;
-  status: string;
-  reattempt: boolean;
-  start_time: string;
-  end_time?: string;
-  duration_minutes: number;
-  created_at: string;
-  created_by?: string;
-  instructions?: string;
-  questions: Question[];
+  name: string;
+  instructions: string;
   mcqCount: number;
   codingCount: number;
-}
+  durationMinutes: number;
+  startTime: string; // ISO string
+  endTime?: string; // ISO string
+  questions: Question[];
+};
 
 interface AssessmentContextType {
-  assessment: AssessmentWithQuestions | null;
+  assessment: Assessment | null;
   currentQuestionIndex: number;
   assessmentStarted: boolean;
   assessmentEnded: boolean;
@@ -107,7 +101,7 @@ interface AssessmentContextType {
 const AssessmentContext = createContext<AssessmentContextType | undefined>(undefined);
 
 export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
-  const [assessment, setAssessment] = useState<AssessmentWithQuestions | null>(null);
+  const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [assessmentStarted, setAssessmentStarted] = useState<boolean>(false);
   const [assessmentEnded, setAssessmentEnded] = useState<boolean>(false);
@@ -120,7 +114,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   const [totalPossibleMarks, setTotalPossibleMarks] = useState<number>(0);
   const { toast } = useToast();
   const { user } = useAuth();
-  
   const navigate = useNavigate();
 
   const loadAssessment = async (code: string): Promise<boolean> => {
@@ -151,6 +144,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       const assessmentData = assessmentsData[0];
       console.log('Selected assessment data:', assessmentData);
       
+      // Fetch MCQ Questions
       const { data: mcqQuestionsData, error: mcqQuestionsError } = await supabase
         .from('mcq_questions')
         .select('*')
@@ -162,6 +156,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(`Failed to load MCQ questions: ${mcqQuestionsError.message}`);
       }
       
+      // Fetch Coding Questions
       const { data: codingQuestionsData, error: codingQuestionsError } = await supabase
         .from('coding_questions')
         .select('*')
@@ -178,6 +173,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       const questions: Question[] = [];
       let totalPossibleMarks = 0;
       
+      // Process MCQ Questions
       for (const mcqQuestion of mcqQuestionsData || []) {
         totalPossibleMarks += mcqQuestion.marks || 0;
         
@@ -199,20 +195,21 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           type: 'mcq',
           title: mcqQuestion.title,
           description: mcqQuestion.description,
-          imageUrl: mcqQuestion.image_url || undefined,
+          imageUrl: mcqQuestion.image_url,
           options: optionsData?.map(option => ({
             id: option.id,
             text: option.text,
             isCorrect: option.is_correct
           })) || [],
-          marks: mcqQuestion.marks,
-          assessmentId: mcqQuestion.assessment_id
+          marks: mcqQuestion.marks
         };
         
         questions.push(question);
       }
       
+      // Process Coding Questions
       for (const codingQuestion of codingQuestionsData || []) {
+        // Get coding languages
         const { data: languagesData, error: languagesError } = await supabase
           .from('coding_languages')
           .select('*')
@@ -223,6 +220,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           continue;
         }
         
+        // Get coding examples
         const { data: examplesData, error: examplesError } = await supabase
           .from('coding_examples')
           .select('*')
@@ -234,6 +232,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           continue;
         }
 
+        // Get test cases
         const { data: testCasesData, error: testCasesError } = await supabase
           .from('test_cases')
           .select('*')
@@ -245,28 +244,32 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           continue;
         }
 
+        // Calculate total marks from test cases
         const testCaseMarks = testCasesData?.reduce((sum, tc) => sum + (tc.marks || 0), 0) || 0;
         totalPossibleMarks += testCaseMarks;
         
+        // Create solution template object
         const solutionTemplate: Record<string, string> = {};
         languagesData?.forEach((lang) => {
           solutionTemplate[lang.coding_lang] = lang.solution_template;
         });
         
+        // Get constraints from the first language (they should be the same for all languages)
         const constraints = languagesData && languagesData.length > 0 
           ? languagesData[0].constraints || [] 
           : [];
 
+        // Create the coding question
         const question: CodeQuestion = {
           id: codingQuestion.id,
-          assessmentId: codingQuestion.assessment_id,
+          assessmentId: assessmentData.id,
           type: 'code',
           title: codingQuestion.title,
           description: codingQuestion.description,
           examples: examplesData?.map(example => ({
             input: example.input,
             output: example.output,
-            explanation: example.explanation || undefined,
+            explanation: example.explanation,
           })) || [],
           constraints: constraints,
           solutionTemplate,
@@ -287,6 +290,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       console.log(`Total questions processed: ${questions.length}`);
       console.log(`Total possible marks: ${totalPossibleMarks}`);
       
+      // Sort all questions by their order index
       const allQuestions = questions.sort((a, b) => {
         const orderA = a.type === 'mcq' 
           ? mcqQuestionsData?.find(q => q.id === a.id)?.order_index || 0
@@ -299,17 +303,23 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return orderA - orderB;
       });
       
-      const loadedAssessment: AssessmentWithQuestions = {
-        ...assessmentData,
-        questions: allQuestions,
+      const loadedAssessment: Assessment = {
+        id: assessmentData.id,
+        code: assessmentData.code,
+        name: assessmentData.name,
+        instructions: assessmentData.instructions || '',
         mcqCount: mcqQuestionsData?.length || 0,
-        codingCount: codingQuestionsData?.length || 0
+        codingCount: codingQuestionsData?.length || 0,
+        durationMinutes: assessmentData.duration_minutes,
+        startTime: assessmentData.start_time,
+        endTime: assessmentData.end_time,
+        questions: allQuestions
       };
       
       console.log('Setting assessment:', loadedAssessment);
       setAssessment(loadedAssessment);
       setTotalPossibleMarks(totalPossibleMarks);
-      setTimeRemaining(loadedAssessment.duration_minutes * 60);
+      setTimeRemaining(loadedAssessment.durationMinutes * 60);
       
       toast({
         title: "Success",
@@ -355,6 +365,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         if (submissionError || !submissions || submissions.length === 0) {
           console.error('Error finding submission to update:', submissionError);
           
+          // Create a new submission if none exists
           const { data: newSubmission, error: newSubmissionError } = await supabase
             .from('submissions')
             .insert({
@@ -400,6 +411,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           ? Math.round((totalMarksObtained / totalPossibleMarks) * 100)
           : 0;
         
+        // Get the latest submission for this assessment
         const { data: latestSubmission, error: latestSubmissionError } = await supabase
           .from('submissions')
           .select('*')
@@ -423,7 +435,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             total_score: totalMarksObtained,
             total_marks: totalPossibleMarks,
             percentage: percentage,
-            is_cheated: fullscreenWarnings >= 3,
+            is_cheated: fullscreenWarnings >= 3, // Mark as cheated if too many fullscreen violations
             completed_at: new Date().toISOString()
           });
           
@@ -460,6 +472,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     if (!assessment || !user) return;
     
     try {
+      // First, get the current submission
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
@@ -471,6 +484,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       if (submissionError || !submissions || submissions.length === 0) {
         console.error('Error finding submission:', submissionError);
         
+        // Create a new submission if none exists
         const { data: newSubmission, error: newSubmissionError } = await supabase
           .from('submissions')
           .insert({
@@ -491,11 +505,13 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
         
+        // Use the new submission
         var submissionId = newSubmission.id;
       } else {
         var submissionId = submissions[0].id;
       }
       
+      // Check if the selected option is correct
       const { data: option, error: optionError } = await supabase
         .from('mcq_options')
         .select('*')
@@ -512,6 +528,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
+      // Check if there's an existing question submission
       const { data: existingSubmission, error: existingSubmissionError } = await supabase
         .from('question_submissions')
         .select('*')
@@ -529,6 +546,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
+      // Get the question marks
       const { data: question, error: questionError } = await supabase
         .from('mcq_questions')
         .select('marks')
@@ -543,6 +561,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       const marksObtained = option.is_correct ? (question.marks || 0) : 0;
       
       if (existingSubmission && existingSubmission.length > 0) {
+        // Update existing submission
         const { error: updateError } = await supabase
           .from('question_submissions')
           .update({
@@ -562,6 +581,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
       } else {
+        // Create new submission
         const { error: insertError } = await supabase
           .from('question_submissions')
           .insert({
@@ -584,24 +604,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      setAssessment((prevAssessment) => {
-        if (!prevAssessment) return null;
-        
-        return {
-          ...prevAssessment,
-          questions: prevAssessment.questions.map(q => {
-            if (q.id === questionId && q.type === 'mcq') {
-              return {
-                ...q,
-                selectedOption: optionId
-              };
-            }
-            return q;
-          })
-        };
-      });
-      
-      const updatedAssessment = assessment ? {
+      // Update local state
+      setAssessment({
         ...assessment,
         questions: assessment.questions.map(q => {
           if (q.id === questionId && q.type === 'mcq') {
@@ -612,11 +616,24 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           }
           return q;
         })
-      } : null;
+      });
       
-      if (updatedAssessment) {
-        calculateTotalMarks(updatedAssessment);
-      }
+      // Recalculate total marks obtained
+      const updatedAssessment = {
+        ...assessment,
+        questions: assessment.questions.map(q => {
+          if (q.id === questionId && q.type === 'mcq') {
+            return {
+              ...q,
+              selectedOption: optionId
+            };
+          }
+          return q;
+        })
+      };
+      
+      // Update the total marks obtained in state
+      calculateTotalMarks(updatedAssessment);
       
       toast({
         title: "Answer Recorded",
@@ -632,10 +649,12 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const calculateTotalMarks = async (currentAssessment: AssessmentWithQuestions) => {
+  // Helper function to calculate total marks obtained
+  const calculateTotalMarks = async (currentAssessment: Assessment) => {
     if (!user || !currentAssessment) return;
     
     try {
+      // Get the current submission
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
@@ -649,6 +668,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
+      // Get all question submissions
       const { data: questionSubmissions, error: questionsError } = await supabase
         .from('question_submissions')
         .select('*')
@@ -659,6 +679,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
+      // Calculate total marks obtained
       const total = questionSubmissions?.reduce((sum, qs) => sum + (qs.marks_obtained || 0), 0) || 0;
       console.log(`Total marks calculated from submissions: ${total}`);
       
@@ -672,6 +693,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     if (!assessment || !user) return;
     
     try {
+      // First, get the current submission
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
@@ -683,6 +705,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       if (submissionError || !submissions || submissions.length === 0) {
         console.error('Error finding submission:', submissionError);
         
+        // Create a new submission if none exists
         const { data: newSubmission, error: newSubmissionError } = await supabase
           .from('submissions')
           .insert({
@@ -698,11 +721,13 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
         
+        // Use the new submission
         var submissionId = newSubmission.id;
       } else {
         var submissionId = submissions[0].id;
       }
       
+      // Check if there's an existing question submission
       const { data: existingSubmission, error: existingSubmissionError } = await supabase
         .from('question_submissions')
         .select('*')
@@ -716,6 +741,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       }
       
       if (existingSubmission && existingSubmission.length > 0) {
+        // Update existing submission
         const { error: updateError } = await supabase
           .from('question_submissions')
           .update({
@@ -729,6 +755,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
       } else {
+        // Create new submission
         const { error: insertError } = await supabase
           .from('question_submissions')
           .insert({
@@ -746,24 +773,21 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      setAssessment((prevAssessment) => {
-        if (!prevAssessment) return null;
-        
-        return {
-          ...prevAssessment,
-          questions: prevAssessment.questions.map(q => {
-            if (q.id === questionId && q.type === 'code') {
-              return {
-                ...q,
-                userSolution: {
-                  ...q.userSolution,
-                  [language]: code
-                }
-              };
-            }
-            return q;
-          })
-        };
+      // Update local state
+      setAssessment({
+        ...assessment,
+        questions: assessment.questions.map(q => {
+          if (q.id === questionId && q.type === 'code') {
+            return {
+              ...q,
+              userSolution: {
+                ...q.userSolution,
+                [language]: code
+              }
+            };
+          }
+          return q;
+        })
       });
     } catch (error) {
       console.error('Error saving code solution:', error);
@@ -779,6 +803,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     if (!assessment || !user) return;
     
     try {
+      // Get the current submission
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
@@ -792,6 +817,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
+      // Update the question submission
       const { data: questionSubmission, error: questionError } = await supabase
         .from('question_submissions')
         .select('*')
@@ -805,6 +831,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
+      // Update marks
       const { error: updateError } = await supabase
         .from('question_submissions')
         .update({
@@ -817,26 +844,22 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
-      setAssessment((prevAssessment) => {
-        if (!prevAssessment) return null;
-        
-        return {
-          ...prevAssessment,
-          questions: prevAssessment.questions.map(q => {
-            if (q.id === questionId && q.type === 'code') {
-              return {
-                ...q,
-                marksObtained: marks
-              };
-            }
-            return q;
-          })
-        };
+      // Update local state
+      setAssessment({
+        ...assessment,
+        questions: assessment.questions.map(q => {
+          if (q.id === questionId && q.type === 'code') {
+            return {
+              ...q,
+              marksObtained: marks
+            };
+          }
+          return q;
+        })
       });
       
-      if (assessment) {
-        calculateTotalMarks(assessment);
-      }
+      // Recalculate total marks
+      calculateTotalMarks(assessment);
     } catch (error) {
       console.error('Error updating marks:', error);
     }
@@ -872,17 +895,13 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
-      if (!assessmentData.reattempt && existingResults && existingResults.length > 0) {
+      if (!assessmentData.reattempt && existingResults.length > 0) {
         toast({
           title: "Reattempt Not Allowed",
           description: "You are not allowed to reattempt this assessment.",
           variant: "destructive"
         });
-        
-        if (typeof navigate === 'function') {
-          navigate('/student');
-        }
-        
+        navigate('/student');
         return false;
       }
 

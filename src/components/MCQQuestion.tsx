@@ -14,12 +14,12 @@ import { MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
 
 interface MCQQuestionProps {
   question: MCQQuestionType;
-  onAnswerSelect: (optionId: string) => void;
+  onAnswerSelect: (questionId: string, optionId: string) => void;
 }
 
 const MCQQuestion: React.FC<MCQQuestionProps> = ({ question, onAnswerSelect }) => {
   const handleOptionChange = (value: string) => {
-    onAnswerSelect(value);
+    onAnswerSelect(question.id, value);
   };
 
   return (
