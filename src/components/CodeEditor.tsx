@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -49,6 +50,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     }
   };
 
+  const cleanErrorOutput = (errorOutput: string): string => {
+    return errorOutput
+      .replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI color codes
+      .replace(/[\r\n]+/g, '\n')      // Normalize line endings
+      .trim();
+  };
+
   const handleRunCode = async () => {
     if (!currentCode.trim()) {
       toast({
@@ -89,11 +97,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         const result = await waitForSubmissionResult(token);
         
         if (result.status.id >= 6) {
-          // Simple text formatting for errors - no ANSI codes
-          const errorOutput = (result.compile_output || result.stderr || 'An error occurred while running your code')
-            .replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI color codes
-            .replace(/[\r\n]+/g, '\n')      // Normalize line endings
-            .trim();
+          const errorOutput = cleanErrorOutput(
+            result.compile_output || result.stderr || 'An error occurred while running your code'
+          );
             
           setOutput(prev => `${prev}\nError in test case ${i + 1}:\n${errorOutput}\n`);
           continue;
@@ -177,9 +183,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       const result = await waitForSubmissionResult(token);
       
       if (result.status.id >= 6) {
-        const errorOutput = result.compile_output || result.stderr || 'An error occurred while running your code';
-        // Clean and format error message - ensure plain text only
-        const cleanErrorOutput = errorOutput
+        const cleanErrorOutput = (result.compile_output || result.stderr || 'An error occurred while running your code')
           .replace(/\x1b\[[0-9;]*m/g, '')  // Remove ANSI color codes
           .replace(/[\r\n]+/g, '\n')       // Normalize line endings
           .trim();
@@ -326,6 +330,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             throw existingError;
           }
 
+          // Convert test results to a format that matches the Json type
+          const testResultsForJson = finalResults.map(result => ({
+            passed: result.passed,
+            actualOutput: result.actualOutput,
+            marks: result.marks,
+            isHidden: result.isHidden
+          }));
+
           const questionSubmissionData = {
             submission_id: submissionId,
             question_id: question.id,
@@ -334,7 +346,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             language: selectedLanguage,
             is_correct: allPassed,
             marks_obtained: totalMarksEarned,
-            test_results: finalResults as unknown as Json
+            test_results: testResultsForJson as unknown as Json
           };
 
           if (existingSubmission && existingSubmission.length > 0) {
@@ -394,6 +406,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     }
   };
 
+  // Define Monaco editor options with explicit type for autoIndent
   const editorOptions = {
     minimap: { enabled: true },
     scrollBeyondLastLine: false,

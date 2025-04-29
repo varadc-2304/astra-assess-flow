@@ -30,9 +30,9 @@ const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode;
 
   // If role is required and doesn't match user's role, redirect to appropriate dashboard
   if (requiredRole && user.role !== requiredRole) {
-    // Show unauthorized message and redirect to appropriate dashboard
+    // Show unauthorized message and redirect to login page
     console.log(`Access denied: User role ${user.role} doesn't match required role ${requiredRole}`);
-    return <Navigate to={user.role === 'admin' ? '/admin' : '/student'} replace />;
+    return <Navigate to="/" replace />;
   }
 
   // User is authenticated and has the correct role

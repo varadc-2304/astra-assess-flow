@@ -90,7 +90,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           throw new Error('Invalid email or password');
         }
         
-        // Check role
+        // Check role - strict validation to ensure the role matches exactly
         if (user.role !== role) {
           throw new Error(`This account is not registered as a ${role}`);
         }
