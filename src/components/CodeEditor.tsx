@@ -410,7 +410,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     minimap: { enabled: true },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    wordWrap: 'on',
+    wordWrap: 'on' as 'on',
     automaticLayout: true,
     tabSize: 2,
     formatOnPaste: true,
