@@ -8,6 +8,7 @@ import type {
 
 const TOAST_LIMIT = 3
 const TOAST_REMOVE_DELAY = 1000
+const DEFAULT_TOAST_DURATION = 2000 // Added default toast duration of 2 seconds
 
 type ToasterToast = ToastProps & {
   id: string
@@ -141,6 +142,9 @@ type Toast = Omit<ToasterToast, "id">
 function toast({ ...props }: Toast) {
   const id = genId()
 
+  // Apply default duration if not provided
+  const duration = typeof props.duration === 'number' ? props.duration : DEFAULT_TOAST_DURATION
+
   const update = (props: ToasterToast) =>
     dispatch({
       type: "UPDATE_TOAST",
@@ -153,6 +157,7 @@ function toast({ ...props }: Toast) {
     toast: {
       ...props,
       id,
+      duration,
       open: true,
       onOpenChange: (open) => {
         if (!open) dismiss()
