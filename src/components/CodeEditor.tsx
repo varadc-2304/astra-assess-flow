@@ -432,7 +432,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const handleEditorDidMount = (editor: any) => {
     setTimeout(() => {
       editor.layout();
-      editor.focus();
+      //editor.focus();
     }, 100);
   };
 
@@ -493,7 +493,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
                 height="100%"
                 defaultLanguage={selectedLanguage}
                 language={selectedLanguage}
-                value={currentCode}
+                defaultValue={currentCode}
                 onChange={handleCodeChange}
                 theme="vs-dark"
                 options={editorOptions}
