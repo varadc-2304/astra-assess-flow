@@ -85,10 +85,10 @@
   background-color: #1e1e1e !important;
 }
 
-/* Fix cursor position issue in Monaco Editor */
+/* Additional fixes for cursor position issue in Monaco Editor */
 .monaco-editor .inputarea {
   z-index: 10 !important;
-  position: absolute !important;
+  position: fixed !important;
   overflow: hidden !important;
   width: 1px !important;
   height: 1px !important;
@@ -99,4 +99,9 @@
   padding: 0 !important;
   resize: none !important;
   border: none !important;
+  outline: none !important;
+}
+
+.monaco-editor .cursor {
+  z-index: 5 !important;
 }

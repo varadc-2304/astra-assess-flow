@@ -18,6 +18,7 @@ export type Database = {
           end_time: string | null
           id: string
           instructions: string | null
+          is_practice: boolean
           name: string
           reattempt: boolean
           start_time: string
@@ -31,6 +32,7 @@ export type Database = {
           end_time?: string | null
           id?: string
           instructions?: string | null
+          is_practice?: boolean
           name: string
           reattempt?: boolean
           start_time: string
@@ -44,6 +46,7 @@ export type Database = {
           end_time?: string | null
           id?: string
           instructions?: string | null
+          is_practice?: boolean
           name?: string
           reattempt?: boolean
           start_time?: string
