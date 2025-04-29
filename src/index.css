@@ -85,23 +85,39 @@
   background-color: #1e1e1e !important;
 }
 
-/* Additional fixes for cursor position issue in Monaco Editor */
+/* Enhanced fixes for cursor position issue in Monaco Editor */
 .monaco-editor .inputarea {
   z-index: 10 !important;
-  position: fixed !important;
-  overflow: hidden !important;
-  width: 1px !important;
-  height: 1px !important;
-  min-height: auto !important;
-  min-width: auto !important;
+  position: absolute !important; /* Changed from fixed to absolute */
+  overflow: visible !important; /* Changed from hidden to visible */
+  width: 0px !important; /* Changed from 1px to 0px */
+  height: 0px !important; /* Changed from 1px to 0px */
+  min-height: 0px !important; /* Added explicit 0px */
+  min-width: 0px !important; /* Added explicit 0px */
   color: transparent !important;
   background: transparent !important;
   padding: 0 !important;
   resize: none !important;
   border: none !important;
   outline: none !important;
+  white-space: pre !important; /* Added to preserve whitespace */
+  -webkit-user-select: none !important; /* Added to prevent selection issues */
+  user-select: none !important;
 }
 
 .monaco-editor .cursor {
   z-index: 5 !important;
+  visibility: visible !important; /* Ensure cursor is always visible */
+}
+
+/* Make sure textareas in monaco editor don't have any restrictions */
+.monaco-editor textarea {
+  opacity: 1 !important;
+}
+
+/* Additional textarea fixes */
+.monaco-editor .monaco-editor-background + textarea {
+  opacity: 0 !important;
+  color: transparent !important;
+  background: transparent !important;
 }

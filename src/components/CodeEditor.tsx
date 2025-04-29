@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -406,19 +405,34 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     }
   };
 
-  // Define Monaco editor options with explicit type for autoIndent
   const editorOptions = {
     minimap: { enabled: true },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    wordWrap: 'on' as const,
+    wordWrap: 'on',
     automaticLayout: true,
     tabSize: 2,
     formatOnPaste: true,
     formatOnType: true,
-    autoIndent: 'full' as const,
+    autoIndent: 'advanced',
     quickSuggestions: true,
-    suggestOnTriggerCharacters: true
+    suggestOnTriggerCharacters: true,
+    fixedOverflowWidgets: true,
+    cursorBlinking: 'smooth',
+    cursorSmoothCaretAnimation: 'on',
+    cursorStyle: 'line',
+    mouseWheelZoom: true,
+    renderWhitespace: 'selection',
+    renderLineHighlight: 'all',
+    lineNumbers: 'on',
+    renderValidationDecorations: 'on'
+  };
+
+  const handleEditorDidMount = (editor: any) => {
+    setTimeout(() => {
+      editor.layout();
+      editor.focus();
+    }, 100);
   };
 
   return (
@@ -483,6 +497,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
                 theme="vs-dark"
                 options={editorOptions}
                 className="monaco-editor"
+                onMount={handleEditorDidMount}
               />
             </div>
           </TabsContent>

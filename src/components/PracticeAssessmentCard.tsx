@@ -45,7 +45,7 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
           </div>
           <div className="flex items-center text-sm text-gray-500">
             <Clock className="mr-2 h-4 w-4" />
-            <span>{assessment.durationMinutes || assessment.duration_minutes} minutes</span>
+            <span>{assessment.duration_minutes} minutes</span>
           </div>
           {isSolved && (
             <div className="flex items-center text-sm text-green-600">
