@@ -18,9 +18,15 @@ interface PracticeAssessmentCardProps {
   assessment: Assessment;
   isSolved?: boolean;
   marksObtained?: number;
+  totalMarks?: number; // Add this prop
 }
 
-const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 0 }: PracticeAssessmentCardProps) => {
+const PracticeAssessmentCard = ({ 
+  assessment, 
+  isSolved = false, 
+  marksObtained = 0,
+  totalMarks = 0 // Add default value
+}: PracticeAssessmentCardProps) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -98,7 +104,7 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
           {isSolved && (
             <div className="flex items-center text-sm text-green-600">
               <Award className="mr-2 h-4 w-4" />
-              <span>Marks: {marksObtained}/{assessment.marks ?? 0}</span>
+              <span>Marks: {marksObtained}/{totalMarks}</span>
             </div>
           )}
         </div>
