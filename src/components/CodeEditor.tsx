@@ -425,7 +425,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     renderWhitespace: 'none',
     renderLineHighlight: 'line' as const,
     lineNumbers: 'on' as const,
-    renderValidationDecorations: 'on',
+    renderValidationDecorations: 'on' as 'on' | 'off' | 'editable',
     folding: false,
     glyphMargin: false,
     contextmenu: false,
