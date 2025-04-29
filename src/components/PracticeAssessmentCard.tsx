@@ -104,15 +104,7 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
         </div>
       </CardContent>
       
-      <CardFooter className="bg-gray-50 pt-2">
-        <Button 
-          variant="outline" 
-          className="w-full bg-white hover:bg-gray-100" 
-          onClick={handleStart}
-        >
-          {isSolved ? "Practice Again" : "Start Practice"}
-        </Button>
-      </CardFooter>
+
     </Card>
   );
 };
