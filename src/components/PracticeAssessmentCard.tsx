@@ -50,7 +50,7 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
           {isSolved && (
             <div className="flex items-center text-sm text-green-600">
               <Award className="mr-2 h-4 w-4" />
-              <span>Marks: {marksObtained}/{assessment.marks || 0}</span>
+              <span>Marks: {marksObtained}/{(assessment as any).marks || 0}</span>
             </div>
           )}
         </div>

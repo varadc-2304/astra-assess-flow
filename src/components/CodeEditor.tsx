@@ -425,7 +425,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     renderWhitespace: 'selection',
     renderLineHighlight: 'all',
     lineNumbers: 'on' as const,
-    renderValidationDecorations: 'on'
+    renderValidationDecorations: 'on' as const
   };
 
   const handleEditorDidMount = (editor: any) => {
