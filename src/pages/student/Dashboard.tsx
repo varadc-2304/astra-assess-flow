@@ -68,7 +68,8 @@ const StudentDashboard = () => {
           const { data: userResults, error: resultsError } = await supabase
             .from('results')
             .select('*')
-            .eq('user_id', user.id);
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false });
           
           if (resultsError) throw resultsError;
           setResults(userResults || []);
@@ -79,6 +80,7 @@ const StudentDashboard = () => {
           title: 'Failed to load practice assessments',
           description: 'Please try refreshing the page',
           variant: 'destructive',
+          duration: 1000,
         });
       } finally {
         setIsLoading(false);
@@ -94,12 +96,14 @@ const StudentDashboard = () => {
       toast({
         title: "Logged Out",
         description: "You have been successfully logged out",
+        duration: 1000,
       });
     } catch (error) {
       toast({
         title: "Logout Failed",
         description: "An error occurred during logout",
         variant: "destructive",
+        duration: 1000,
       });
     }
   };
@@ -114,6 +118,7 @@ const StudentDashboard = () => {
   };
 
   const getMarksObtained = (assessmentId: string) => {
+    // Find the most recent result for this assessment
     const result = results.find(result => result.assessment_id === assessmentId);
     return result ? result.total_score : 0;
   };

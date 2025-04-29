@@ -316,10 +316,16 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       setAssessment(loadedAssessment);
       setTotalPossibleMarks(totalPossibleMarks);
       setTimeRemaining(loadedAssessment.durationMinutes * 60);
+      setCurrentQuestionIndex(0); // Reset to first question on reload
+      setAssessmentEnded(false); // Reset ended status
+      
+      // Reset all marks obtained
+      setTotalMarksObtained(0);
       
       toast({
         title: "Success",
         description: `Assessment "${loadedAssessment.name}" loaded successfully`,
+        duration: 1000,
       });
       
       return true;
@@ -330,6 +336,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         title: "Error",
         description: error instanceof Error ? error.message : 'Failed to load assessment',
         variant: "destructive",
+        duration: 1000,
       });
       return false;
     } finally {
@@ -339,6 +346,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
 
   const startAssessment = () => {
     setAssessmentStarted(true);
+    setFullscreenWarnings(0); // Reset fullscreen warnings on start
   };
 
   const endAssessment = async (): Promise<boolean> => {
@@ -350,84 +358,41 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         console.log('Assessment ended successfully');
         console.log(`Total marks obtained: ${totalMarksObtained}/${totalPossibleMarks}`);
         
-        const { data: submissions, error: submissionError } = await supabase
+        // Always create a new submission for each assessment attempt
+        const { data: newSubmission, error: newSubmissionError } = await supabase
           .from('submissions')
-          .select('*')
-          .eq('assessment_id', assessment.id)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1);
-          
-        if (submissionError || !submissions || submissions.length === 0) {
-          console.error('Error finding submission to update:', submissionError);
-          
-          // Create a new submission if none exists
-          const { data: newSubmission, error: newSubmissionError } = await supabase
-            .from('submissions')
-            .insert({
-              assessment_id: assessment.id,
-              user_id: user.id,
-              started_at: new Date().toISOString(),
-              completed_at: new Date().toISOString(),
-              fullscreen_violations: fullscreenWarnings
-            })
-            .select()
-            .single();
+          .insert({
+            assessment_id: assessment.id,
+            user_id: user.id,
+            started_at: new Date().toISOString(),
+            completed_at: new Date().toISOString(),
+            fullscreen_violations: fullscreenWarnings
+          })
+          .select()
+          .single();
             
-          if (newSubmissionError) {
-            console.error('Error creating submission:', newSubmissionError);
-            toast({
-              title: "Error",
-              description: "There was an error creating your submission.",
-              variant: "destructive",
-            });
-            return false;
-          }
-        } else {
-          const { error: updateError } = await supabase
-            .from('submissions')
-            .update({ 
-              completed_at: new Date().toISOString(),
-              fullscreen_violations: fullscreenWarnings
-            })
-            .eq('id', submissions[0].id);
-            
-          if (updateError) {
-            console.error('Error updating submission:', updateError);
-            toast({
-              title: "Error",
-              description: "There was an error updating your submission.",
-              variant: "destructive",
-            });
-            return false;
-          }
+        if (newSubmissionError || !newSubmission) {
+          console.error('Error creating submission:', newSubmissionError);
+          toast({
+            title: "Error",
+            description: "There was an error creating your submission.",
+            variant: "destructive",
+            duration: 1000,
+          });
+          return false;
         }
         
         const percentage = totalPossibleMarks > 0
           ? Math.round((totalMarksObtained / totalPossibleMarks) * 100)
           : 0;
         
-        // Get the latest submission for this assessment
-        const { data: latestSubmission, error: latestSubmissionError } = await supabase
-          .from('submissions')
-          .select('*')
-          .eq('assessment_id', assessment.id)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-          
-        if (latestSubmissionError) {
-          console.error('Error finding latest submission:', latestSubmissionError);
-          return false;
-        }
-        
+        // Create a new result entry for this attempt
         const { error: resultError } = await supabase
           .from('results')
           .insert({
             user_id: user.id,
             assessment_id: assessment.id,
-            submission_id: latestSubmission.id,
+            submission_id: newSubmission.id,
             total_score: totalMarksObtained,
             total_marks: totalPossibleMarks,
             percentage: percentage,
@@ -441,6 +406,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             title: "Warning",
             description: "There was an error saving your results.",
             variant: "destructive",
+            duration: 1000,
           });
           return false;
         }
@@ -448,6 +414,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         toast({
           title: "Assessment Completed",
           description: `Your results have been saved. You scored ${totalMarksObtained}/${totalPossibleMarks} (${percentage}%).`,
+          duration: 1000,
         });
         
         return true;
@@ -459,6 +426,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         title: "Error",
         description: "There was an error finalizing your assessment. Your answers may not have been saved.",
         variant: "destructive",
+        duration: 1000,
       });
       return false;
     }
@@ -470,12 +438,13 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     try {
       console.log(`Answering MCQ question ${questionId} with option ${optionId}`);
       
-      // First, get the current submission
+      // Always create a new submission for the current session if not already created
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
         .eq('assessment_id', assessment.id)
         .eq('user_id', user.id)
+        .is('completed_at', null)
         .order('created_at', { ascending: false })
         .limit(1);
         
@@ -487,7 +456,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       let submissionId: string;
       
       if (!submissions || submissions.length === 0) {
-        // Create a new submission if none exists
+        // Create a new submission if none exists for this attempt
         const { data: newSubmission, error: newSubmissionError } = await supabase
           .from('submissions')
           .insert({
@@ -504,6 +473,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             title: "Error",
             description: "There was an error recording your answer.",
             variant: "destructive",
+            duration: 1000,
           });
           return;
         }
@@ -526,24 +496,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           title: "Error",
           description: "There was an error processing your answer.",
           variant: "destructive",
-        });
-        return;
-      }
-      
-      // Check if there's an existing question submission
-      const { data: existingSubmission, error: existingSubmissionError } = await supabase
-        .from('question_submissions')
-        .select('*')
-        .eq('submission_id', submissionId)
-        .eq('question_type', 'mcq')
-        .eq('question_id', questionId);
-        
-      if (existingSubmissionError) {
-        console.error('Error checking existing submission:', existingSubmissionError);
-        toast({
-          title: "Error",
-          description: "There was an error processing your answer.",
-          variant: "destructive",
+          duration: 1000,
         });
         return;
       }
@@ -562,8 +515,27 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       
       const marksObtained = option.is_correct ? (question.marks || 0) : 0;
       
+      // Check if there's an existing question submission for this session
+      const { data: existingSubmission, error: existingSubmissionError } = await supabase
+        .from('question_submissions')
+        .select('*')
+        .eq('submission_id', submissionId)
+        .eq('question_type', 'mcq')
+        .eq('question_id', questionId);
+        
+      if (existingSubmissionError) {
+        console.error('Error checking existing submission:', existingSubmissionError);
+        toast({
+          title: "Error",
+          description: "There was an error processing your answer.",
+          variant: "destructive",
+          duration: 1000,
+        });
+        return;
+      }
+      
       if (existingSubmission && existingSubmission.length > 0) {
-        // Update existing submission
+        // Update existing submission for this attempt
         const { error: updateError } = await supabase
           .from('question_submissions')
           .update({
@@ -579,11 +551,12 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             title: "Error",
             description: "There was an error updating your answer.",
             variant: "destructive",
+            duration: 1000,
           });
           return;
         }
       } else {
-        // Create new submission
+        // Create new submission for this attempt
         const { error: insertError } = await supabase
           .from('question_submissions')
           .insert({
@@ -601,6 +574,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             title: "Error",
             description: "There was an error recording your answer.",
             variant: "destructive",
+            duration: 1000,
           });
           return;
         }
@@ -640,6 +614,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       toast({
         title: "Answer Recorded",
         description: "Your answer has been saved.",
+        duration: 1000,
       });
     } catch (error) {
       console.error('Error answering MCQ:', error);
@@ -647,6 +622,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         title: "Error",
         description: "There was an error processing your answer.",
         variant: "destructive",
+        duration: 1000,
       });
     }
   };
@@ -694,19 +670,20 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     if (!assessment || !user) return;
     
     try {
-      // First, get the current submission
+      // Get the current non-completed submission for this attempt
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
         .eq('assessment_id', assessment.id)
         .eq('user_id', user.id)
+        .is('completed_at', null)
         .order('created_at', { ascending: false })
         .limit(1);
         
-      if (submissionError || !submissions || submissions.length === 0) {
+      if (submissionError) {
         console.error('Error finding submission:', submissionError);
         
-        // Create a new submission if none exists
+        // Create a new submission for this attempt if none exists
         const { data: newSubmission, error: newSubmissionError } = await supabase
           .from('submissions')
           .insert({
@@ -722,13 +699,32 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
         
-        // Use the new submission
         var submissionId = newSubmission.id;
       } else {
-        var submissionId = submissions[0].id;
+        var submissionId = submissions && submissions.length > 0 ? submissions[0].id : null;
+        
+        if (!submissionId) {
+          // Create a new submission for this attempt
+          const { data: newSubmission, error: newSubmissionError } = await supabase
+            .from('submissions')
+            .insert({
+              assessment_id: assessment.id,
+              user_id: user.id,
+              started_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+            
+          if (newSubmissionError) {
+            console.error('Error creating submission:', newSubmissionError);
+            return;
+          }
+          
+          submissionId = newSubmission.id;
+        }
       }
       
-      // Check if there's an existing question submission
+      // Check if there's an existing question submission for this session
       const { data: existingSubmission, error: existingSubmissionError } = await supabase
         .from('question_submissions')
         .select('*')
@@ -742,7 +738,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       }
       
       if (existingSubmission && existingSubmission.length > 0) {
-        // Update existing submission
+        // Update existing submission for this attempt
         const { error: updateError } = await supabase
           .from('question_submissions')
           .update({
@@ -756,7 +752,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
       } else {
-        // Create new submission
+        // Create new submission for this attempt
         const { error: insertError } = await supabase
           .from('question_submissions')
           .insert({
@@ -796,6 +792,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         title: "Error",
         description: "There was an error saving your code.",
         variant: "destructive",
+        duration: 1000,
       });
     }
   };
@@ -804,12 +801,13 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     if (!assessment || !user) return;
     
     try {
-      // Get the current submission
+      // Get the current non-completed submission for this attempt
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
         .eq('assessment_id', assessment.id)
         .eq('user_id', user.id)
+        .is('completed_at', null)
         .order('created_at', { ascending: false })
         .limit(1);
         
@@ -818,27 +816,26 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
       
-      // Update the question submission
+      // Update the question submission for this attempt
       const { data: questionSubmission, error: questionError } = await supabase
         .from('question_submissions')
         .select('*')
         .eq('submission_id', submissions[0].id)
         .eq('question_type', 'code')
-        .eq('question_id', questionId)
-        .single();
+        .eq('question_id', questionId);
         
-      if (questionError) {
+      if (questionError || !questionSubmission || questionSubmission.length === 0) {
         console.error('Error finding question submission:', questionError);
         return;
       }
       
-      // Update marks
+      // Update marks for this attempt
       const { error: updateError } = await supabase
         .from('question_submissions')
         .update({
           marks_obtained: marks
         })
-        .eq('id', questionSubmission.id);
+        .eq('id', questionSubmission[0].id);
         
       if (updateError) {
         console.error('Error updating marks:', updateError);
@@ -859,7 +856,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         })
       });
       
-      // Recalculate total marks
+      // Recalculate total marks for this attempt
       calculateTotalMarks(assessment);
     } catch (error) {
       console.error('Error updating marks:', error);
@@ -874,6 +871,24 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     try {
       if (!user) return false;
       
+      // Check if the assessment allows reattempts regardless of previous attempts
+      const { data: assessmentData, error: assessmentError } = await supabase
+        .from('assessments')
+        .select('reattempt, is_practice')
+        .eq('id', assessmentId)
+        .single();
+
+      if (assessmentError || !assessmentData) {
+        console.error('Error fetching assessment data:', assessmentError);
+        return false;
+      }
+      
+      // If it's a practice assessment or reattempt is enabled, always allow
+      if (assessmentData.is_practice || assessmentData.reattempt) {
+        return true;
+      }
+      
+      // If not a practice assessment and reattempt not allowed, check if user has already attempted
       const { data: existingResults, error: resultsError } = await supabase
         .from('results')
         .select('*')
@@ -885,22 +900,12 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
 
-      const { data: assessmentData, error: assessmentError } = await supabase
-        .from('assessments')
-        .select('reattempt')
-        .eq('id', assessmentId)
-        .single();
-
-      if (assessmentError || !assessmentData) {
-        console.error('Error fetching assessment data:', assessmentError);
-        return false;
-      }
-
-      if (!assessmentData.reattempt && existingResults.length > 0) {
+      if (!assessmentData.reattempt && existingResults && existingResults.length > 0) {
         toast({
           title: "Reattempt Not Allowed",
           description: "You are not allowed to reattempt this assessment.",
-          variant: "destructive"
+          variant: "destructive",
+          duration: 1000,
         });
         navigate('/student');
         return false;

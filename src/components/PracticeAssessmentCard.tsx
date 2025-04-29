@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileCode, Clock, Award } from 'lucide-react';
 import { Assessment } from '@/types/database';
+import { useToast } from '@/hooks/use-toast';
 
 interface PracticeAssessmentCardProps {
   assessment: Assessment;
@@ -15,9 +16,20 @@ interface PracticeAssessmentCardProps {
 
 const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 0 }: PracticeAssessmentCardProps) => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   
   const handleStart = () => {
+    // Clear any previous assessment data from localStorage
+    localStorage.removeItem('assessmentCode');
+    // Set the new assessment code
     localStorage.setItem('assessmentCode', assessment.code);
+    
+    toast({
+      title: "Loading assessment",
+      description: `Starting ${assessment.name}`,
+      duration: 1000
+    });
+    
     navigate('/instructions');
   };
   

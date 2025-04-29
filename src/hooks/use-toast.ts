@@ -8,7 +8,7 @@ import type {
 
 const TOAST_LIMIT = 3
 const TOAST_REMOVE_DELAY = 1000
-const DEFAULT_TOAST_DURATION = 2000 // Added default toast duration of 2 seconds
+const DEFAULT_TOAST_DURATION = 1000 // Changed default toast duration to 1 second
 
 type ToasterToast = ToastProps & {
   id: string
