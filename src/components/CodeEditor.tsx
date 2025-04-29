@@ -418,7 +418,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     formatOnType: false,
     autoIndent: 'advanced',
     quickSuggestions: true,
-    cursorBlinking: 'solid',
+    cursorBlinking: 'solid' as 'blink' | 'solid' | 'smooth' | 'phase' | 'expand',
     cursorSmoothCaretAnimation: 'off',
     cursorStyle: 'line',
     mouseWheelZoom: false,
@@ -548,3 +548,4 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
 };
 
 export default CodeEditor;
+
