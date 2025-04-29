@@ -3,6 +3,7 @@ import { useAssessment } from '@/contexts/AssessmentContext';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 export const MAX_WARNINGS = 3;
 
@@ -12,6 +13,7 @@ export const useFullscreen = () => {
   const { fullscreenWarnings, addFullscreenWarning, endAssessment, assessment } = useAssessment();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const fullscreenExitHandledRef = useRef<boolean>(false);
 
   const checkFullscreen = useCallback(() => {
@@ -151,70 +153,66 @@ export const useFullscreen = () => {
 
   const terminateAssessment = useCallback(async () => {
     try {
-      const { user } = auth;
-      const assessmentId = assessment?.id;
+      if (!user || !assessment?.id) return;
 
-      if (user && assessmentId) {
-        const { data: submissions, error: submissionError } = await supabase
-          .from('submissions')
-          .select('*')
-          .eq('assessment_id', assessmentId)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1);
+      const { data: submissions, error: submissionError } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('assessment_id', assessment.id)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-        if (submissionError) {
-          throw new Error(`Failed to find submission: ${submissionError.message}`);
-        }
-
-        if (submissions && submissions.length > 0) {
-          const { error: updateError } = await supabase
-            .from('submissions')
-            .update({
-              is_terminated: true,
-              completed_at: new Date().toISOString()
-            })
-            .eq('id', submissions[0].id);
-
-          if (updateError) {
-            console.error('Error updating submission termination status:', updateError);
-          }
-        }
-
-        const { data: results, error: resultError } = await supabase
-          .from('results')
-          .select('*')
-          .eq('assessment_id', assessmentId)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        if (resultError) {
-          throw new Error(`Failed to find result: ${resultError.message}`);
-        }
-
-        if (results && results.length > 0) {
-          const { error: updateError } = await supabase
-            .from('results')
-            .update({
-              is_cheated: true,
-              completed_at: new Date().toISOString()
-            })
-            .eq('id', results[0].id);
-
-          if (updateError) {
-            console.error('Error updating result termination status:', updateError);
-          }
-        }
-        
-        endAssessment();
+      if (submissionError) {
+        throw new Error(`Failed to find submission: ${submissionError.message}`);
       }
 
+      if (submissions && submissions.length > 0) {
+        const { error: updateError } = await supabase
+          .from('submissions')
+          .update({
+            is_terminated: true,
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', submissions[0].id);
+
+        if (updateError) {
+          console.error('Error updating submission termination status:', updateError);
+        }
+      }
+
+      const { data: results, error: resultError } = await supabase
+        .from('results')
+        .select('*')
+        .eq('assessment_id', assessment.id)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (resultError) {
+        throw new Error(`Failed to find result: ${resultError.message}`);
+      }
+
+      if (results && results.length > 0) {
+        const { error: updateError } = await supabase
+          .from('results')
+          .update({
+            is_cheated: true,
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', results[0].id);
+
+        if (updateError) {
+          console.error('Error updating result termination status:', updateError);
+        }
+      }
+      
+      endAssessment();
       navigate('/summary');
     } catch (error) {
       console.error('Error terminating assessment:', error);
     }
-  }, [assessment, auth, endAssessment, navigate]);
+  }, [assessment, user, endAssessment, navigate]);
 
   return {
     isFullscreen,

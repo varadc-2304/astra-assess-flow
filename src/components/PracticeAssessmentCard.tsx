@@ -28,7 +28,7 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
     } else {
       setMarks(marksObtained);
     }
-  }, [user, assessment, isSolved]);
+  }, [user, assessment, isSolved, marksObtained]);
   
   const fetchMarks = async () => {
     if (!user) return;
@@ -39,7 +39,7 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
       const { data: totalMarksData, error: totalMarksError } = await supabase
         .rpc('calculate_assessment_total_marks', { assessment_id: assessment.id });
       
-      if (!totalMarksError) {
+      if (!totalMarksError && totalMarksData !== null) {
         setTotalMarks(totalMarksData || 0);
       }
       
@@ -53,8 +53,8 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
         .limit(1);
       
       if (!resultsError && results && results.length > 0) {
-        setMarks(results[0].total_score);
-        if (results[0].total_marks > 0) {
+        setMarks(results[0].total_score || 0);
+        if (results[0].total_marks && results[0].total_marks > 0) {
           setTotalMarks(results[0].total_marks);
         }
       }
