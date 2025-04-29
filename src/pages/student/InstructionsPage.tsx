@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -9,12 +10,15 @@ import { ClipboardList, Clock, Code } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const InstructionsPage = () => {
-  const { assessment, startAssessment, assessmentCode, loading } = useAssessment();
+  const { assessment, startAssessment, assessmentCode, loading, clearPreviousAssessmentState } = useAssessment();
   const navigate = useNavigate();
   const [countdownEnded, setCountdownEnded] = useState(false);
   const { toast } = useToast();
   
   useEffect(() => {
+    // Clear any previous assessment state when loading the instructions page
+    clearPreviousAssessmentState();
+    
     if (!loading && !assessment && assessmentCode) {
       console.log("No assessment data available, redirecting to dashboard");
       toast({
@@ -24,7 +28,7 @@ const InstructionsPage = () => {
       });
       navigate('/student');
     }
-  }, [assessment, assessmentCode, loading, navigate, toast]);
+  }, [assessment, assessmentCode, loading, navigate, toast, clearPreviousAssessmentState]);
   
   if (loading) {
     return (
