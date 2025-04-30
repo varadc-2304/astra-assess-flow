@@ -3,7 +3,7 @@ import React from 'react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { Check, HelpCircle } from 'lucide-react';
+import { Check, HelpCircle, AlertTriangle } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -15,15 +15,28 @@ import { MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
 interface MCQQuestionProps {
   question: MCQQuestionType;
   onAnswerSelect: (questionId: string, optionId: string) => void;
+  isWarningActive?: boolean;
 }
 
-const MCQQuestion: React.FC<MCQQuestionProps> = ({ question, onAnswerSelect }) => {
+const MCQQuestion: React.FC<MCQQuestionProps> = ({ 
+  question, 
+  onAnswerSelect,
+  isWarningActive = false 
+}) => {
   const handleOptionChange = (value: string) => {
     onAnswerSelect(question.id, value);
   };
 
   return (
-    <Card className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+    <Card className={`border ${isWarningActive ? 'border-red-500 shadow-red-100' : 'border-gray-200'} shadow-sm hover:shadow-md transition-shadow duration-200`}>
+      {isWarningActive && (
+        <div className="bg-red-50 p-2 flex items-center gap-2 border-b border-red-200">
+          <AlertTriangle className="h-5 w-5 text-red-500" />
+          <span className="text-sm font-medium text-red-700">
+            Anti-cheating warning active - please return to assessment conditions
+          </span>
+        </div>
+      )}
       <CardContent className="p-6 space-y-6">
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-2">
@@ -48,8 +61,8 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({ question, onAnswerSelect }) =
             <div className="relative rounded-lg overflow-hidden border border-gray-200">
               <img 
                 src={question.imageUrl} 
-                alt={question.title} 
-                className="w-full h-auto object-cover"
+                alt="Question image" 
+                className="max-w-full rounded-md object-contain max-h-64"
               />
             </div>
           )}
