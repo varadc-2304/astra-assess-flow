@@ -10,13 +10,10 @@ export const MAX_WARNINGS = 2;
 export const useFullscreen = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showExitWarning, setShowExitWarning] = useState(false);
-  const [tabSwitchWarning, setTabSwitchWarning] = useState(false);
   const { fullscreenWarnings, addFullscreenWarning, endAssessment, assessment } = useAssessment();
   const navigate = useNavigate();
   const { toast } = useToast();
   const fullscreenExitHandledRef = useRef<boolean>(false);
-  const lastVisibilityState = useRef<boolean>(true);
-  const visibilityViolations = useRef<number>(0);
 
   const checkFullscreen = useCallback(() => {
     const isDocumentFullscreen =
@@ -50,7 +47,7 @@ export const useFullscreen = () => {
     }
   }, []);
 
-  const recordFullscreenViolation = useCallback(async (violationType: 'fullscreen' | 'visibility') => {
+  const recordFullscreenViolation = useCallback(async () => {
     if (!assessment) return;
 
     try {
@@ -67,30 +64,20 @@ export const useFullscreen = () => {
       }
 
       const submission = submissions[0];
-      
-      // Calculate total violations for termination decision
-      const totalViolations = violationType === 'fullscreen' 
-        ? (fullscreenWarnings + 1) 
-        : (visibilityViolations.current);
-        
-      const isTerminated = totalViolations >= MAX_WARNINGS;
-      
       const { error: updateError } = await supabase
         .from('submissions')
         .update({
-          fullscreen_violations: violationType === 'fullscreen' 
-            ? (submission.fullscreen_violations || 0) + 1 
-            : submission.fullscreen_violations,
-          is_terminated: isTerminated
+          fullscreen_violations: (submission.fullscreen_violations || 0) + 1,
+          is_terminated: fullscreenWarnings + 1 >= MAX_WARNINGS
         })
         .eq('id', submission.id);
 
       if (updateError) {
-        console.error('Error updating submission with violation:', updateError);
+        console.error('Error updating submission with fullscreen violation:', updateError);
       }
 
       // Update the results table if this violation leads to termination
-      if (isTerminated) {
+      if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
         const { error: resultError } = await supabase
           .from('results')
           .update({ 
@@ -105,7 +92,7 @@ export const useFullscreen = () => {
         }
       }
     } catch (error) {
-      console.error('Error recording violation:', error);
+      console.error('Error recording fullscreen violation:', error);
     }
   }, [assessment, fullscreenWarnings]);
 
@@ -117,7 +104,7 @@ export const useFullscreen = () => {
         fullscreenExitHandledRef.current = true;
         setShowExitWarning(true);
         addFullscreenWarning();
-        recordFullscreenViolation('fullscreen');
+        recordFullscreenViolation();
         
         toast({
           title: "Warning",
@@ -148,45 +135,6 @@ export const useFullscreen = () => {
     toast
   ]);
 
-  // Handle visibility change (tab switching, window switching)
-  const handleVisibilityChange = useCallback(() => {
-    // Only act if we're in assessment mode
-    if (!assessment) return;
-    
-    const isVisible = !document.hidden;
-    
-    // Tab/window switched
-    if (lastVisibilityState.current && !isVisible) {
-      visibilityViolations.current += 1;
-      setTabSwitchWarning(true);
-      
-      recordFullscreenViolation('visibility');
-      
-      toast({
-        title: "Warning",
-        description: `You left the assessment tab/window. This is violation ${visibilityViolations.current}/${MAX_WARNINGS}`,
-        variant: "destructive",
-      });
-      
-      if (visibilityViolations.current >= MAX_WARNINGS) {
-        endAssessment();
-        navigate('/summary');
-      }
-    } 
-    // Returned to tab/window
-    else if (!lastVisibilityState.current && isVisible) {
-      setTabSwitchWarning(false);
-      
-      toast({
-        title: "Assessment Tab",
-        description: "You have returned to the assessment tab.",
-      });
-    }
-    
-    // Update last state
-    lastVisibilityState.current = isVisible;
-  }, [assessment, recordFullscreenViolation, toast, navigate, endAssessment]);
-
   useEffect(() => {
     const handler = () => handleFullscreenChange();
 
@@ -203,15 +151,6 @@ export const useFullscreen = () => {
     };
   }, [handleFullscreenChange]);
 
-  // Set up visibility change detection
-  useEffect(() => {
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [handleVisibilityChange]);
-
   const terminateAssessment = useCallback(() => {
     endAssessment();
     navigate('/summary');
@@ -222,9 +161,7 @@ export const useFullscreen = () => {
     enterFullscreen,
     exitFullscreen,
     fullscreenWarnings,
-    visibilityViolations: visibilityViolations.current,
     showExitWarning,
-    tabSwitchWarning,
     terminateAssessment,
   };
 };

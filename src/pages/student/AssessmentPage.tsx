@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -51,9 +50,7 @@ const AssessmentPage = () => {
     enterFullscreen, 
     isFullscreen, 
     showExitWarning, 
-    tabSwitchWarning,
     fullscreenWarnings,
-    visibilityViolations,
     terminateAssessment
   } = useFullscreen();
   const { toast } = useToast();
@@ -200,13 +197,10 @@ const AssessmentPage = () => {
   const handleUpdateMarks = (questionId: string, marks: number) => {
     updateMarksObtained(questionId, marks);
   };
-
-  // Anti-cheating warning is active when either fullscreen or tab warnings are shown
-  const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
   
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      <header className={`${isAntiCheatingWarningActive ? 'bg-red-50 border-red-300' : 'bg-white border-gray-200'} border-b py-2 px-4 flex items-center justify-between sticky top-0 z-10 transition-colors duration-300`}>
+      <header className="bg-white border-b border-gray-200 py-2 px-4 flex items-center justify-between sticky top-0 z-10">
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="outline" size="icon" className="mr-4">
@@ -266,16 +260,7 @@ const AssessmentPage = () => {
           </SheetContent>
         </Sheet>
         
-        <div className="flex items-center gap-2">
-          {isAntiCheatingWarningActive && (
-            <div className="flex items-center mr-3">
-              <AlertTriangle className="h-5 w-5 text-red-500 mr-1" />
-              <span className="text-sm font-medium text-red-700">
-                {showExitWarning ? `Fullscreen Warning: ${fullscreenWarnings}/${MAX_WARNINGS}` : 
-                 tabSwitchWarning ? `Tab Switch Warning: ${visibilityViolations}/${MAX_WARNINGS}` : ''}
-              </span>
-            </div>
-          )}
+        <div className="flex items-center">
           <Timer variant="assessment" />
         </div>
       </header>
@@ -287,19 +272,11 @@ const AssessmentPage = () => {
               <MCQQuestion 
                 question={currentQuestion} 
                 onAnswerSelect={answerMCQ}
-                isWarningActive={isAntiCheatingWarningActive}
               />
             </div>
           ) : (
             <div className="flex flex-col md:flex-row gap-4 h-full">
-              <div className={`md:w-1/2 bg-white p-6 rounded-lg shadow overflow-y-auto max-h-[calc(100vh-180px)] ${isAntiCheatingWarningActive ? 'border border-red-300' : ''}`}>
-                {isAntiCheatingWarningActive && (
-                  <div className="mb-3 bg-red-50 p-2 rounded-md flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-red-500" />
-                    <p className="text-sm text-red-700">Anti-cheating warning active</p>
-                  </div>
-                )}
-
+              <div className="md:w-1/2 bg-white p-6 rounded-lg shadow overflow-y-auto max-h-[calc(100vh-180px)]">
                 <h3 className="text-lg font-medium mb-3">{currentQuestion.title}</h3>
                 <p className="text-gray-700 whitespace-pre-line mb-4">{currentQuestion.description}</p>
                 
@@ -341,7 +318,7 @@ const AssessmentPage = () => {
                 )}
               </div>
               
-              <div className={`md:w-1/2 bg-white rounded-lg shadow flex flex-col overflow-hidden ${isAntiCheatingWarningActive ? 'border border-red-300' : ''}`}>
+              <div className="md:w-1/2 bg-white rounded-lg shadow flex flex-col overflow-hidden">
                 <div className="p-4 flex-1 overflow-hidden">
                   {isCodeQuestion(currentQuestion) && (
                     <CodeEditor 
@@ -357,7 +334,7 @@ const AssessmentPage = () => {
         </div>
       </div>
       
-      <div className={`${isAntiCheatingWarningActive ? 'bg-red-50 border-red-300' : 'bg-white border-gray-200'} border-t py-3 px-6 flex items-center justify-between sticky bottom-0 z-10 transition-colors duration-300`}>
+      <div className="bg-white border-t border-gray-200 py-3 px-6 flex items-center justify-between sticky bottom-0 z-10">
         <Button
           variant="outline"
           onClick={handlePrevQuestion}
@@ -439,30 +416,26 @@ const AssessmentPage = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showExitWarning || tabSwitchWarning}>
+      <AlertDialog open={showExitWarning}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center">
               <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
-              {showExitWarning ? 'Fullscreen Mode Required' : 'Assessment Tab Focus Required'}
+              Fullscreen Mode Required
             </AlertDialogTitle>
             <AlertDialogDescription>
               <p>
-                {showExitWarning 
-                  ? `You have exited fullscreen mode. This is violation ${fullscreenWarnings}/${MAX_WARNINGS}.
-                     Please return to fullscreen immediately or your test will be terminated.`
-                  : `You switched away from the assessment tab. This is violation ${visibilityViolations}/${MAX_WARNINGS}.
-                     Please stay on this tab or your test will be terminated.`
-                }
+                You have exited fullscreen mode. This is violation {fullscreenWarnings}/{MAX_WARNINGS}.
+                Please return to fullscreen immediately or your test will be terminated.
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction
-              onClick={showExitWarning ? enterFullscreen : undefined}
+              onClick={enterFullscreen}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {showExitWarning ? 'Return to Fullscreen' : 'Continue Assessment'}
+              Return to Fullscreen
             </AlertDialogAction>
             <AlertDialogAction
               onClick={terminateAssessment}
