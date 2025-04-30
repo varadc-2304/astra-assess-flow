@@ -8,7 +8,6 @@ import { Timer } from '@/components/Timer';
 import { Separator } from '@/components/ui/separator';
 import { ClipboardList, Clock, Code } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { MAX_WARNINGS, MAX_SECONDS_OUT_OF_VIEW } from '@/hooks/useFullscreen';
 
 const InstructionsPage = () => {
   const { assessment, startAssessment, assessmentCode, loading } = useAssessment();
@@ -103,10 +102,8 @@ const InstructionsPage = () => {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p>• You must stay in fullscreen mode during the entire assessment.</p>
-            <p>• Exiting fullscreen mode {MAX_WARNINGS} times will automatically terminate your assessment.</p>
-            <p>• Staying outside of fullscreen for more than {MAX_SECONDS_OUT_OF_VIEW} seconds will terminate your assessment.</p>
-            <p>• Switching tabs or windows {MAX_WARNINGS} times will automatically terminate your assessment.</p>
-            <p>• Staying outside the assessment tab for more than {MAX_SECONDS_OUT_OF_VIEW} seconds will terminate your assessment.</p>
+            <p>• Exiting fullscreen mode 3 times will automatically terminate your assessment.</p>
+            <p>• Staying outside of fullscreen for more than 30 seconds will terminate your assessment.</p>
             <p>• The assessment will start automatically when the countdown reaches zero.</p>
             <p>• You can navigate between questions using the navigation panel.</p>
             <p>• Your answers are auto-saved as you progress.</p>

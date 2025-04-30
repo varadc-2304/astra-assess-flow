@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet';
 import { useAssessment } from '@/contexts/AssessmentContext';
-import { useFullscreen, MAX_WARNINGS, MAX_SECONDS_OUT_OF_VIEW } from '@/hooks/useFullscreen';
+import { useFullscreen, MAX_WARNINGS } from '@/hooks/useFullscreen';
 import { Timer } from '@/components/Timer';
 import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
@@ -53,8 +54,7 @@ const AssessmentPage = () => {
     tabSwitchWarning,
     fullscreenWarnings,
     visibilityViolations,
-    terminateAssessment,
-    timeOutOfFocus
+    terminateAssessment
   } = useFullscreen();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -204,13 +204,6 @@ const AssessmentPage = () => {
   // Anti-cheating warning is active when either fullscreen or tab warnings are shown
   const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
   
-  // Format the timer for warnings
-  const formatTimeRemaining = () => {
-    const timeRemaining = MAX_SECONDS_OUT_OF_VIEW - timeOutOfFocus;
-    if (timeRemaining <= 0) return "0s";
-    return `${timeRemaining}s`;
-  };
-  
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       <header className={`${isAntiCheatingWarningActive ? 'bg-red-50 border-red-300' : 'bg-white border-gray-200'} border-b py-2 px-4 flex items-center justify-between sticky top-0 z-10 transition-colors duration-300`}>
@@ -280,8 +273,6 @@ const AssessmentPage = () => {
               <span className="text-sm font-medium text-red-700">
                 {showExitWarning ? `Fullscreen Warning: ${fullscreenWarnings}/${MAX_WARNINGS}` : 
                  tabSwitchWarning ? `Tab Switch Warning: ${visibilityViolations}/${MAX_WARNINGS}` : ''}
-                {(showExitWarning || tabSwitchWarning) && timeOutOfFocus > 0 && 
-                 ` (${formatTimeRemaining()} remaining)`}
               </span>
             </div>
           )}
@@ -464,15 +455,6 @@ const AssessmentPage = () => {
                      Please stay on this tab or your test will be terminated.`
                 }
               </p>
-              
-              {timeOutOfFocus > 0 && (
-                <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-red-700 font-medium flex items-center">
-                    <AlertTriangle className="h-4 w-4 inline mr-2" />
-                    Time remaining before automatic termination: {formatTimeRemaining()}
-                  </p>
-                </div>
-              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
