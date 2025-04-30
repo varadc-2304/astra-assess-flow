@@ -6,7 +6,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 export const MAX_WARNINGS = 2;
-export const MAX_SECONDS_OUT_OF_VIEW = 30;
 
 export const useFullscreen = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -18,8 +17,6 @@ export const useFullscreen = () => {
   const fullscreenExitHandledRef = useRef<boolean>(false);
   const lastVisibilityState = useRef<boolean>(true);
   const visibilityViolations = useRef<number>(0);
-  const outOfViewTimerRef = useRef<number | null>(null);
-  const outOfViewStartTimeRef = useRef<number | null>(null);
 
   const checkFullscreen = useCallback(() => {
     const isDocumentFullscreen =
@@ -37,13 +34,6 @@ export const useFullscreen = () => {
       setIsFullscreen(true);
       setShowExitWarning(false);
       fullscreenExitHandledRef.current = false;
-      
-      // Clear any out-of-view timers when returning to fullscreen
-      if (outOfViewTimerRef.current) {
-        clearTimeout(outOfViewTimerRef.current);
-        outOfViewTimerRef.current = null;
-      }
-      outOfViewStartTimeRef.current = null;
     } catch (error) {
       console.error('Failed to enter fullscreen mode:', error);
     }
@@ -135,20 +125,6 @@ export const useFullscreen = () => {
           variant: "destructive",
         });
         
-        // Start timing when out of fullscreen
-        outOfViewStartTimeRef.current = Date.now();
-        
-        // Set timeout to terminate assessment after MAX_SECONDS_OUT_OF_VIEW seconds
-        outOfViewTimerRef.current = window.setTimeout(() => {
-          toast({
-            title: "Assessment Terminated",
-            description: `You've been out of fullscreen mode for more than ${MAX_SECONDS_OUT_OF_VIEW} seconds. Your assessment is now terminated.`,
-            variant: "destructive",
-          });
-          endAssessment();
-          navigate('/summary');
-        }, MAX_SECONDS_OUT_OF_VIEW * 1000);
-        
         if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
           endAssessment();
           navigate('/summary');
@@ -157,24 +133,9 @@ export const useFullscreen = () => {
     } else {
       fullscreenExitHandledRef.current = false;
       setShowExitWarning(false);
-      
-      // Clear timeout when returning to fullscreen
-      if (outOfViewTimerRef.current) {
-        clearTimeout(outOfViewTimerRef.current);
-        outOfViewTimerRef.current = null;
-      }
-      
-      // Calculate elapsed time out of fullscreen
-      let elapsedTimeMessage = "";
-      if (outOfViewStartTimeRef.current) {
-        const elapsedSeconds = Math.floor((Date.now() - outOfViewStartTimeRef.current) / 1000);
-        elapsedTimeMessage = `You were out of fullscreen for ${elapsedSeconds} seconds.`;
-        outOfViewStartTimeRef.current = null;
-      }
-      
       toast({
         title: "Fullscreen Mode",
-        description: `You have returned to fullscreen mode. ${elapsedTimeMessage}`,
+        description: "You have returned to fullscreen mode.",
       });
     }
   }, [
@@ -207,20 +168,6 @@ export const useFullscreen = () => {
         variant: "destructive",
       });
       
-      // Start timing when out of view
-      outOfViewStartTimeRef.current = Date.now();
-      
-      // Set timeout to terminate assessment after MAX_SECONDS_OUT_OF_VIEW seconds
-      outOfViewTimerRef.current = window.setTimeout(() => {
-        toast({
-          title: "Assessment Terminated",
-          description: `You've been away from the assessment tab for more than ${MAX_SECONDS_OUT_OF_VIEW} seconds. Your assessment is now terminated.`,
-          variant: "destructive",
-        });
-        endAssessment();
-        navigate('/summary');
-      }, MAX_SECONDS_OUT_OF_VIEW * 1000);
-      
       if (visibilityViolations.current >= MAX_WARNINGS) {
         endAssessment();
         navigate('/summary');
@@ -230,23 +177,9 @@ export const useFullscreen = () => {
     else if (!lastVisibilityState.current && isVisible) {
       setTabSwitchWarning(false);
       
-      // Clear timeout when returning to tab
-      if (outOfViewTimerRef.current) {
-        clearTimeout(outOfViewTimerRef.current);
-        outOfViewTimerRef.current = null;
-      }
-      
-      // Calculate elapsed time out of tab
-      let elapsedTimeMessage = "";
-      if (outOfViewStartTimeRef.current) {
-        const elapsedSeconds = Math.floor((Date.now() - outOfViewStartTimeRef.current) / 1000);
-        elapsedTimeMessage = `You were away for ${elapsedSeconds} seconds.`;
-        outOfViewStartTimeRef.current = null;
-      }
-      
       toast({
         title: "Assessment Tab",
-        description: `You have returned to the assessment tab. ${elapsedTimeMessage}`,
+        description: "You have returned to the assessment tab.",
       });
     }
     
@@ -278,16 +211,6 @@ export const useFullscreen = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [handleVisibilityChange]);
-
-  // Clean up timers when component unmounts
-  useEffect(() => {
-    return () => {
-      if (outOfViewTimerRef.current) {
-        clearTimeout(outOfViewTimerRef.current);
-        outOfViewTimerRef.current = null;
-      }
-    };
-  }, []);
 
   const terminateAssessment = useCallback(() => {
     endAssessment();
