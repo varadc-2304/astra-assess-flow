@@ -111,78 +111,147 @@ const ResultsPage = () => {
   const exportToCSV = async () => {
     try {
       setIsExporting(true);
-
-      // Fetch results based on filters
-      let query = supabase.from('results').select(`
-        id,
-        user_id,
-        assessment_id,
-        total_score,
-        total_marks,
-        percentage,
-        completed_at,
-        is_cheated
-      `);
-
-      // Apply assessment filter if not set to 'all'
-      if (filters.assessment && filters.assessment !== 'all') {
-        // We need to join with assessments to filter by name
-        const { data: assessmentData } = await supabase
-          .from('assessments')
-          .select('id')
-          .eq('name', filters.assessment)
-          .single();
-          
-        if (assessmentData) {
-          query = query.eq('assessment_id', assessmentData.id);
-        }
-      }
-
-      const { data: resultsData, error: resultsError } = await query;
-
+      
+      // First, fetch all results and apply filters in JS
+      const { data: resultsData, error: resultsError } = await supabase
+        .from('results')
+        .select(`
+          id,
+          user_id,
+          assessment_id,
+          total_score,
+          total_marks,
+          percentage,
+          completed_at,
+          is_cheated,
+          assessments:assessment_id (
+            id,
+            name,
+            code
+          )
+        `)
+        .order('completed_at', { ascending: false });
+        
       if (resultsError) throw resultsError;
       
       if (!resultsData || resultsData.length === 0) {
         toast({
           title: "No data to export",
+          description: "There are no results to export",
+          variant: "destructive"
+        });
+        setIsExporting(false);
+        return;
+      }
+        
+      // Fetch all users
+      const { data: usersData, error: usersError } = await supabase
+        .from('auth')
+        .select('id, name, email, department, year, division, batch');
+        
+      if (usersError) throw usersError;
+      
+      // Create a map of users for quick lookup
+      const userMap: Record<string, any> = {};
+      if (usersData) {
+        usersData.forEach(user => {
+          if (user.id) {
+            userMap[user.id] = user;
+          }
+        });
+      }
+      
+      // Process and apply filters to results
+      let filteredResults = resultsData.map(result => {
+        const user = userMap[result.user_id] || {};
+        const assessment = result.assessments || {};
+        
+        return {
+          userId: result.user_id,
+          studentName: user.name || 'Unknown',
+          email: user.email || 'unknown@example.com',
+          year: user.year || 'N/A',
+          department: user.department || 'N/A',
+          division: user.division || 'N/A',
+          batch: user.batch || 'N/A',
+          assessmentId: result.assessment_id,
+          assessmentName: assessment.name || 'Unknown',
+          score: result.total_score,
+          totalMarks: result.total_marks,
+          percentage: result.percentage,
+          isCheated: result.is_cheated,
+          completedAt: result.completed_at
+        };
+      });
+      
+      // Apply assessment filter
+      if (filters.assessment !== 'all') {
+        filteredResults = filteredResults.filter(r => r.assessmentName === filters.assessment);
+      }
+      
+      // Apply year filter
+      if (filters.year !== 'all') {
+        filteredResults = filteredResults.filter(r => r.year === filters.year);
+      }
+      
+      // Apply department filter
+      if (filters.department !== 'all') {
+        filteredResults = filteredResults.filter(r => r.department === filters.department);
+      }
+      
+      // Apply division filter
+      if (filters.division !== 'all') {
+        filteredResults = filteredResults.filter(r => r.division === filters.division);
+      }
+      
+      // Apply batch filter
+      if (filters.batch !== 'all') {
+        filteredResults = filteredResults.filter(r => r.batch === filters.batch);
+      }
+      
+      // Apply search query filter
+      if (filters.searchQuery) {
+        const query = filters.searchQuery.toLowerCase();
+        filteredResults = filteredResults.filter(r => 
+          (r.studentName && r.studentName.toLowerCase().includes(query)) || 
+          (r.email && r.email.toLowerCase().includes(query)) ||
+          (r.userId && r.userId.toLowerCase().includes(query))
+        );
+      }
+      
+      // Apply tab filter (flagged or top performers)
+      if (activeTab === 'flagged') {
+        filteredResults = filteredResults.filter(r => r.isCheated);
+      } else if (activeTab === 'top') {
+        filteredResults.sort((a, b) => b.percentage - a.percentage);
+        filteredResults = filteredResults.slice(0, 10);
+      }
+      
+      if (filteredResults.length === 0) {
+        toast({
+          title: "No data to export",
           description: "There are no results matching your filter criteria",
           variant: "destructive"
         });
+        setIsExporting(false);
         return;
       }
-
-      // Fetch user data for each result
-      const csvData = [];
       
-      for (const result of resultsData) {
-        const { data: userData } = await supabase
-          .from('auth')
-          .select('name, email, department, year, division, batch')
-          .eq('id', result.user_id)
-          .single();
-          
-        // Get assessment name
-        const { data: assessmentData } = await supabase
-          .from('assessments')
-          .select('name')
-          .eq('id', result.assessment_id)
-          .single();
-
-        csvData.push({
-          "Student Name": userData?.name || "Unknown",
-          "Email": userData?.email || "unknown@example.com",
-          "Year": userData?.year || "N/A",
-          "Department": userData?.department || "N/A",
-          "Division": userData?.division || "N/A",
-          "Batch": userData?.batch || "N/A",
-          "Assessment": assessmentData?.name || "Unknown",
-          "Score": result.total_score,
-          "Total Marks": result.total_marks,
-          "Percentage": result.percentage,
-          "Status": result.is_cheated ? "Terminated" : "Completed",
-          "Completion Time": new Date(result.completed_at).toLocaleString()
-        });
-      }
+      // Format for CSV
+      const csvData = filteredResults.map(result => ({
+        "Student Name": result.studentName,
+        "Email": result.email,
+        "Year": result.year,
+        "Department": result.department,
+        "Division": result.division,
+        "Batch": result.batch,
+        "Assessment": result.assessmentName,
+        "Score": result.score,
+        "Total Marks": result.totalMarks,
+        "Percentage": result.percentage,
+        "Status": result.isCheated ? "Terminated" : "Completed",
+        "Completion Time": new Date(result.completedAt).toLocaleString()
+      }));
 
       // Create and download CSV
       const headers = Object.keys(csvData[0]);

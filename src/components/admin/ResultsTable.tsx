@@ -43,12 +43,17 @@ interface Student {
   division: string;
   batch: string;
   year: string;
+  department: string;
 }
 
 interface ResultsTableProps {
   filters: {
     assessment: string;
     searchQuery: string;
+    year: string;
+    department: string;
+    division: string;
+    batch: string;
   };
   flagged: boolean;
   topPerformers: boolean;
@@ -120,8 +125,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           let division = userDetails?.division;
           let batch = userDetails?.batch;
           let year = userDetails?.year;
+          let department = userDetails?.department;
           
-          if (!division || !batch || !year) {
+          if (!division || !batch || !year || !department) {
             const hash = result.user_id.split('').reduce((a, b) => {
               a = ((a << 5) - a) + b.charCodeAt(0);
               return a & a;
@@ -131,6 +137,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             division = division || ['A', 'B', 'C'][absHash % 3];
             batch = batch || ['B1', 'B2', 'B3'][absHash % 3];
             year = year || ['2023', '2024', '2025'][absHash % 3];
+            department = department || ['Computer', 'IT', 'Civil'][absHash % 3];
           }
           
           return {
@@ -146,12 +153,30 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             isTerminated: result.is_cheated || false,
             division: division || 'Unknown',
             batch: batch || 'Unknown',
-            year: year || 'Unknown'
+            year: year || 'Unknown',
+            department: department || 'Unknown'
           };
         });
         
+        // Apply all filters
         if (filters.assessment && filters.assessment !== 'all') {
           transformedData = transformedData.filter(s => s.assessmentName === filters.assessment);
+        }
+        
+        if (filters.year && filters.year !== 'all') {
+          transformedData = transformedData.filter(s => s.year === filters.year);
+        }
+        
+        if (filters.department && filters.department !== 'all') {
+          transformedData = transformedData.filter(s => s.department === filters.department);
+        }
+        
+        if (filters.division && filters.division !== 'all') {
+          transformedData = transformedData.filter(s => s.division === filters.division);
+        }
+        
+        if (filters.batch && filters.batch !== 'all') {
+          transformedData = transformedData.filter(s => s.batch === filters.batch);
         }
         
         if (filters.searchQuery) {
@@ -219,6 +244,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
                   <TableCell>
                     {student.name}
                     <div className="text-xs text-gray-500">{student.email}</div>
+                    <div className="text-xs text-gray-400">
+                      {student.year} - {student.department} - {student.division} - {student.batch}
+                    </div>
                   </TableCell>
                   <TableCell>{student.assessmentName}</TableCell>
                   <TableCell className="text-center">
