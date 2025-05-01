@@ -25,19 +25,30 @@ interface CodeEditorProps {
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarksUpdate }) => {
   const [selectedLanguage, setSelectedLanguage] = useState<string>(
-    Object.keys(question.solutionTemplate)[0] || 'python'
+    Object.keys(question.solutionTemplate)[0] || 'cpp'
   );
+  const [code, setCode] = useState<string>('');
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
+  
+  // When language changes, update the code shown in the editor
+  useEffect(() => {
+    const newCode =
+      question.userSolution[selectedLanguage] ??
+      question.solutionTemplate[selectedLanguage] ??
+      '';
+    setCode(newCode);
+  }, [selectedLanguage, question]);
 
-  const currentCode =
-    question.userSolution[selectedLanguage] ??
-    question.solutionTemplate[selectedLanguage] ??
-    '';
+  // When user edits code
+  const handleCodeChange = (newCode: string) => {
+    setCode(newCode);
+    onCodeChange(selectedLanguage, newCode); // Notify parent of code change
+  };
 
   const handleLanguageChange = (language: string) => {
     setSelectedLanguage(language);
