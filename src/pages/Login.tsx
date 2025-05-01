@@ -33,7 +33,7 @@ const Login = () => {
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="w-full max-w-md p-4">
         <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold mb-2">AstraAssessments</h1>
+          <h1 className="text-3xl font-bold mb-2">Yudha</h1>
           <p className="text-gray-500">Login to access your assessments</p>
         </div>
         
@@ -86,9 +86,6 @@ const Login = () => {
                     {isSubmitting ? 'Logging in...' : 'Login as Student'}
                   </Button>
                   
-                  <p className="text-xs text-center text-gray-500 mt-2">
-                    For demo: Use student@example.com / password
-                  </p>
                 </form>
               </CardContent>
             </Card>
@@ -131,9 +128,6 @@ const Login = () => {
                     {isSubmitting ? 'Logging in...' : 'Login as Admin'}
                   </Button>
                   
-                  <p className="text-xs text-center text-gray-500 mt-2">
-                    For demo: Use admin@example.com / password
-                  </p>
                 </form>
               </CardContent>
             </Card>
