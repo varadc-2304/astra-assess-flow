@@ -54,12 +54,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     setSelectedLanguage(language);
   };
 
-  const handleCodeChange = (value: string | undefined) => {
-    if (value !== undefined) {
-      onCodeChange(selectedLanguage, value);
-    }
-  };
-
   const cleanErrorOutput = (errorOutput: string): string => {
     return errorOutput
       .replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI color codes
