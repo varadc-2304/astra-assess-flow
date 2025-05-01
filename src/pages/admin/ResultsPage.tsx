@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,22 @@ import { ArrowLeft, FileDown, Filter } from 'lucide-react';
 import ResultsTable from '@/components/admin/ResultsTable';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Download, FileSpreadsheet } from 'lucide-react';
+import { Assessment, Auth } from '@/types/database';
+
+interface ResultData {
+  id: string;
+  user_id: string;
+  assessment_id: string;
+  total_score: number;
+  total_marks: number;
+  percentage: number;
+  is_cheated: boolean | null;
+  completed_at: string;
+  created_at: string;
+  user: Auth | null;
+  assessment: Assessment | null;
+}
 
 interface UserFilters {
   assessment: string;
@@ -40,6 +55,8 @@ const ResultsPage = () => {
   const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
   const [divisionOptions, setDivisionOptions] = useState<string[]>([]);
   const [batchOptions, setBatchOptions] = useState<string[]>([]);
+  const [results, setResults] = useState<ResultData[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchOptions = async () => {
@@ -108,184 +125,101 @@ const ResultsPage = () => {
     });
   };
 
-  const exportToCSV = async () => {
+  const exportToCSV = () => {
+    if (results.length === 0) return;
+    
+    const headers = [
+      'Assessment',
+      'Student Name',
+      'Email',
+      'PRN',
+      'Department',
+      'Year',
+      'Division',
+      'Batch',
+      'Score',
+      'Total Marks',
+      'Percentage',
+      'Completed At',
+      'Cheated'
+    ];
+    
+    const csvData = results
+      .filter(result => {
+        if (selectedAssessment && result.assessment?.id !== selectedAssessment) return false;
+        return true;
+      })
+      .map(result => {
+        const user = result.user || {};
+        return [
+          result.assessment?.name || 'Unknown',
+          user.name || 'Unknown',
+          user.email || 'Unknown',
+          user.prn || '',
+          user.department || '',
+          user.year || '',
+          user.division || '',
+          user.batch || '',
+          result.total_score.toString(),
+          result.total_marks.toString(),
+          `${result.percentage}%`,
+          new Date(result.completed_at).toLocaleString(),
+          result.is_cheated ? 'Yes' : 'No'
+        ];
+      });
+    
+    const csvContent = [headers, ...csvData].map(row => row.join(',')).join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "results.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  useEffect(() => {
+    fetchResults();
+  }, [filters]);
+
+  const fetchResults = async () => {
+    setLoading(true);
     try {
-      setIsExporting(true);
-      
-      // First, fetch all results and apply filters in JS
+      // Fetch all results
       const { data: resultsData, error: resultsError } = await supabase
         .from('results')
         .select(`
-          id,
-          user_id,
-          assessment_id,
-          total_score,
-          total_marks,
-          percentage,
-          completed_at,
-          is_cheated,
-          assessments:assessment_id (
-            id,
-            name,
-            code
-          )
-        `)
-        .order('completed_at', { ascending: false });
-        
-      if (resultsError) throw resultsError;
-      
-      if (!resultsData || resultsData.length === 0) {
-        toast({
-          title: "No data to export",
-          description: "There are no results to export",
-          variant: "destructive"
-        });
-        setIsExporting(false);
-        return;
-      }
-        
-      // Fetch all users
-      const { data: usersData, error: usersError } = await supabase
-        .from('auth')
-        .select('id, name, email, department, year, division, batch');
-        
-      if (usersError) throw usersError;
-      
-      // Create a map of users for quick lookup
-      const userMap: Record<string, any> = {};
-      if (usersData) {
-        usersData.forEach(user => {
-          if (user.id) {
-            userMap[user.id] = user;
-          }
-        });
-      }
-      
-      // Process and apply filters to results
-      let filteredResults = resultsData.map(result => {
-        const user = userMap[result.user_id] || {};
-        const assessment = result.assessments || {};
-        
-        return {
-          userId: result.user_id,
-          studentName: user.name || 'Unknown',
-          email: user.email || 'unknown@example.com',
-          year: user.year || 'N/A',
-          department: user.department || 'N/A',
-          division: user.division || 'N/A',
-          batch: user.batch || 'N/A',
-          assessmentId: result.assessment_id,
-          assessmentName: assessment.name || 'Unknown',
-          score: result.total_score,
-          totalMarks: result.total_marks,
-          percentage: result.percentage,
-          isCheated: result.is_cheated,
-          completedAt: result.completed_at
-        };
-      });
-      
-      // Apply assessment filter
-      if (filters.assessment !== 'all') {
-        filteredResults = filteredResults.filter(r => r.assessmentName === filters.assessment);
-      }
-      
-      // Apply year filter
-      if (filters.year !== 'all') {
-        filteredResults = filteredResults.filter(r => r.year === filters.year);
-      }
-      
-      // Apply department filter
-      if (filters.department !== 'all') {
-        filteredResults = filteredResults.filter(r => r.department === filters.department);
-      }
-      
-      // Apply division filter
-      if (filters.division !== 'all') {
-        filteredResults = filteredResults.filter(r => r.division === filters.division);
-      }
-      
-      // Apply batch filter
-      if (filters.batch !== 'all') {
-        filteredResults = filteredResults.filter(r => r.batch === filters.batch);
-      }
-      
-      // Apply search query filter
-      if (filters.searchQuery) {
-        const query = filters.searchQuery.toLowerCase();
-        filteredResults = filteredResults.filter(r => 
-          (r.studentName && r.studentName.toLowerCase().includes(query)) || 
-          (r.email && r.email.toLowerCase().includes(query)) ||
-          (r.userId && r.userId.toLowerCase().includes(query))
-        );
-      }
-      
-      // Apply tab filter (flagged or top performers)
-      if (activeTab === 'flagged') {
-        filteredResults = filteredResults.filter(r => r.isCheated);
-      } else if (activeTab === 'top') {
-        filteredResults.sort((a, b) => b.percentage - a.percentage);
-        filteredResults = filteredResults.slice(0, 10);
-      }
-      
-      if (filteredResults.length === 0) {
-        toast({
-          title: "No data to export",
-          description: "There are no results matching your filter criteria",
-          variant: "destructive"
-        });
-        setIsExporting(false);
-        return;
-      }
-      
-      // Format for CSV
-      const csvData = filteredResults.map(result => ({
-        "Student Name": result.studentName,
-        "Email": result.email,
-        "Year": result.year,
-        "Department": result.department,
-        "Division": result.division,
-        "Batch": result.batch,
-        "Assessment": result.assessmentName,
-        "Score": result.score,
-        "Total Marks": result.totalMarks,
-        "Percentage": result.percentage,
-        "Status": result.isCheated ? "Terminated" : "Completed",
-        "Completion Time": new Date(result.completedAt).toLocaleString()
-      }));
+          *,
+          user:user_id (*),
+          assessment:assessment_id (*)
+        `);
 
-      // Create and download CSV
-      const headers = Object.keys(csvData[0]);
-      const csvContent = [
-        headers.join(','),
-        ...csvData.map(row => headers.map(header => 
-          JSON.stringify(row[header as keyof typeof row])
-        ).join(','))
-      ].join('\n');
+      if (resultsError) {
+        throw resultsError;
+      }
 
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `assessment_results_${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      toast({
-        title: "Success",
-        description: "Results exported successfully",
-      });
-
+      if (resultsData) {
+        const processedData: ResultData[] = resultsData.map(result => {
+          return {
+            ...result,
+            user: result.user as Auth,
+            assessment: result.assessment as Assessment
+          };
+        });
+        
+        setResults(processedData);
+      }
     } catch (error) {
-      console.error("CSV export error:", error);
+      console.error('Error fetching results:', error);
       toast({
-        title: "Error",
-        description: "Failed to export results",
-        variant: "destructive"
+        title: 'Error',
+        description: 'Failed to load results data.',
+        variant: 'destructive',
       });
     } finally {
-      setIsExporting(false);
+      setLoading(false);
     }
   };
 
@@ -309,7 +243,7 @@ const ResultsPage = () => {
               disabled={isExporting}
               className="bg-astra-red hover:bg-red-600 text-white"
             >
-              <FileDown className="h-4 w-4 mr-2" />
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
               {isExporting ? 'Exporting...' : 'Export to CSV'}
             </Button>
           </div>
