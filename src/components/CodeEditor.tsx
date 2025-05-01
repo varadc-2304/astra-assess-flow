@@ -25,33 +25,28 @@ interface CodeEditorProps {
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarksUpdate }) => {
   const [selectedLanguage, setSelectedLanguage] = useState<string>(
-    Object.keys(question.solutionTemplate)[0] || 'cpp'
+    Object.keys(question.solutionTemplate)[0] || 'python'
   );
-  const [code, setCode] = useState<string>('');
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const { toast } = useToast();
   const { user } = useAuth();
-  
-  // When language changes, update the code shown in the editor
-  useEffect(() => {
-    const newCode =
-      question.userSolution[selectedLanguage] ??
-      question.solutionTemplate[selectedLanguage] ??
-      '';
-    setCode(newCode);
-  }, [selectedLanguage, question]);
 
-  // When user edits code
-  const handleCodeChange = (newCode: string) => {
-    setCode(newCode);
-    onCodeChange(selectedLanguage, newCode); // Notify parent of code change
-  };
+  const currentCode =
+    question.userSolution[selectedLanguage] ??
+    question.solutionTemplate[selectedLanguage] ??
+    '';
 
   const handleLanguageChange = (language: string) => {
     setSelectedLanguage(language);
+  };
+
+  const handleCodeChange = (value: string | undefined) => {
+    if (value !== undefined) {
+      onCodeChange(selectedLanguage, value);
+    }
   };
 
   const cleanErrorOutput = (errorOutput: string): string => {
@@ -414,24 +409,24 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     minimap: { enabled: true },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    wordWrap: 'on',
+    wordWrap: 'on' as 'on',
     automaticLayout: true,
     tabSize: 2,
     formatOnPaste: true,
-    formatOnType: false,
-    autoIndent: 'advanced',
+    formatOnType: false, // Changed from true to false to prevent cursor jumping
+    autoIndent: 'advanced' as 'advanced',
     quickSuggestions: true,
     suggestOnTriggerCharacters: true,
     fixedOverflowWidgets: true,
-    cursorBlinking: 'smooth',
-    cursorSmoothCaretAnimation: 'off',
-    cursorStyle: 'line',
+    cursorBlinking: 'smooth' as 'smooth',
+    cursorSmoothCaretAnimation: 'off' as 'off', // Changed from 'on' to 'off' to prevent cursor jumping
+    cursorStyle: 'line' as 'line',
     mouseWheelZoom: true,
-    renderWhitespace: 'selection',
-    renderLineHighlight: 'all',
-    lineNumbers: 'on',
-    renderValidationDecorations: 'on',
-    lightbulb: { enabled: true }
+    renderWhitespace: 'selection' as 'selection',
+    renderLineHighlight: 'all' as 'all',
+    lineNumbers: 'on' as const,
+    renderValidationDecorations: 'on' as const,
+    lightbulb: { enabled: 'auto' } // Using boolean false instead of 'off' string
   };
 
   const handleEditorDidMount = (editor: any) => {
@@ -444,7 +439,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-between items-center mb-2">
-      <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+        <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Language" />
           </SelectTrigger>

@@ -518,17 +518,6 @@ export type Database = {
         Args: { question_id: string }
         Returns: number
       }
-      insert_coding_assessment_question: {
-        Args: {
-          p_assessment_code: string
-          p_title: string
-          p_description: string
-          p_order_index: number
-          p_examples: Json[]
-          p_test_cases: Json[]
-        }
-        Returns: undefined
-      }
     }
     Enums: {
       [_ in never]: never
