@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -162,17 +163,17 @@ const ResultsPage = () => {
       
       // Process and apply filters to results
       let filteredResults = resultsData.map(result => {
-        const userData = userMap[result.user_id] || {}; // Fixed: Changed from result.user to userMap lookup
+        const user = userMap[result.user_id] || {};
         const assessment = result.assessments || {};
         
         return {
           userId: result.user_id,
-          studentName: userData.name || 'Unknown', // Fixed: Changed from user.name to userData.name
-          email: userData.email || 'unknown@example.com', // Fixed: Changed from user.email to userData.email
-          year: userData.year || 'N/A', // Fixed: Changed from user.year to userData.year
-          department: userData.department || 'N/A', // Fixed: Changed from user.department to userData.department
-          division: userData.division || 'N/A', // Fixed: Changed from user.division to userData.division
-          batch: userData.batch || 'N/A', // Fixed: Changed from user.batch to userData.batch
+          studentName: user.name || 'Unknown',
+          email: user.email || 'unknown@example.com',
+          year: user.year || 'N/A',
+          department: user.department || 'N/A',
+          division: user.division || 'N/A',
+          batch: user.batch || 'N/A',
           assessmentId: result.assessment_id,
           assessmentName: assessment.name || 'Unknown',
           score: result.total_score,
