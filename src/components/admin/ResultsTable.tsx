@@ -39,7 +39,7 @@ interface Student {
   totalMarks: number;
   percentage: number;
   completedAt: string;
-  isTerminated: boolean;
+  isCheated: boolean;
   division: string;
   batch: string;
   year: string;
@@ -68,6 +68,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
     const fetchResults = async () => {
       setIsLoading(true);
       try {
+        // Query results table directly with is_cheated flag
         const { data: resultsData, error: resultsError } = await supabase
           .from('results')
           .select(`
@@ -150,7 +151,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
             totalMarks: result.total_marks,
             percentage: result.percentage,
             completedAt: result.completed_at,
-            isTerminated: result.is_cheated || false,
+            isCheated: result.is_cheated || false,
             division: division || 'Unknown',
             batch: batch || 'Unknown',
             year: year || 'Unknown',
@@ -189,7 +190,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         }
         
         if (flagged) {
-          transformedData = transformedData.filter(s => s.isTerminated);
+          transformedData = transformedData.filter(s => s.isCheated);
         }
         
         if (topPerformers) {
@@ -239,7 +240,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
               {students.map((student, index) => (
                 <TableRow 
                   key={`${student.id}-${student.assessmentId}-${index}`} 
-                  className={student.isTerminated ? "bg-red-50" : ""}
+                  className={student.isCheated ? "bg-red-50" : ""}
                 >
                   <TableCell>
                     {student.name}
@@ -255,7 +256,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
                   </TableCell>
                   <TableCell>{formatDate(student.completedAt)}</TableCell>
                   <TableCell>
-                    {student.isTerminated ? (
+                    {student.isCheated ? (
                       <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
                         <Flag className="h-3 w-3 mr-1" />
                         Flagged
