@@ -444,7 +444,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-between items-center mb-2">
-        <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+      <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Language" />
           </SelectTrigger>
