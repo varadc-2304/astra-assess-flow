@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -5,8 +6,9 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { FileSpreadsheet, Clock, Users, BarChart } from 'lucide-react';
+import { FileSpreadsheet, Clock, Users, BarChart, Plus } from 'lucide-react';
 import AssessmentList from '@/components/admin/AssessmentList';
+import { checkAndCreateQuestionsBucket } from '@/lib/storage-setup';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
@@ -40,11 +42,17 @@ const AdminDashboard = () => {
           return now > endTime;
         }).length || 0;
         
-        const students = 0;
+        // Count students
+        const { count: studentCount, error: studentError } = await supabase
+          .from('auth')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'student');
+          
+        if (studentError) throw studentError;
         
         setStats({
           activeAssessments,
-          students,
+          students: studentCount || 0,
           completedAssessments
         });
       } catch (error) {
@@ -55,7 +63,14 @@ const AdminDashboard = () => {
     };
 
     fetchStats();
+    
+    // Check and create the questions bucket if it doesn't exist
+    checkAndCreateQuestionsBucket();
   }, []);
+
+  const handleCreateAssessment = () => {
+    navigate('/admin/assessments/new');
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -81,6 +96,12 @@ const AdminDashboard = () => {
                 <TabsTrigger value="assessments">Assessments</TabsTrigger>
                 <TabsTrigger value="results" onClick={() => navigate('/admin/results')}>Results</TabsTrigger>
               </TabsList>
+              <Button 
+                className="bg-astra-red hover:bg-red-600 text-white"
+                onClick={handleCreateAssessment}
+              >
+                <Plus className="h-4 w-4 mr-2" /> Create Assessment
+              </Button>
             </div>
 
             <TabsContent value="dashboard" className="space-y-6">
@@ -147,7 +168,20 @@ const AdminDashboard = () => {
             </TabsContent>
 
             <TabsContent value="assessments">
-              <AssessmentList />
+              <Card>
+                <CardHeader className="flex flex-row justify-between items-center">
+                  <CardTitle>All Assessments</CardTitle>
+                  <Button 
+                    className="bg-astra-red hover:bg-red-600 text-white"
+                    onClick={handleCreateAssessment}
+                  >
+                    <Plus className="h-4 w-4 mr-2" /> Create Assessment
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <AssessmentList />
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </div>
