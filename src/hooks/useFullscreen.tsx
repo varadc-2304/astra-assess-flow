@@ -75,13 +75,13 @@ export const useFullscreen = () => {
         
       const isTerminated = totalViolations >= MAX_WARNINGS;
       
-      // Store violation count in submissions table, but move is_terminated to results table
       const { error: updateError } = await supabase
         .from('submissions')
         .update({
           fullscreen_violations: violationType === 'fullscreen' 
             ? (submission.fullscreen_violations || 0) + 1 
-            : submission.fullscreen_violations
+            : submission.fullscreen_violations,
+          is_terminated: isTerminated
         })
         .eq('id', submission.id);
 
@@ -89,36 +89,19 @@ export const useFullscreen = () => {
         console.error('Error updating submission with violation:', updateError);
       }
 
-      // Update the results table with cheating status
+      // Update the results table if this violation leads to termination
       if (isTerminated) {
-        const { data: resultData, error: resultFetchError } = await supabase
+        const { error: resultError } = await supabase
           .from('results')
-          .select('id')
-          .eq('submission_id', submission.id)
-          .single();
-          
-        if (resultFetchError && resultFetchError.code !== 'PGRST116') {
-          console.error('Error finding result to update:', resultFetchError);
-          return;
-        }
-        
-        if (resultData) {
-          // If result exists, update it
-          const { error: resultUpdateError } = await supabase
-            .from('results')
-            .update({ 
-              is_cheated: true,
-              completed_at: new Date().toISOString()
-            })
-            .eq('id', resultData.id);
+          .update({ 
+            isTerminated: true,
+            completed_at: new Date().toISOString()
+          })
+          .eq('assessment_id', assessment.id)
+          .eq('user_id', submission.user_id);
 
-          if (resultUpdateError) {
-            console.error('Error updating result termination status:', resultUpdateError);
-          }
-        } else {
-          // Handle the case where the assessment is terminated before a result is created
-          // This will be handled later when the assessment is ended and results are created
-          console.log("Assessment terminated, will mark as cheated when results are created");
+        if (resultError) {
+          console.error('Error updating result termination status:', resultError);
         }
       }
     } catch (error) {

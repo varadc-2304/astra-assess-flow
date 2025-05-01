@@ -112,7 +112,7 @@ const ResultsPage = () => {
     try {
       setIsExporting(true);
       
-      // Query results table with is_cheated flag
+      // First, fetch all results and apply filters in JS
       const { data: resultsData, error: resultsError } = await supabase
         .from('results')
         .select(`
@@ -249,7 +249,7 @@ const ResultsPage = () => {
         "Score": result.score,
         "Total Marks": result.totalMarks,
         "Percentage": result.percentage,
-        "Status": result.isCheated ? "Flagged" : "Completed",
+        "Status": result.isCheated ? "Terminated" : "Completed",
         "Completion Time": new Date(result.completedAt).toLocaleString()
       }));
 
