@@ -154,6 +154,53 @@ const AssessmentPage = () => {
       if (submissionError || !submissions || submissions.length === 0) {
         console.error('Error finding submission to update:', submissionError);
       } else {
+                const submissionId = submissions[0].id;
+        
+        // Save all MCQ answers for this submission
+        if (assessment) {
+          const mcqSubmissionPromises = assessment.questions
+            .filter(q => isMCQQuestion(q) && q.selectedOption)
+            .map(q => {
+              return supabase
+                .from('question_submissions')
+                .insert({
+                  submission_id: submissionId,
+                  question_type: 'mcq',
+                  question_id: q.id,
+                  mcq_option_id: (q as MCQQuestionType).selectedOption,
+                  marks_obtained: (q as MCQQuestionType).options.find(
+                    o => o.id === (q as MCQQuestionType).selectedOption
+                  )?.isCorrect ? q.marks : 0,
+                  is_correct: (q as MCQQuestionType).options.find(
+                    o => o.id === (q as MCQQuestionType).selectedOption
+                  )?.isCorrect || false
+                });
+            });
+          
+          // Save all Code answers for this submission  
+          const codeSubmissionPromises = assessment.questions
+            .filter(q => isCodeQuestion(q) && Object.keys((q as CodeQuestion).userSolution || {}).length > 0)
+            .map(q => {
+              const language = Object.keys((q as CodeQuestion).userSolution || {})[0];
+              const solution = (q as CodeQuestion).userSolution[language];
+              
+              return supabase
+                .from('question_submissions')
+                .insert({
+                  submission_id: submissionId,
+                  question_type: 'code',
+                  question_id: q.id,
+                  code_solution: solution,
+                  language: language,
+                  marks_obtained: (q as CodeQuestion).marksObtained || 0
+                });
+            });
+            
+          // Execute all submission save promises  
+          await Promise.all([...mcqSubmissionPromises, ...codeSubmissionPromises]);
+        }
+        
+        // Update submission as completed
         const { error: updateError } = await supabase
           .from('submissions')
           .update({ 
