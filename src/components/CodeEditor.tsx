@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,6 +39,27 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     question.userSolution[selectedLanguage] ??
     question.solutionTemplate[selectedLanguage] ??
     '';
+
+  // Effect to handle language changes when question changes
+  useEffect(() => {
+    // Reset selected language when question changes
+    const availableLanguages = Object.keys(question.solutionTemplate);
+    if (availableLanguages.length > 0) {
+      // Try to keep the same language if available in the new question
+      if (availableLanguages.includes(selectedLanguage)) {
+        // If the current language exists but we need to load its template
+        if (!question.userSolution[selectedLanguage]) {
+          handleLanguageChange(selectedLanguage);
+        }
+      } else {
+        // If current language doesn't exist in new question, switch to first available
+        setSelectedLanguage(availableLanguages[0]);
+        if (!question.userSolution[availableLanguages[0]]) {
+          handleLanguageChange(availableLanguages[0]);
+        }
+      }
+    }
+  }, [question.id]);
 
   const handleLanguageChange = async (language: string) => {
     setSelectedLanguage(language);
@@ -458,7 +478,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     renderLineHighlight: 'all' as 'all',
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: 'auto' } // Using boolean false instead of 'off' string
+    lightbulb: { enabled: 'auto' }
   };
 
   const handleEditorDidMount = (editor: any) => {
