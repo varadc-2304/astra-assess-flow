@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { Clock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 type TimerProps = {
   variant?: 'countdown' | 'assessment';
@@ -18,6 +19,7 @@ export const Timer: React.FC<TimerProps> = ({
 }) => {
   const { timeRemaining, setTimeRemaining, endAssessment } = useAssessment();
   const [countdownTime, setCountdownTime] = useState<number | null>(null);
+  const navigate = useNavigate();
   
   // For countdown timer to assessment start
   useEffect(() => {
@@ -49,13 +51,18 @@ export const Timer: React.FC<TimerProps> = ({
         if (timeRemaining <= 1) {
           // End assessment when time runs out
           clearInterval(intervalId);
-          endAssessment();
+          endAssessment().then(success => {
+            // Navigate to results page after assessment ends
+            if (success) {
+              navigate('/summary');
+            }
+          });
         }
       }, 1000);
       
       return () => clearInterval(intervalId);
     }
-  }, [variant, timeRemaining, setTimeRemaining, endAssessment]);
+  }, [variant, timeRemaining, setTimeRemaining, endAssessment, navigate]);
   
   // Format seconds to hh:mm:ss
   const formatTime = (seconds: number): string => {
