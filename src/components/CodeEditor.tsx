@@ -441,7 +441,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     minimap: { enabled: true },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    wordWrap: 'on',
+    wordWrap: 'on' as 'on',
     automaticLayout: true,
     tabSize: 2,
     formatOnPaste: true,
@@ -458,13 +458,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     renderLineHighlight: 'all' as 'all',
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: 'auto' }
+    lightbulb: { enabled: 'auto' } // Using boolean false instead of 'off' string
   };
 
   const handleEditorDidMount = (editor: any) => {
     setTimeout(() => {
       editor.layout();
-      //editor.focus();
+      editor.focus();
     }, 100);
   };
 
