@@ -464,7 +464,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const handleEditorDidMount = (editor: any) => {
     setTimeout(() => {
       editor.layout();
-      editor.focus();
+      //editor.focus();
     }, 100);
   };
 
