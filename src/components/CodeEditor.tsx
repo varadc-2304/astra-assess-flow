@@ -534,7 +534,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
                 className="monaco-editor"
                 onMount={handleEditorDidMount}
               />
-              )}
             </div>
           </TabsContent>
           <TabsContent value="output" className="flex-1 h-full m-0">
