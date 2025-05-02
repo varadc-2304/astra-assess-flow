@@ -41,25 +41,26 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     '';
 
   // Effect to handle language changes when question changes
-  useEffect(() => {
-    // Reset selected language when question changes
-    const availableLanguages = Object.keys(question.solutionTemplate);
-    if (availableLanguages.length > 0) {
-      // Try to keep the same language if available in the new question
-      if (availableLanguages.includes(selectedLanguage)) {
-        // If the current language exists but we need to load its template
-        if (!question.userSolution[selectedLanguage]) {
-          handleLanguageChange(selectedLanguage);
-        }
-      } else {
-        // If current language doesn't exist in new question, switch to first available
-        setSelectedLanguage(availableLanguages[0]);
-        if (!question.userSolution[availableLanguages[0]]) {
-          handleLanguageChange(availableLanguages[0]);
-        }
-      }
+useEffect(() => {
+  const availableLanguages = Object.keys(question.solutionTemplate);
+  if (availableLanguages.length > 0) {
+    // Determine which language to use: prefer keeping current if available
+    const languageToUse = availableLanguages.includes(selectedLanguage)
+      ? selectedLanguage
+      : availableLanguages[0];
+
+    setSelectedLanguage(languageToUse);
+
+    // Always fetch the template if there's no user-written code
+    if (!question.userSolution[languageToUse]) {
+      handleLanguageChange(languageToUse);
+    } else {
+      // If userSolution exists, still notify parent
+      onCodeChange(languageToUse, question.userSolution[languageToUse]);
     }
-  }, [question.id]);
+  }
+}, [question.id]);
+
 
   const handleLanguageChange = async (language: string) => {
     setSelectedLanguage(language);
