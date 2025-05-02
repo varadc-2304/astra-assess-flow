@@ -1,479 +1,461 @@
-import React, { useEffect, useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { 
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger
-} from '@/components/ui/sheet';
-import { useAssessment } from '@/contexts/AssessmentContext';
-import { useFullscreen, MAX_WARNINGS } from '@/hooks/useFullscreen';
-import { Timer } from '@/components/Timer';
-import MCQQuestion from '@/components/MCQQuestion';
-import CodeEditor from '@/components/CodeEditor';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { useToast } from '@/hooks/use-toast';
-import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
-import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
+import { ArrowLeft, FileDown, Filter } from 'lucide-react';
+import ResultsTable from '@/components/admin/ResultsTable';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
-function isMCQQuestion(question: any): question is MCQQuestionType {
-  return question.type === 'mcq';
+interface UserFilters {
+  assessment: string;
+  year: string;
+  department: string;
+  division: string;
+  batch: string;
+  searchQuery: string;
 }
 
-function isCodeQuestion(question: any): question is CodeQuestion {
-  return question.type === 'code';
-}
-
-const AssessmentPage = () => {
-  const { 
-    assessment, 
-    assessmentStarted,
-    currentQuestionIndex, 
-    setCurrentQuestionIndex,
-    answerMCQ,
-    updateCodeSolution,
-    updateMarksObtained,
-    endAssessment,
-    totalMarksObtained,
-    totalPossibleMarks
-  } = useAssessment();
-
-  const [showExitDialog, setShowExitDialog] = useState(false);
-  const [isNavigating, setIsNavigating] = useState(false);
-  const [isEndingAssessment, setIsEndingAssessment] = useState(false);
+const ResultsPage = () => {
   const navigate = useNavigate();
-  const { 
-    enterFullscreen, 
-    isFullscreen, 
-    showExitWarning, 
-    tabSwitchWarning,
-    fullscreenWarnings,
-    visibilityViolations,
-    terminateAssessment
-  } = useFullscreen();
-  const { toast } = useToast();
   const { user } = useAuth();
-  
-  useEffect(() => {
-    if (!assessment || !assessmentStarted) {
-      navigate('/student');
-    }
-  }, [assessment, assessmentStarted, navigate]);
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState('all');
+  const [filters, setFilters] = useState<UserFilters>({
+    assessment: 'all',
+    year: 'all',
+    department: 'all',
+    division: 'all',
+    batch: 'all',
+    searchQuery: ''
+  });
+  const [isExporting, setIsExporting] = useState(false);
+  const [assessmentOptions, setAssessmentOptions] = useState<{ name: string }[]>([]);
+  const [yearOptions, setYearOptions] = useState<string[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
+  const [divisionOptions, setDivisionOptions] = useState<string[]>([]);
+  const [batchOptions, setBatchOptions] = useState<string[]>([]);
 
   useEffect(() => {
-    if (assessmentStarted && !isFullscreen) {
-      console.log("Assessment started but not in fullscreen - entering fullscreen");
-      enterFullscreen();
-    }
-  }, [assessmentStarted, isFullscreen, enterFullscreen]);
-
-  useEffect(() => {
-    const createSubmissionRecord = async () => {
-      if (assessment && assessmentStarted && user) {
-        try {
-          const { data: existingSubmissions } = await supabase
-            .from('submissions')
-            .select('*')
-            .eq('assessment_id', assessment.id)
-            .eq('user_id', user.id)
-            .is('completed_at', null);
-            
-          if (existingSubmissions && existingSubmissions.length > 0) {
-            return;
-          }
-          
-          const { data, error } = await supabase
-            .from('submissions')
-            .insert({
-              assessment_id: assessment.id,
-              user_id: user.id,
-              started_at: new Date().toISOString(),
-              fullscreen_violations: 0
-            });
-            
-          if (error) {
-            console.error('Error creating submission record:', error);
-          }
-        } catch (error) {
-          console.error('Error creating submission record:', error);
+    const fetchOptions = async () => {
+      try {
+        // Fetch unique assessment names from assessments table
+        const { data: assessmentsData, error: assessmentsError } = await supabase
+          .from('assessments')
+          .select('name')
+          .order('name');
+        
+        if (assessmentsError) {
+          console.error('Error fetching assessments:', assessmentsError);
+          return;
         }
+
+        // Extract unique assessment names
+        const uniqueAssessmentNames = new Set<string>();
+        if (assessmentsData) {
+          assessmentsData.forEach(item => {
+            if (item.name) {
+              uniqueAssessmentNames.add(item.name);
+            }
+          });
+        }
+        
+        // Fetch unique values for other filters from auth table
+        const { data: authData, error: authError } = await supabase
+          .from('auth')
+          .select('year, department, division, batch');
+
+        if (authError) {
+          console.error('Error fetching user details:', authError);
+          return;
+        }
+
+        const uniqueYears = new Set<string>();
+        const uniqueDepartments = new Set<string>();
+        const uniqueDivisions = new Set<string>();
+        const uniqueBatches = new Set<string>();
+
+        authData?.forEach(user => {
+          if (user.year) uniqueYears.add(user.year);
+          if (user.department) uniqueDepartments.add(user.department);
+          if (user.division) uniqueDivisions.add(user.division);
+          if (user.batch) uniqueBatches.add(user.batch);
+        });
+
+        setAssessmentOptions(Array.from(uniqueAssessmentNames).map(name => ({ name })));
+        setYearOptions(Array.from(uniqueYears));
+        setDepartmentOptions(Array.from(uniqueDepartments));
+        setDivisionOptions(Array.from(uniqueDivisions));
+        setBatchOptions(Array.from(uniqueBatches));
+
+      } catch (error) {
+        console.error('Error fetching options:', error);
       }
     };
-    
-    createSubmissionRecord();
-  }, [assessment, assessmentStarted, user]);
-  
-  if (!assessment) {
-    return null;
-  }
-  
-  const currentQuestion = assessment.questions[currentQuestionIndex];
-  
-  const questionStatus = assessment.questions.map(q => {
-    if (isMCQQuestion(q)) {
-      return !!q.selectedOption;
-    } else if (isCodeQuestion(q)) {
-      return Object.values(q.userSolution).some(solution => solution && typeof solution === 'string' && solution.trim() !== '');
-    }
-    return false;
-  });
-  
-  const handlePrevQuestion = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
-    }
+
+    fetchOptions();
+  }, []);
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters({
+      ...filters,
+      [key]: value
+    });
   };
-  
-  const handleNextQuestion = () => {
-    if (currentQuestionIndex < assessment.questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    }
-  };
-  
-  const handleEndAssessment = () => {
-    setShowExitDialog(true);
-  };
-  
-  const confirmEndAssessment = async () => {
-    setIsEndingAssessment(true);
-    
+
+  const exportToCSV = async () => {
     try {
-      const { data: submissions, error: submissionError } = await supabase
-        .from('submissions')
-        .select('*')
-        .eq('assessment_id', assessment?.id || '')
-        .eq('user_id', user?.id || '')
-        .order('created_at', { ascending: false })
-        .limit(1);
+      setIsExporting(true);
       
-      if (submissionError || !submissions || submissions.length === 0) {
-        console.error('Error finding submission to update:', submissionError);
-      } else {
-        const { error: updateError } = await supabase
-          .from('submissions')
-          .update({ 
-            completed_at: new Date().toISOString()
-          })
-          .eq('id', submissions[0].id);
-        
-        if (updateError) {
-          console.error('Error updating submission completion status:', updateError);
-        }
-      }
-      
-      await endAssessment();
-      
-      const { error: resultError } = await supabase
+      // First, fetch all results and apply filters in JS
+      const { data: resultsData, error: resultsError } = await supabase
         .from('results')
-        .update({ 
-          contest_name: assessment?.name 
-        } as any)
-        .eq('assessment_id', assessment?.id || '')
-        .eq('user_id', user?.id || '');
+        .select(`
+          id,
+          user_id,
+          assessment_id,
+          total_score,
+          total_marks,
+          percentage,
+          completed_at,
+          is_cheated,
+          assessments:assessment_id (
+            id,
+            name,
+            code
+          )
+        `)
+        .order('completed_at', { ascending: false });
+        
+      if (resultsError) throw resultsError;
       
-      if (resultError) {
-        console.error('Error updating contest name in results:', resultError);
+      if (!resultsData || resultsData.length === 0) {
+        toast({
+          title: "No data to export",
+          description: "There are no results to export",
+          variant: "destructive"
+        });
+        setIsExporting(false);
+        return;
+      }
+        
+      // Fetch all users
+      const { data: usersData, error: usersError } = await supabase
+        .from('auth')
+        .select('id, name, email, department, year, division, batch');
+        
+      if (usersError) throw usersError;
+      
+      // Create a map of users for quick lookup
+      const userMap: Record<string, any> = {};
+      if (usersData) {
+        usersData.forEach(user => {
+          if (user.id) {
+            userMap[user.id] = user;
+          }
+        });
       }
       
-      toast({
-        title: "Assessment Submitted",
-        description: "Your answers have been submitted successfully!",
+      // Process and apply filters to results
+      let filteredResults = resultsData.map(result => {
+        const user = userMap[result.user_id] || {};
+        const assessment = result.assessments || {};
+        
+        return {
+          userId: result.user_id,
+          studentName: user.name || 'Unknown',
+          email: user.email || 'unknown@example.com',
+          year: user.year || 'N/A',
+          department: user.department || 'N/A',
+          division: user.division || 'N/A',
+          batch: user.batch || 'N/A',
+          assessmentId: result.assessment_id,
+          assessmentName: assessment.name || 'Unknown',
+          score: result.total_score,
+          totalMarks: result.total_marks,
+          percentage: result.percentage,
+          isCheated: result.is_cheated,
+          completedAt: result.completed_at
+        };
       });
       
-      navigate('/summary');
+      // Apply assessment filter
+      if (filters.assessment !== 'all') {
+        filteredResults = filteredResults.filter(r => r.assessmentName === filters.assessment);
+      }
+      
+      // Apply year filter
+      if (filters.year !== 'all') {
+        filteredResults = filteredResults.filter(r => r.year === filters.year);
+      }
+      
+      // Apply department filter
+      if (filters.department !== 'all') {
+        filteredResults = filteredResults.filter(r => r.department === filters.department);
+      }
+      
+      // Apply division filter
+      if (filters.division !== 'all') {
+        filteredResults = filteredResults.filter(r => r.division === filters.division);
+      }
+      
+      // Apply batch filter
+      if (filters.batch !== 'all') {
+        filteredResults = filteredResults.filter(r => r.batch === filters.batch);
+      }
+      
+      // Apply search query filter
+      if (filters.searchQuery) {
+        const query = filters.searchQuery.toLowerCase();
+        filteredResults = filteredResults.filter(r => 
+          (r.studentName && r.studentName.toLowerCase().includes(query)) || 
+          (r.email && r.email.toLowerCase().includes(query)) ||
+          (r.userId && r.userId.toLowerCase().includes(query))
+        );
+      }
+      
+      // Apply tab filter (flagged or top performers)
+      if (activeTab === 'flagged') {
+        filteredResults = filteredResults.filter(r => r.isCheated);
+      } else if (activeTab === 'top') {
+        filteredResults.sort((a, b) => b.percentage - a.percentage);
+        filteredResults = filteredResults.slice(0, 10);
+      }
+      
+      if (filteredResults.length === 0) {
+        toast({
+          title: "No data to export",
+          description: "There are no results matching your filter criteria",
+          variant: "destructive"
+        });
+        setIsExporting(false);
+        return;
+      }
+      
+      // Format for CSV
+      const csvData = filteredResults.map(result => ({
+        "Student Name": result.studentName,
+        "Email": result.email,
+        "Year": result.year,
+        "Department": result.department,
+        "Division": result.division,
+        "Batch": result.batch,
+        "Assessment": result.assessmentName,
+        "Score": result.score,
+        "Total Marks": result.totalMarks,
+        "Percentage": result.percentage,
+        "Status": result.isCheated ? "Terminated" : "Completed",
+        "Completion Time": new Date(result.completedAt).toLocaleString()
+      }));
+
+      // Create and download CSV
+      const headers = Object.keys(csvData[0]);
+      const csvContent = [
+        headers.join(','),
+        ...csvData.map(row => headers.map(header => 
+          JSON.stringify(row[header as keyof typeof row])
+        ).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `assessment_results_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Success",
+        description: "Results exported successfully",
+      });
+
     } catch (error) {
-      console.error('Error ending assessment:', error);
+      console.error("CSV export error:", error);
       toast({
         title: "Error",
-        description: "There was an error submitting your assessment. Please try again.",
-        variant: "destructive",
+        description: "Failed to export results",
+        variant: "destructive"
       });
-      setIsEndingAssessment(false);
+    } finally {
+      setIsExporting(false);
     }
   };
-  
-  const handleUpdateMarks = (questionId: string, marks: number) => {
-    updateMarksObtained(questionId, marks);
-  };
 
-  // Anti-cheating warning is active when either fullscreen or tab warnings are shown
-  const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
-  
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
-      <header className={`${isAntiCheatingWarningActive ? 'bg-red-50 border-red-300' : 'bg-white border-gray-200'} border-b py-2 px-4 flex items-center justify-between sticky top-0 z-10 transition-colors duration-300`}>
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="mr-4">
-              <MenuIcon className="h-5 w-5" />
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <header className="bg-white border-b border-gray-200 py-4 px-6 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/admin')}>
+              <ArrowLeft className="h-5 w-5" />
             </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-72 overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>Questions</SheetTitle>
-            </SheetHeader>
-            <div className="py-4 space-y-4">
-              <div className="grid grid-cols-5 gap-2">
-                {assessment.questions.map((q, index) => (
-                  <Button
-                    key={q.id}
-                    variant="outline"
-                    size="sm"
-                    className={`relative ${
-                      currentQuestionIndex === index ? 'border-astra-red' : ''
-                    }`}
-                    onClick={() => setCurrentQuestionIndex(index)}
-                  >
-                    {index + 1}
-                    {questionStatus[index] && (
-                      <span className="absolute -top-1 -right-1">
-                        <CheckCircle className="h-3 w-3 text-green-500" />
-                      </span>
-                    )}
-                  </Button>
-                ))}
-              </div>
-              
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Assessment Summary</p>
-                <div className="flex items-center justify-between text-xs">
-                  <span>Total Questions:</span>
-                  <span>{assessment.questions.length}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span>Answered:</span>
-                  <span>{questionStatus.filter(Boolean).length}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span>Not Answered:</span>
-                  <span>{questionStatus.filter(status => !status).length}</span>
-                </div>
-              </div>
-              
-              <Button 
-                onClick={handleEndAssessment}
-                className="w-full mt-4"
-                variant="destructive"
-              >
-                End Assessment
-              </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-astra-red">Yudha</h1>
+              <p className="text-sm text-gray-600">Results Dashboard</p>
             </div>
-          </SheetContent>
-        </Sheet>
-        
-        <div className="flex items-center gap-2">
-          {isAntiCheatingWarningActive && (
-            <div className="flex items-center mr-3">
-              <AlertTriangle className="h-5 w-5 text-red-500 mr-1" />
-              <span className="text-sm font-medium text-red-700">
-                {showExitWarning ? `Fullscreen Warning: ${fullscreenWarnings}/${MAX_WARNINGS}` : 
-                 tabSwitchWarning ? `Tab Switch Warning: ${visibilityViolations}/${MAX_WARNINGS}` : ''}
-              </span>
-            </div>
-          )}
-          <Timer variant="assessment" />
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-sm">Admin: {user?.name}</span>
+            <Button 
+              onClick={exportToCSV} 
+              disabled={isExporting}
+              className="bg-astra-red hover:bg-red-600 text-white"
+            >
+              <FileDown className="h-4 w-4 mr-2" />
+              {isExporting ? 'Exporting...' : 'Export to CSV'}
+            </Button>
+          </div>
         </div>
       </header>
-      
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-6xl mx-auto">
-          {isMCQQuestion(currentQuestion) ? (
-            <div className="bg-white p-6 rounded-lg shadow">
-              <MCQQuestion 
-                question={currentQuestion} 
-                onAnswerSelect={answerMCQ}
-                isWarningActive={isAntiCheatingWarningActive}
+
+      <div className="flex-1 p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center">
+                <Filter className="h-4 w-4 mr-2" /> Filter Results
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Select
+                  value={filters.assessment}
+                  onValueChange={(value) => handleFilterChange('assessment', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Assessment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Assessments</SelectItem>
+                    {assessmentOptions.map((item, index) => (
+                      <SelectItem key={`${item.name}-${index}`} value={item.name}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filters.year}
+                  onValueChange={(value) => handleFilterChange('year', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Years</SelectItem>
+                    {yearOptions.map((year) => (
+                      <SelectItem key={year} value={year}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filters.department}
+                  onValueChange={(value) => handleFilterChange('department', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {departmentOptions.map((dept) => (
+                      <SelectItem key={dept} value={dept}>
+                        {dept}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filters.division}
+                  onValueChange={(value) => handleFilterChange('division', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Division" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Divisions</SelectItem>
+                    {divisionOptions.map((div) => (
+                      <SelectItem key={div} value={div}>
+                        {div}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={filters.batch}
+                  onValueChange={(value) => handleFilterChange('batch', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Batch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Batches</SelectItem>
+                    {batchOptions.map((batch) => (
+                      <SelectItem key={batch} value={batch}>
+                        {batch}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Input
+                  type="text"
+                  placeholder="Search by student name or ID"
+                  value={filters.searchQuery}
+                  onChange={(e) => handleFilterChange('searchQuery', e.target.value)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid grid-cols-3 md:w-[400px]">
+              <TabsTrigger value="all">All Results</TabsTrigger>
+              <TabsTrigger value="flagged">Flagged</TabsTrigger>
+              <TabsTrigger value="top">Top Performers</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="all" className="mt-4">
+              <ResultsTable 
+                filters={filters}
+                flagged={false}
+                topPerformers={false}
               />
-            </div>
-          ) : (
-            <div className="flex flex-col md:flex-row gap-4 h-full">
-              <div className={`md:w-1/2 bg-white p-6 rounded-lg shadow overflow-y-auto max-h-[calc(100vh-180px)] ${isAntiCheatingWarningActive ? 'border border-red-300' : ''}`}>
-                {isAntiCheatingWarningActive && (
-                  <div className="mb-3 bg-red-50 p-2 rounded-md flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-red-500" />
-                    <p className="text-sm text-red-700">Anti-cheating warning active</p>
-                  </div>
-                )}
-
-                <h3 className="text-lg font-medium mb-3">{currentQuestion.title}</h3>
-                <p className="text-gray-700 whitespace-pre-line mb-4">{currentQuestion.description}</p>
-                
-                {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (
-                  <div className="mb-4">
-                    <h4 className="font-medium text-sm mb-2">Examples:</h4>
-                    <div className="space-y-3">
-                      {currentQuestion.examples.map((example, index) => (
-                        <div key={index} className="bg-gray-50 p-3 rounded-md">
-                          <div className="mb-1">
-                            <span className="font-medium text-xs">Input:</span>
-                            <pre className="text-xs bg-gray-100 p-1 rounded mt-1">{example.input}</pre>
-                          </div>
-                          <div className="mb-1">
-                            <span className="font-medium text-xs">Output:</span>
-                            <pre className="text-xs bg-gray-100 p-1 rounded mt-1">{example.output}</pre>
-                          </div>
-                          {example.explanation && (
-                            <div>
-                              <span className="font-medium text-xs">Explanation:</span>
-                              <p className="text-xs mt-1">{example.explanation}</p>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {isCodeQuestion(currentQuestion) && currentQuestion.constraints.length > 0 && (
-                  <div>
-                    <h4 className="font-medium text-sm mb-2">Constraints:</h4>
-                    <ul className="list-disc list-inside text-sm text-gray-700">
-                      {currentQuestion.constraints.map((constraint, index) => (
-                        <li key={index}>{constraint}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-              
-              <div className={`md:w-1/2 bg-white rounded-lg shadow flex flex-col overflow-hidden ${isAntiCheatingWarningActive ? 'border border-red-300' : ''}`}>
-                <div className="p-4 flex-1 overflow-hidden">
-                  {isCodeQuestion(currentQuestion) && (
-                    <CodeEditor 
-                      question={currentQuestion}
-                      onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
-                      onMarksUpdate={handleUpdateMarks}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+            </TabsContent>
+            
+            <TabsContent value="flagged" className="mt-4">
+              <ResultsTable 
+                filters={filters}
+                flagged={true}
+                topPerformers={false}
+              />
+            </TabsContent>
+            
+            <TabsContent value="top" className="mt-4">
+              <ResultsTable 
+                filters={filters}
+                flagged={false}
+                topPerformers={true}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
-      
-      <div className={`${isAntiCheatingWarningActive ? 'bg-red-50 border-red-300' : 'bg-white border-gray-200'} border-t py-3 px-6 flex items-center justify-between sticky bottom-0 z-10 transition-colors duration-300`}>
-        <Button
-          variant="outline"
-          onClick={handlePrevQuestion}
-          disabled={currentQuestionIndex === 0 || isNavigating || isEndingAssessment}
-        >
-          <ChevronLeft className="h-5 w-5 mr-1" /> Previous
-        </Button>
-        
-        <div className="flex items-center gap-1">
-          {assessment.questions.map((_, index) => (
-            <div 
-              key={index} 
-              className={`h-2 w-2 rounded-full ${
-                index === currentQuestionIndex ? 'bg-astra-red' : 'bg-gray-300'
-              }`}
-            />
-          ))}
-        </div>
-        
-        <div className="flex gap-2">
-          {currentQuestionIndex === assessment.questions.length - 1 ? (
-            <Button
-              className="bg-astra-red hover:bg-red-600 text-white"
-              onClick={handleEndAssessment}
-              disabled={isNavigating || isEndingAssessment}
-            >
-              {isEndingAssessment ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <>End Assessment</>
-              )}
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              onClick={handleNextQuestion}
-              disabled={isNavigating || isEndingAssessment}
-            >
-              Next <ChevronRight className="h-5 w-5 ml-1" />
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center">
-              <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
-              End Assessment
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to end the assessment? This action cannot be undone, and all your answers will be submitted.
-              {questionStatus.some(status => !status) && (
-                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md text-amber-700 text-sm">
-                  <HelpCircle className="h-4 w-4 inline mr-1" />
-                  You have {questionStatus.filter(status => !status).length} unanswered question(s).
-                </div>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isEndingAssessment}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={confirmEndAssessment} 
-              className="bg-astra-red hover:bg-red-600 text-white"
-              disabled={isEndingAssessment}
-            >
-              {isEndingAssessment ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                "End Assessment"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={showExitWarning || tabSwitchWarning}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center">
-              <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
-              {showExitWarning ? 'Fullscreen Mode Required' : 'Assessment Tab Focus Required'}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              <p>
-                {showExitWarning 
-                  ? `You have exited fullscreen mode. This is violation ${fullscreenWarnings}/${MAX_WARNINGS}.
-                     Please return to fullscreen immediately or your test will be terminated.`
-                  : `You switched away from the assessment tab. This is violation ${visibilityViolations}/${MAX_WARNINGS}.
-                     Please stay on this tab or your test will be terminated.`
-                }
-              </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={showExitWarning ? enterFullscreen : undefined}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {showExitWarning ? 'Return to Fullscreen' : 'Continue Assessment'}
-            </AlertDialogAction>
-            <AlertDialogAction
-              onClick={terminateAssessment}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              End Assessment
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };
 
-export default AssessmentPage;
+export default ResultsPage;
