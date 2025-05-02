@@ -46,7 +46,6 @@ useEffect(() => {
     const availableLanguages = Object.keys(question.solutionTemplate);
     if (availableLanguages.length === 0) return;
 
-    // Prefer previously selected language if available; otherwise, pick the first
     const newLanguage = availableLanguages.includes(selectedLanguage)
       ? selectedLanguage
       : availableLanguages[0];
@@ -70,7 +69,6 @@ useEffect(() => {
           variant: "destructive",
         });
       } else if (data) {
-        // Always update the editor with the new template
         onCodeChange(newLanguage, data.solution_template);
       }
     } catch (err) {
@@ -85,45 +83,42 @@ useEffect(() => {
 
 
 
-  const handleLanguageChange = async (language: string) => {
-    setSelectedLanguage(language);
 
-    // If the user hasn't written any code in this language yet, fetch the template
-    if (!question.userSolution[language]) {
-      setIsLoadingTemplate(true);
-      try {
-        // Fetch the solution template from the database
-        const { data, error } = await supabase
-          .from('coding_languages')
-          .select('solution_template')
-          .eq('coding_question_id', question.id)
-          .eq('coding_lang', language)
-          .single();
-          
-        if (error) {
-          console.error('Error fetching solution template:', error);
-          toast({
-            title: "Error",
-            description: "Failed to load code template",
-            variant: "destructive",
-          });
-        } else if (data) {
-          // Update the template in question object and trigger onCodeChange
-          onCodeChange(language, data.solution_template);
-        }
-      } catch (err) {
-        console.error('Error in template fetch:', err);
-      } finally {
-        setIsLoadingTemplate(false);
-      }
-    }
-  };
+const handleLanguageChange = async (language: string) => {
+  setSelectedLanguage(language);
+  setIsLoadingTemplate(true);
 
-  const handleCodeChange = (value: string | undefined) => {
-    if (value !== undefined) {
-      onCodeChange(selectedLanguage, value);
+  try {
+    const { data, error } = await supabase
+      .from('coding_languages')
+      .select('solution_template')
+      .eq('coding_question_id', question.id)
+      .eq('coding_lang', language)
+      .single();
+
+    if (error) {
+      console.error('Error fetching solution template:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load code template",
+        variant: "destructive",
+      });
+    } else if (data) {
+      onCodeChange(language, data.solution_template);
     }
-  };
+  } catch (err) {
+    console.error('Error in template fetch:', err);
+  } finally {
+    setIsLoadingTemplate(false);
+  }
+};
+
+const handleCodeChange = (value: string | undefined) => {
+  if (value !== undefined) {
+    onCodeChange(selectedLanguage, value);
+  }
+};
+
 
   const cleanErrorOutput = (errorOutput: string): string => {
     return errorOutput
@@ -515,20 +510,25 @@ useEffect(() => {
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-between items-center mb-2">
-        <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Language">
-              {isLoadingTemplate ? 'Loading...' : selectedLanguage.charAt(0).toUpperCase() + selectedLanguage.slice(1)}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {Object.keys(question.solutionTemplate).map((lang) => (
-              <SelectItem value={lang} key={lang}>
-                {lang.charAt(0).toUpperCase() + lang.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {isLoadingTemplate && (
+  <div className="text-sm text-muted-foreground ml-2 animate-pulse">
+    Loading template...
+  </div>
+)}
+
+       <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+  <SelectTrigger className="w-40">
+    <SelectValue placeholder="Language" />
+  </SelectTrigger>
+  <SelectContent>
+    {Object.keys(question.solutionTemplate).map((lang) => (
+      <SelectItem value={lang} key={lang}>
+        {lang.charAt(0).toUpperCase() + lang.slice(1)}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+
         <div className="flex gap-2">
           <Button 
             variant="secondary" 
