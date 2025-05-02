@@ -42,24 +42,47 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
 
   // Effect to handle language changes when question changes
 useEffect(() => {
-  const availableLanguages = Object.keys(question.solutionTemplate);
-  if (availableLanguages.length > 0) {
-    // Determine which language to use: prefer keeping current if available
-    const languageToUse = availableLanguages.includes(selectedLanguage)
+  const fetchTemplate = async () => {
+    const availableLanguages = Object.keys(question.solutionTemplate);
+    if (availableLanguages.length === 0) return;
+
+    // Prefer previously selected language if available; otherwise, pick the first
+    const newLanguage = availableLanguages.includes(selectedLanguage)
       ? selectedLanguage
       : availableLanguages[0];
 
-    setSelectedLanguage(languageToUse);
+    setSelectedLanguage(newLanguage);
+    setIsLoadingTemplate(true);
 
-    // Always fetch the template if there's no user-written code
-    if (!question.userSolution[languageToUse]) {
-      handleLanguageChange(languageToUse);
-    } else {
-      // If userSolution exists, still notify parent
-      onCodeChange(languageToUse, question.userSolution[languageToUse]);
+    try {
+      const { data, error } = await supabase
+        .from('coding_languages')
+        .select('solution_template')
+        .eq('coding_question_id', question.id)
+        .eq('coding_lang', newLanguage)
+        .single();
+
+      if (error) {
+        console.error('Error fetching solution template:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load code template",
+          variant: "destructive",
+        });
+      } else if (data) {
+        // Always update the editor with the new template
+        onCodeChange(newLanguage, data.solution_template);
+      }
+    } catch (err) {
+      console.error('Error in template fetch:', err);
+    } finally {
+      setIsLoadingTemplate(false);
     }
-  }
+  };
+
+  fetchTemplate();
 }, [question.id]);
+
 
 
   const handleLanguageChange = async (language: string) => {
