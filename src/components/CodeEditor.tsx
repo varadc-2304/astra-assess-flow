@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,34 +41,40 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     question.solutionTemplate[selectedLanguage] ??
     '';
 
-  // Effect to handle language changes when question changes
+  // Effect to handle question changes and load appropriate template
   useEffect(() => {
+    console.log("Question changed or component mounted, question ID:", question.id);
+    
     // Reset selected language when question changes
     const availableLanguages = Object.keys(question.solutionTemplate);
     if (availableLanguages.length > 0) {
       // Try to keep the same language if available in the new question
       if (availableLanguages.includes(selectedLanguage)) {
-        // If the current language exists but we need to load its template
+        console.log(`Current language ${selectedLanguage} is available in the new question`);
+        // Fetch template for current language if user hasn't written code yet
         if (!question.userSolution[selectedLanguage]) {
           handleLanguageChange(selectedLanguage);
         }
       } else {
         // If current language doesn't exist in new question, switch to first available
+        console.log(`Current language ${selectedLanguage} not available, switching to ${availableLanguages[0]}`);
         setSelectedLanguage(availableLanguages[0]);
         if (!question.userSolution[availableLanguages[0]]) {
           handleLanguageChange(availableLanguages[0]);
         }
       }
     }
-  }, [question.id]);
+  }, [question.id]); // Only run when question ID changes
 
   const handleLanguageChange = async (language: string) => {
+    console.log(`Language changed to ${language} for question ${question.id}`);
     setSelectedLanguage(language);
 
     // If the user hasn't written any code in this language yet, fetch the template
     if (!question.userSolution[language]) {
       setIsLoadingTemplate(true);
       try {
+        console.log(`Fetching template for language ${language}, question ${question.id}`);
         // Fetch the solution template from the database
         const { data, error } = await supabase
           .from('coding_languages')
@@ -84,6 +91,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             variant: "destructive",
           });
         } else if (data) {
+          console.log(`Template found for ${language}:`, data.solution_template.substring(0, 50) + '...');
           // Update the template in question object and trigger onCodeChange
           onCodeChange(language, data.solution_template);
         }
@@ -478,7 +486,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     renderLineHighlight: 'all' as 'all',
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: 'auto' }
+    lightbulb: { enabled: true as const }
   };
 
   const handleEditorDidMount = (editor: any) => {
