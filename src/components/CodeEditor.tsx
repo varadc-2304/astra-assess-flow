@@ -523,23 +523,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         <div className="flex-1 flex">
           <TabsContent value="code" className="flex-1 h-full m-0">
             <div className="h-[calc(100vh-280px)] border border-gray-200 rounded-md overflow-hidden">
-              {isLoadingTemplate ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                  <span className="ml-2 text-gray-400">Loading template...</span>
-                </div>
-              ) : (
-                <Editor
-                  height="100%"
-                  defaultLanguage={selectedLanguage}
-                  language={selectedLanguage}
-                  defaultValue={currentCode}
-                  onChange={handleCodeChange}
-                  theme="vs-dark"
-                  options={editorOptions}
-                  className="monaco-editor"
-                  onMount={handleEditorDidMount}
-                />
+              <Editor
+                height="100%"
+                defaultLanguage={selectedLanguage}
+                language={selectedLanguage}
+                defaultValue={currentCode}
+                onChange={handleCodeChange}
+                theme="vs-dark"
+                options={editorOptions}
+                className="monaco-editor"
+                onMount={handleEditorDidMount}
+              />
               )}
             </div>
           </TabsContent>
