@@ -40,9 +40,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     question.solutionTemplate[selectedLanguage] ??
     '';
 
-  // Effect to handle question changes (both next and previous navigation)
+  // Effect to handle language changes when question changes
   useEffect(() => {
-    console.log("Question changed, updating template");
     // Reset selected language when question changes
     const availableLanguages = Object.keys(question.solutionTemplate);
     if (availableLanguages.length > 0) {
@@ -479,7 +478,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     renderLineHighlight: 'all' as 'all',
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: true }
+    lightbulb: { enabled: 'auto' }
   };
 
   const handleEditorDidMount = (editor: any) => {
