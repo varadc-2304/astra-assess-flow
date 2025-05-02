@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -125,13 +124,21 @@ const AssessmentPage = () => {
   
   const handlePrevQuestion = () => {
     if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
+      setIsNavigating(true);
+      setTimeout(() => {
+        setCurrentQuestionIndex(currentQuestionIndex - 1);
+        setIsNavigating(false);
+      }, 100);
     }
   };
   
   const handleNextQuestion = () => {
     if (currentQuestionIndex < assessment.questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setIsNavigating(true);
+      setTimeout(() => {
+        setCurrentQuestionIndex(currentQuestionIndex + 1);
+        setIsNavigating(false);
+      }, 100);
     }
   };
   
