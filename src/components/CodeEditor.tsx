@@ -40,25 +40,70 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     question.solutionTemplate[selectedLanguage] ??
     '';
 
-  // Effect to handle language changes when question changes
-useEffect(() => {
-  const fetchTemplate = async () => {
-    const availableLanguages = Object.keys(question.solutionTemplate);
-    if (availableLanguages.length === 0) return;
+  // Effect to handle when question changes
+  useEffect(() => {
+    console.log('Question changed, fetching template for:', question.id);
+    const fetchTemplate = async () => {
+      const availableLanguages = Object.keys(question.solutionTemplate);
+      if (availableLanguages.length === 0) return;
 
-    const newLanguage = availableLanguages.includes(selectedLanguage)
-      ? selectedLanguage
-      : availableLanguages[0];
+      const newLanguage = availableLanguages.includes(selectedLanguage)
+        ? selectedLanguage
+        : availableLanguages[0];
 
-    setSelectedLanguage(newLanguage);
+      setSelectedLanguage(newLanguage);
+      setIsLoadingTemplate(true);
+      setOutput(''); // Reset output when question changes
+
+      try {
+        const { data, error } = await supabase
+          .from('coding_languages')
+          .select('solution_template')
+          .eq('coding_question_id', question.id)
+          .eq('coding_lang', newLanguage)
+          .single();
+
+        if (error) {
+          console.error('Error fetching solution template:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load code template",
+            variant: "destructive",
+          });
+        } else if (data) {
+          console.log('Template loaded for question:', question.id, 'language:', newLanguage);
+          onCodeChange(newLanguage, data.solution_template);
+        }
+      } catch (err) {
+        console.error('Error in template fetch:', err);
+      } finally {
+        setIsLoadingTemplate(false);
+      }
+    };
+
+    fetchTemplate();
+  }, [question.id]);
+
+  const handleLanguageChange = async (language: string) => {
+    setSelectedLanguage(language);
     setIsLoadingTemplate(true);
+    console.log('Language changed to:', language, 'for question:', question.id);
 
     try {
+      // If user already has a solution for this language, use it
+      if (question.userSolution[language]) {
+        console.log('Using existing user solution for language:', language);
+        onCodeChange(language, question.userSolution[language] || '');
+        setIsLoadingTemplate(false);
+        return;
+      }
+
+      // Otherwise, fetch the template from DB
       const { data, error } = await supabase
         .from('coding_languages')
         .select('solution_template')
         .eq('coding_question_id', question.id)
-        .eq('coding_lang', newLanguage)
+        .eq('coding_lang', language)
         .single();
 
       if (error) {
@@ -69,7 +114,8 @@ useEffect(() => {
           variant: "destructive",
         });
       } else if (data) {
-        onCodeChange(newLanguage, data.solution_template);
+        console.log('Template loaded for language change:', language);
+        onCodeChange(language, data.solution_template);
       }
     } catch (err) {
       console.error('Error in template fetch:', err);
@@ -78,47 +124,11 @@ useEffect(() => {
     }
   };
 
-  fetchTemplate();
-}, [question.id]);
-
-
-
-
-const handleLanguageChange = async (language: string) => {
-  setSelectedLanguage(language);
-  setIsLoadingTemplate(true);
-
-  try {
-    const { data, error } = await supabase
-      .from('coding_languages')
-      .select('solution_template')
-      .eq('coding_question_id', question.id)
-      .eq('coding_lang', language)
-      .single();
-
-    if (error) {
-      console.error('Error fetching solution template:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load code template",
-        variant: "destructive",
-      });
-    } else if (data) {
-      onCodeChange(language, data.solution_template);
+  const handleCodeChange = (value: string | undefined) => {
+    if (value !== undefined) {
+      onCodeChange(selectedLanguage, value);
     }
-  } catch (err) {
-    console.error('Error in template fetch:', err);
-  } finally {
-    setIsLoadingTemplate(false);
-  }
-};
-
-const handleCodeChange = (value: string | undefined) => {
-  if (value !== undefined) {
-    onCodeChange(selectedLanguage, value);
-  }
-};
-
+  };
 
   const cleanErrorOutput = (errorOutput: string): string => {
     return errorOutput
@@ -497,7 +507,7 @@ const handleCodeChange = (value: string | undefined) => {
     renderLineHighlight: 'all' as 'all',
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: 'auto' }
+    lightbulb: { enabled: 'on' }
   };
 
   const handleEditorDidMount = (editor: any) => {
@@ -509,25 +519,25 @@ const handleCodeChange = (value: string | undefined) => {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center mb-2">
+      <div className="flex justify-between items-center p-4">
         {isLoadingTemplate && (
-  <div className="text-sm text-muted-foreground ml-2 animate-pulse">
-    Loading template...
-  </div>
-)}
+          <div className="text-sm text-muted-foreground ml-2 animate-pulse">
+            Loading template...
+          </div>
+        )}
 
-       <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-  <SelectTrigger className="w-40">
-    <SelectValue placeholder="Language" />
-  </SelectTrigger>
-  <SelectContent>
-    {Object.keys(question.solutionTemplate).map((lang) => (
-      <SelectItem value={lang} key={lang}>
-        {lang.charAt(0).toUpperCase() + lang.slice(1)}
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
+        <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Language" />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.keys(question.solutionTemplate).map((lang) => (
+              <SelectItem value={lang} key={lang}>
+                {lang.charAt(0).toUpperCase() + lang.slice(1)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <div className="flex gap-2">
           <Button 
@@ -559,45 +569,47 @@ const handleCodeChange = (value: string | undefined) => {
         </div>
       </div>
 
-      <Tabs defaultValue="code" className="flex-1 flex flex-col">
-        <TabsList className="mb-2">
-          <TabsTrigger value="code">Code</TabsTrigger>
-          <TabsTrigger value="output">Output</TabsTrigger>
-        </TabsList>
-        <div className="flex-1 flex">
-          <TabsContent value="code" className="flex-1 h-full m-0">
-            <div className="h-[calc(100vh-280px)] border border-gray-200 rounded-md overflow-hidden">
-              {isLoadingTemplate ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                  <span className="ml-2 text-gray-400">Loading template...</span>
-                </div>
-              ) : (
-                <Editor
-                  height="100%"
-                  defaultLanguage={selectedLanguage}
-                  language={selectedLanguage}
-                  defaultValue={currentCode}
-                  onChange={handleCodeChange}
-                  theme="vs-dark"
-                  options={editorOptions}
-                  className="monaco-editor"
-                  onMount={handleEditorDidMount}
-                />
-              )}
-            </div>
-          </TabsContent>
-          <TabsContent value="output" className="flex-1 h-full m-0">
-            <div className="h-[calc(100vh-280px)] bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto whitespace-pre-wrap">
-              <div className="flex items-center mb-2">
-                <Terminal className="h-4 w-4 mr-2" />
-                <span>Output</span>
+      <div className="flex-1 flex flex-col px-4 pb-4">
+        <Tabs defaultValue="code" className="flex-1 flex flex-col">
+          <TabsList className="mb-2">
+            <TabsTrigger value="code">Code</TabsTrigger>
+            <TabsTrigger value="output">Output</TabsTrigger>
+          </TabsList>
+          <div className="flex-1 flex">
+            <TabsContent value="code" className="flex-1 h-full m-0">
+              <div className="h-[calc(100vh-280px)] border border-gray-200 rounded-md overflow-hidden">
+                {isLoadingTemplate ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                    <span className="ml-2 text-gray-400">Loading template...</span>
+                  </div>
+                ) : (
+                  <Editor
+                    height="100%"
+                    defaultLanguage={selectedLanguage}
+                    language={selectedLanguage}
+                    value={currentCode}
+                    onChange={handleCodeChange}
+                    theme="vs-dark"
+                    options={editorOptions}
+                    className="monaco-editor"
+                    onMount={handleEditorDidMount}
+                  />
+                )}
               </div>
-              <pre className="whitespace-pre-wrap break-words">{output || 'Run your code to see output here'}</pre>
-            </div>
-          </TabsContent>
-        </div>
-      </Tabs>
+            </TabsContent>
+            <TabsContent value="output" className="flex-1 h-full m-0">
+              <div className="h-[calc(100vh-280px)] bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto whitespace-pre-wrap">
+                <div className="flex items-center mb-2">
+                  <Terminal className="h-4 w-4 mr-2" />
+                  <span>Output</span>
+                </div>
+                <pre className="whitespace-pre-wrap break-words">{output || 'Run your code to see output here'}</pre>
+              </div>
+            </TabsContent>
+          </div>
+        </Tabs>
+      </div>
     </div>
   );
 };
