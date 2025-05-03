@@ -68,7 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       let userId: string;
       
       if (!existingUsers || existingUsers.length === 0) {
-        throw new Error("No account found with this email.");
+        throw new Error("No account found.");
       } else {
         const user = existingUsers[0];
         
