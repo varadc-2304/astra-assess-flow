@@ -17,13 +17,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { TestCase, QuestionSubmission, TestResult, Json } from '@/types/database';
 import Editor from '@monaco-editor/react';
 
-interface CodeEditorProps {
+// Add this somewhere after imports at the top of the file
+export interface CodeEditorProps {
   question: CodeQuestion;
   onCodeChange: (language: string, code: string) => void;
-  onMarksUpdate?: (questionId: string, marks: number) => void;
+  onMarksUpdate: (questionId: string, marks: number) => void;
+  onTestResultsUpdate?: (passedTests: number, totalTests: number) => void;
 }
 
-const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarksUpdate }) => {
+const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarksUpdate, onTestResultsUpdate }) => {
   const [selectedLanguage, setSelectedLanguage] = useState<string>(
     Object.keys(question.solutionTemplate)[0] || 'python'
   );

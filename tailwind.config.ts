@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -26,7 +27,18 @@ export default {
 				foreground: 'hsl(var(--foreground))',
 				primary: {
 					DEFAULT: '#ea384c',
-					foreground: '#FFFFFF'
+					foreground: '#FFFFFF',
+					50: '#fef2f2',
+					100: '#fee2e2',
+					200: '#fecaca',
+					300: '#fca5a5',
+					400: '#f87171',
+					500: '#ef4444',
+					600: '#dc2626',
+					700: '#b91c1c',
+					800: '#991b1b',
+					900: '#7f1d1d',
+					950: '#450a0a',
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',
@@ -100,12 +112,27 @@ export default {
 						'background-size': '200% 200%',
 						'background-position': 'right center'
 					},
+				},
+				fadeIn: {
+					'0%': { opacity: '0', transform: 'translateY(10px)' },
+					'100%': { opacity: '1', transform: 'translateY(0)' }
+				},
+				pulse: {
+					'0%, 100%': { opacity: '1' },
+					'50%': { opacity: '.5' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
 				'accordion-up': 'accordion-up 0.2s ease-out',
-				gradient: 'gradient 15s ease infinite'
+				gradient: 'gradient 15s ease infinite',
+				'fade-in': 'fadeIn 0.3s ease-out forwards',
+				pulse: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+			},
+			boxShadow: {
+				'soft': '0 4px 14px 0 rgba(0,0,0,0.05)',
+				'hover': '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.06)',
+				'card': '0 2px 10px rgba(0,0,0,0.08)',
 			}
 		}
 	},
