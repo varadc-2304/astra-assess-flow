@@ -525,19 +525,25 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             Loading template...
           </div>
         )}
+{isLoadingTemplate && (
+  <div className="text-sm text-muted-foreground ml-2 animate-pulse">
+    Loading template...
+  </div>
+)}
 
-        <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Language" />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.keys(question.solutionTemplate).map((lang) => (
-              <SelectItem value={lang} key={lang}>
-                {lang.charAt(0).toUpperCase() + lang.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+<Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+  <SelectTrigger className="w-40">
+    <SelectValue placeholder="Language" />
+  </SelectTrigger>
+  <SelectContent>
+    {Object.keys(question.solutionTemplate).map((lang) => (
+      <SelectItem value={lang} key={lang}>
+        {lang.charAt(0).toUpperCase() + lang.slice(1)}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+
 
         <div className="flex gap-2">
           <Button 
