@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -14,9 +13,10 @@ import { useFullscreen, MAX_WARNINGS } from '@/hooks/useFullscreen';
 import { Timer } from '@/components/Timer';
 import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
+import WebcamProctor from '@/components/WebcamProctor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, Camera } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
@@ -55,6 +55,8 @@ const AssessmentPage = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [isEndingAssessment, setIsEndingAssessment] = useState(false);
   const [testCaseStatus, setTestCaseStatus] = useState<TestCaseStatus>({});
+  const [showProctorPanel, setShowProctorPanel] = useState(false);
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
   const navigate = useNavigate();
   const { 
     enterFullscreen, 
@@ -93,6 +95,7 @@ const AssessmentPage = () => {
             .is('completed_at', null);
             
           if (existingSubmissions && existingSubmissions.length > 0) {
+            setSubmissionId(existingSubmissions[0].id);
             return;
           }
           
@@ -103,10 +106,14 @@ const AssessmentPage = () => {
               user_id: user.id,
               started_at: new Date().toISOString(),
               fullscreen_violations: 0
-            });
+            })
+            .select();
             
           if (error) {
             console.error('Error creating submission record:', error);
+          } else if (data && data.length > 0) {
+            setSubmissionId(data[0].id);
+            setShowProctorPanel(true);
           }
         } catch (error) {
           console.error('Error creating submission record:', error);
@@ -350,6 +357,16 @@ const AssessmentPage = () => {
       
       <div className="flex-1 overflow-y-auto p-4">
         <div className="max-w-6xl mx-auto h-full">
+          {/* Webcam Proctoring */}
+          {showProctorPanel && assessment && submissionId && (
+            <div className="mb-4">
+              <WebcamProctor 
+                assessmentId={assessment.id} 
+                submissionId={submissionId}
+              />
+            </div>
+          )}
+          
           {isMCQQuestion(currentQuestion) ? (
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-card animate-fade-in">
               <MCQQuestion 
@@ -359,7 +376,7 @@ const AssessmentPage = () => {
               />
             </div>
           ) : (
-            <div className="h-[calc(100vh-180px)] animate-fade-in">
+            <div className="h-[calc(100vh-300px)] animate-fade-in">
               <ResizablePanelGroup direction="horizontal" className="h-full">
                 <ResizablePanel defaultSize={40} minSize={30} className={`bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm overflow-y-auto ${isAntiCheatingWarningActive ? 'border border-red-300 dark:border-red-800' : ''}`}>
                   <div className="flex items-center justify-between mb-4">
@@ -380,7 +397,7 @@ const AssessmentPage = () => {
                     </div>
                   )}
                   
-                  <div className="prose dark:prose-invert max-w-none mb-4">
+                  <div className="question-content max-w-none mb-4">
                     <p className="text-gray-700 dark:text-gray-200 whitespace-pre-line">{currentQuestion.description}</p>
                   </div>
                   

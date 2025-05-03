@@ -263,12 +263,69 @@
   @apply font-mono text-sm rounded-md overflow-auto shadow-inner bg-black/90 text-green-400;
 }
 
-
-
 .question-content pre {
   @apply bg-gray-100 dark:bg-gray-800 p-3 rounded-md overflow-x-auto;
 }
 
 .question-content code {
   @apply text-sm font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded;
+}
+
+/* Webcam container styles */
+.webcam-container {
+  @apply relative w-full overflow-hidden rounded-lg shadow-md;
+}
+
+.webcam-overlay {
+  @apply absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end justify-between p-3;
+}
+
+.webcam-status {
+  @apply flex items-center gap-1 px-2 py-1 bg-black/40 rounded-full text-xs font-medium text-white;
+}
+
+.webcam-controls {
+  @apply flex items-center gap-2;
+}
+
+.webcam-control-button {
+  @apply p-1.5 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors;
+}
+
+.webcam-flash {
+  @apply absolute inset-0 bg-white animate-flash;
+}
+
+@keyframes flash {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+.proctoring-tooltip {
+  @apply absolute px-2 py-1 text-xs bg-black/75 text-white rounded shadow-lg;
+}
+
+/* AI proctoring monitoring styles */
+.ai-monitor-container {
+  @apply fixed bottom-4 right-4 bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg z-50 border border-gray-200 dark:border-gray-700;
+}
+
+.ai-monitor-header {
+  @apply flex items-center justify-between mb-2;
+}
+
+.monitor-badge {
+  @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium;
+}
+
+.monitor-badge-active {
+  @apply bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300;
+}
+
+.monitor-badge-warning {
+  @apply bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300;
+}
+
+.monitor-badge-error {
+  @apply bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300;
 }
