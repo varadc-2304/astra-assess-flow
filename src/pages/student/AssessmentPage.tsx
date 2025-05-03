@@ -20,7 +20,6 @@ import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTria
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -282,7 +281,7 @@ const AssessmentPage = () => {
       </header>
       
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-6xl mx-auto h-full">
+        <div className="max-w-6xl mx-auto">
           {isMCQQuestion(currentQuestion) ? (
             <div className="bg-white p-6 rounded-lg shadow">
               <MCQQuestion 
@@ -292,60 +291,58 @@ const AssessmentPage = () => {
               />
             </div>
           ) : (
-            <div className="h-[calc(100vh-180px)]">
-              <ResizablePanelGroup direction="horizontal" className="h-full">
-                <ResizablePanel defaultSize={40} minSize={30} className={`bg-white p-4 rounded-lg shadow-sm overflow-y-auto ${isAntiCheatingWarningActive ? 'border border-red-300' : ''}`}>
-                  {isAntiCheatingWarningActive && (
-                    <div className="mb-3 bg-red-50 p-2 rounded-md flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5 text-red-500" />
-                      <p className="text-sm text-red-700">Anti-cheating warning active</p>
-                    </div>
-                  )}
+            <div className="flex flex-col md:flex-row gap-4 h-full">
+              <div className={`md:w-1/2 bg-white p-6 rounded-lg shadow overflow-y-auto max-h-[calc(100vh-180px)] ${isAntiCheatingWarningActive ? 'border border-red-300' : ''}`}>
+                {isAntiCheatingWarningActive && (
+                  <div className="mb-3 bg-red-50 p-2 rounded-md flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                    <p className="text-sm text-red-700">Anti-cheating warning active</p>
+                  </div>
+                )}
 
-                  <h3 className="text-lg font-medium mb-3">{currentQuestion.title}</h3>
-                  <p className="text-gray-700 whitespace-pre-line mb-4">{currentQuestion.description}</p>
-                  
-                  {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="font-medium text-sm mb-2">Examples:</h4>
-                      <div className="space-y-3">
-                        {currentQuestion.examples.map((example, index) => (
-                          <div key={index} className="bg-gray-50 p-3 rounded-md">
-                            <div className="mb-1">
-                              <span className="font-medium text-xs">Input:</span>
-                              <pre className="text-xs bg-gray-100 p-1 rounded mt-1">{example.input}</pre>
-                            </div>
-                            <div className="mb-1">
-                              <span className="font-medium text-xs">Output:</span>
-                              <pre className="text-xs bg-gray-100 p-1 rounded mt-1">{example.output}</pre>
-                            </div>
-                            {example.explanation && (
-                              <div>
-                                <span className="font-medium text-xs">Explanation:</span>
-                                <p className="text-xs mt-1">{example.explanation}</p>
-                              </div>
-                            )}
+                <h3 className="text-lg font-medium mb-3">{currentQuestion.title}</h3>
+                <p className="text-gray-700 whitespace-pre-line mb-4">{currentQuestion.description}</p>
+                
+                {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="font-medium text-sm mb-2">Examples:</h4>
+                    <div className="space-y-3">
+                      {currentQuestion.examples.map((example, index) => (
+                        <div key={index} className="bg-gray-50 p-3 rounded-md">
+                          <div className="mb-1">
+                            <span className="font-medium text-xs">Input:</span>
+                            <pre className="text-xs bg-gray-100 p-1 rounded mt-1">{example.input}</pre>
                           </div>
-                        ))}
-                      </div>
+                          <div className="mb-1">
+                            <span className="font-medium text-xs">Output:</span>
+                            <pre className="text-xs bg-gray-100 p-1 rounded mt-1">{example.output}</pre>
+                          </div>
+                          {example.explanation && (
+                            <div>
+                              <span className="font-medium text-xs">Explanation:</span>
+                              <p className="text-xs mt-1">{example.explanation}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  )}
-                  
-                  {isCodeQuestion(currentQuestion) && currentQuestion.constraints.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-sm mb-2">Constraints:</h4>
-                      <ul className="list-disc list-inside text-sm text-gray-700">
-                        {currentQuestion.constraints.map((constraint, index) => (
-                          <li key={index}>{constraint}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </ResizablePanel>
-
-                <ResizableHandle withHandle />
-
-                <ResizablePanel defaultSize={60} minSize={40} className={`bg-white rounded-lg shadow-sm overflow-hidden ${isAntiCheatingWarningActive ? 'border border-red-300' : ''}`}>
+                  </div>
+                )}
+                
+                {isCodeQuestion(currentQuestion) && currentQuestion.constraints.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm mb-2">Constraints:</h4>
+                    <ul className="list-disc list-inside text-sm text-gray-700">
+                      {currentQuestion.constraints.map((constraint, index) => (
+                        <li key={index}>{constraint}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              
+              <div className={`md:w-1/2 bg-white rounded-lg shadow flex flex-col overflow-hidden ${isAntiCheatingWarningActive ? 'border border-red-300' : ''}`}>
+                <div className="p-4 flex-1 overflow-hidden">
                   {isCodeQuestion(currentQuestion) && (
                     <CodeEditor 
                       question={currentQuestion}
@@ -353,8 +350,8 @@ const AssessmentPage = () => {
                       onMarksUpdate={handleUpdateMarks}
                     />
                   )}
-                </ResizablePanel>
-              </ResizablePanelGroup>
+                </div>
+              </div>
             </div>
           )}
         </div>

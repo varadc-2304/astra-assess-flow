@@ -27,13 +27,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const [selectedLanguage, setSelectedLanguage] = useState<string>(
     Object.keys(question.solutionTemplate)[0] || 'python'
   );
-const [codeByLanguage, setCodeByLanguage] = useState<{ [lang: string]: string }>({});
-const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
-
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState<boolean>(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -42,61 +40,54 @@ const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
     question.solutionTemplate[selectedLanguage] ??
     '';
 
-  // Effect to handle when question changes
+  // Effect to handle language changes when question changes
 useEffect(() => {
-  const loadInitialTemplate = async () => {
+  const fetchTemplate = async () => {
     const availableLanguages = Object.keys(question.solutionTemplate);
     if (availableLanguages.length === 0) return;
 
-    const defaultLanguage = availableLanguages[0];
-    setSelectedLanguage(defaultLanguage);
-    setCodeByLanguage({}); // reset stored code
+    const newLanguage = availableLanguages.includes(selectedLanguage)
+      ? selectedLanguage
+      : availableLanguages[0];
+
+    setSelectedLanguage(newLanguage);
     setIsLoadingTemplate(true);
-    setOutput('');
 
     try {
       const { data, error } = await supabase
         .from('coding_languages')
         .select('solution_template')
         .eq('coding_question_id', question.id)
-        .eq('coding_lang', defaultLanguage)
+        .eq('coding_lang', newLanguage)
         .single();
 
       if (error) {
+        console.error('Error fetching solution template:', error);
         toast({
-          title: 'Error',
-          description: 'Failed to load code template',
-          variant: 'destructive',
+          title: "Error",
+          description: "Failed to load code template",
+          variant: "destructive",
         });
-        console.error(error);
-        return;
+      } else if (data) {
+        onCodeChange(newLanguage, data.solution_template);
       }
-
-      const template = data.solution_template;
-      setCodeByLanguage({ [defaultLanguage]: template });
-      onCodeChange(defaultLanguage, template);
     } catch (err) {
-      console.error('Error loading initial template:', err);
+      console.error('Error in template fetch:', err);
     } finally {
       setIsLoadingTemplate(false);
     }
   };
 
-  loadInitialTemplate();
+  fetchTemplate();
 }, [question.id]);
+
+
+
 
 const handleLanguageChange = async (language: string) => {
   setSelectedLanguage(language);
   setIsLoadingTemplate(true);
 
-  // If user already typed code for this language, just use it
-  if (codeByLanguage[language]) {
-    onCodeChange(language, codeByLanguage[language]);
-    setIsLoadingTemplate(false);
-    return;
-  }
-
-  // Otherwise fetch the template
   try {
     const { data, error } = await supabase
       .from('coding_languages')
@@ -106,18 +97,17 @@ const handleLanguageChange = async (language: string) => {
       .single();
 
     if (error) {
+      console.error('Error fetching solution template:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to load code template',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to load code template",
+        variant: "destructive",
       });
-      console.error(error);
     } else if (data) {
-      setCodeByLanguage(prev => ({ ...prev, [language]: data.solution_template }));
       onCodeChange(language, data.solution_template);
     }
   } catch (err) {
-    console.error('Error fetching template:', err);
+    console.error('Error in template fetch:', err);
   } finally {
     setIsLoadingTemplate(false);
   }
@@ -125,11 +115,9 @@ const handleLanguageChange = async (language: string) => {
 
 const handleCodeChange = (value: string | undefined) => {
   if (value !== undefined) {
-    setCodeByLanguage(prev => ({ ...prev, [selectedLanguage]: value }));
     onCodeChange(selectedLanguage, value);
   }
 };
-
 
 
   const cleanErrorOutput = (errorOutput: string): string => {
@@ -521,26 +509,25 @@ const handleCodeChange = (value: string | undefined) => {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center p-4">
-      <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-  <SelectTrigger className="w-40">
-    <SelectValue placeholder="Language" />
-  </SelectTrigger>
-  <SelectContent>
-    {Object.keys(question.solutionTemplate).map((lang) => (
-      <SelectItem key={lang} value={lang}>
-        {lang.charAt(0).toUpperCase() + lang.slice(1)}
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
-{isLoadingTemplate && (
+      <div className="flex justify-between items-center mb-2">
+        {isLoadingTemplate && (
   <div className="text-sm text-muted-foreground ml-2 animate-pulse">
     Loading template...
   </div>
 )}
 
-
+       <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+  <SelectTrigger className="w-40">
+    <SelectValue placeholder="Language" />
+  </SelectTrigger>
+  <SelectContent>
+    {Object.keys(question.solutionTemplate).map((lang) => (
+      <SelectItem value={lang} key={lang}>
+        {lang.charAt(0).toUpperCase() + lang.slice(1)}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
 
         <div className="flex gap-2">
           <Button 
@@ -572,47 +559,45 @@ const handleCodeChange = (value: string | undefined) => {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col px-4 pb-4">
-        <Tabs defaultValue="code" className="flex-1 flex flex-col">
-          <TabsList className="mb-2">
-            <TabsTrigger value="code">Code</TabsTrigger>
-            <TabsTrigger value="output">Output</TabsTrigger>
-          </TabsList>
-          <div className="flex-1 flex">
-            <TabsContent value="code" className="flex-1 h-full m-0">
-              <div className="h-[calc(100vh-280px)] border border-gray-200 rounded-md overflow-hidden">
-                {isLoadingTemplate ? (
-                  <div className="flex items-center justify-center h-full">
-                    <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                    <span className="ml-2 text-gray-400">Loading template...</span>
-                  </div>
-                ) : (
-                  <Editor
-                    height="100%"
-                    defaultLanguage={selectedLanguage}
-                    language={selectedLanguage}
-                    defaultValue={currentCode}
-                    onChange={handleCodeChange}
-                    theme="vs-dark"
-                    options={editorOptions}
-                    className="monaco-editor"
-                    onMount={handleEditorDidMount}
-                  />
-                )}
-              </div>
-            </TabsContent>
-            <TabsContent value="output" className="flex-1 h-full m-0">
-              <div className="h-[calc(100vh-280px)] bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto whitespace-pre-wrap">
-                <div className="flex items-center mb-2">
-                  <Terminal className="h-4 w-4 mr-2" />
-                  <span>Output</span>
+      <Tabs defaultValue="code" className="flex-1 flex flex-col">
+        <TabsList className="mb-2">
+          <TabsTrigger value="code">Code</TabsTrigger>
+          <TabsTrigger value="output">Output</TabsTrigger>
+        </TabsList>
+        <div className="flex-1 flex">
+          <TabsContent value="code" className="flex-1 h-full m-0">
+            <div className="h-[calc(100vh-280px)] border border-gray-200 rounded-md overflow-hidden">
+              {isLoadingTemplate ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                  <span className="ml-2 text-gray-400">Loading template...</span>
                 </div>
-                <pre className="whitespace-pre-wrap break-words">{output || 'Run your code to see output here'}</pre>
+              ) : (
+                <Editor
+                  height="100%"
+                  defaultLanguage={selectedLanguage}
+                  language={selectedLanguage}
+                  defaultValue={currentCode}
+                  onChange={handleCodeChange}
+                  theme="vs-dark"
+                  options={editorOptions}
+                  className="monaco-editor"
+                  onMount={handleEditorDidMount}
+                />
+              )}
+            </div>
+          </TabsContent>
+          <TabsContent value="output" className="flex-1 h-full m-0">
+            <div className="h-[calc(100vh-280px)] bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto whitespace-pre-wrap">
+              <div className="flex items-center mb-2">
+                <Terminal className="h-4 w-4 mr-2" />
+                <span>Output</span>
               </div>
-            </TabsContent>
-          </div>
-        </Tabs>
-      </div>
+              <pre className="whitespace-pre-wrap break-words">{output || 'Run your code to see output here'}</pre>
+            </div>
+          </TabsContent>
+        </div>
+      </Tabs>
     </div>
   );
 };
