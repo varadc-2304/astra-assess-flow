@@ -611,7 +611,8 @@ const handleCodeChange = (value: string | undefined) => {
                     height="100%"
                     defaultLanguage={selectedLanguage}
                     language={selectedLanguage}
-                    defaultValue={userCode[selectedLanguage] ?? ''}
+                    defaultValue={currentCode}
+                    value={userCode[selectedLanguage] ?? ''}
                     onChange={handleCodeChange}
                     theme="vs-dark"
                     options={editorOptions}
