@@ -75,7 +75,7 @@ export const createSubmission = async (code: string, language: string, input: st
       {
         language_id: languageId,
         source_code: encodedCode,
-        stdin: encodedInput
+        stdin: encodedInput,
         cpu_time_limit: 1  // 1 second CPU time limit
       },
       {
