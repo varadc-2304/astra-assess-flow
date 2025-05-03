@@ -27,7 +27,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const [selectedLanguage, setSelectedLanguage] = useState<string>(
     Object.keys(question.solutionTemplate)[0] || 'python'
   );
-  const [userCode, setUserCode] = useState<Record<string, string>>({});
+  const [codeByLanguage, setCodeByLanguage] = useState<{ [lang: string]: string }>({});
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -53,32 +53,34 @@ useEffect(() => {
 
     setSelectedLanguage(newLanguage);
     setIsLoadingTemplate(true);
-    setOutput(''); // Reset output on question change
+    setOutput(''); // Reset output
 
     try {
-      // If user has already written code for this language, use that
-      if (question.userSolution[newLanguage]) {
-        onCodeChange(newLanguage, question.userSolution[newLanguage] || '');
-        return;
-      }
+      const userCode = question.userSolution[newLanguage] || codeByLanguage[newLanguage];
+      if (userCode) {
+        onCodeChange(newLanguage, userCode);
+      } else {
+        const { data, error } = await supabase
+          .from('coding_languages')
+          .select('solution_template')
+          .eq('coding_question_id', question.id)
+          .eq('coding_lang', newLanguage)
+          .single();
 
-      // Else, fetch the template from DB
-      const { data, error } = await supabase
-        .from('coding_languages')
-        .select('solution_template')
-        .eq('coding_question_id', question.id)
-        .eq('coding_lang', newLanguage)
-        .single();
-
-      if (error) {
-        console.error('Error fetching solution template:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load code template",
-          variant: "destructive",
-        });
-      } else if (data) {
-        onCodeChange(newLanguage, data.solution_template);
+        if (error) {
+          console.error('Error fetching template:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load code template",
+            variant: "destructive",
+          });
+        } else if (data) {
+          onCodeChange(newLanguage, data.solution_template);
+          setCodeByLanguage((prev) => ({
+            ...prev,
+            [newLanguage]: data.solution_template,
+          }));
+        }
       }
     } catch (err) {
       console.error('Error in template fetch:', err);
@@ -91,58 +93,53 @@ useEffect(() => {
 }, [question.id]);
 
 
- const handleLanguageChange = async (language: string) => {
+
+const handleLanguageChange = async (language: string) => {
   setSelectedLanguage(language);
   setIsLoadingTemplate(true);
-  setOutput('');
 
-  // If user has already typed code in this language, restore it
-  if (userCode[language]) {
-    onCodeChange(language, userCode[language]);
-    setIsLoadingTemplate(false);
-    return;
-  }
-
-  // If there's a stored solution in question object, use it
-  if (question.userSolution[language]) {
-    onCodeChange(language, question.userSolution[language]);
-    setIsLoadingTemplate(false);
-    return;
-  }
-
-  // Else, fetch the default template
   try {
-    const { data, error } = await supabase
-      .from('coding_languages')
-      .select('solution_template')
-      .eq('coding_question_id', question.id)
-      .eq('coding_lang', language)
-      .single();
+    const userCode = codeByLanguage[language] || question.userSolution[language];
+    if (userCode) {
+      onCodeChange(language, userCode);
+    } else {
+      const { data, error } = await supabase
+        .from('coding_languages')
+        .select('solution_template')
+        .eq('coding_question_id', question.id)
+        .eq('coding_lang', language)
+        .single();
 
-    if (error) {
-      console.error('Error fetching template:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load code template',
-        variant: 'destructive',
-      });
-    } else if (data) {
-      onCodeChange(language, data.solution_template);
+      if (error) {
+        console.error('Error fetching template:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load code template",
+          variant: "destructive",
+        });
+      } else if (data) {
+        onCodeChange(language, data.solution_template);
+        setCodeByLanguage((prev) => ({
+          ...prev,
+          [language]: data.solution_template,
+        }));
+      }
     }
   } catch (err) {
-    console.error('Error in template fetch:', err);
+    console.error('Error in language change:', err);
   } finally {
     setIsLoadingTemplate(false);
   }
 };
+
   
 const handleCodeChange = (value: string | undefined) => {
   if (value !== undefined) {
-    setUserCode((prev) => ({
+    onCodeChange(selectedLanguage, value);
+    setCodeByLanguage((prev) => ({
       ...prev,
       [selectedLanguage]: value,
     }));
-    onCodeChange(selectedLanguage, value);
   }
 };
 
