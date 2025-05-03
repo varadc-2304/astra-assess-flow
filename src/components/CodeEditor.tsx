@@ -27,6 +27,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const [selectedLanguage, setSelectedLanguage] = useState<string>(
     Object.keys(question.solutionTemplate)[0] || 'python'
   );
+  const [userCode, setUserCode] = useState<Record<string, string>>({});
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -41,69 +42,32 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     '';
 
   // Effect to handle when question changes
-  useEffect(() => {
-    console.log('Question changed, fetching template for:', question.id);
-    const fetchTemplate = async () => {
-      const availableLanguages = Object.keys(question.solutionTemplate);
-      if (availableLanguages.length === 0) return;
+useEffect(() => {
+  const fetchTemplate = async () => {
+    const availableLanguages = Object.keys(question.solutionTemplate);
+    if (availableLanguages.length === 0) return;
 
-      const newLanguage = availableLanguages.includes(selectedLanguage)
-        ? selectedLanguage
-        : availableLanguages[0];
+    const newLanguage = availableLanguages.includes(selectedLanguage)
+      ? selectedLanguage
+      : availableLanguages[0];
 
-      setSelectedLanguage(newLanguage);
-      setIsLoadingTemplate(true);
-      setOutput(''); // Reset output when question changes
-
-      try {
-        const { data, error } = await supabase
-          .from('coding_languages')
-          .select('solution_template')
-          .eq('coding_question_id', question.id)
-          .eq('coding_lang', newLanguage)
-          .single();
-
-        if (error) {
-          console.error('Error fetching solution template:', error);
-          toast({
-            title: "Error",
-            description: "Failed to load code template",
-            variant: "destructive",
-          });
-        } else if (data) {
-          console.log('Template loaded for question:', question.id, 'language:', newLanguage);
-          onCodeChange(newLanguage, data.solution_template);
-        }
-      } catch (err) {
-        console.error('Error in template fetch:', err);
-      } finally {
-        setIsLoadingTemplate(false);
-      }
-    };
-
-    fetchTemplate();
-  }, [question.id]);
-
-  const handleLanguageChange = async (language: string) => {
-    setSelectedLanguage(language);
+    setSelectedLanguage(newLanguage);
     setIsLoadingTemplate(true);
-    console.log('Language changed to:', language, 'for question:', question.id);
+    setOutput(''); // Reset output on question change
 
     try {
-      // If user already has a solution for this language, use it
-      if (question.userSolution[language]) {
-        console.log('Using existing user solution for language:', language);
-        onCodeChange(language, question.userSolution[language] || '');
-        setIsLoadingTemplate(false);
+      // If user has already written code for this language, use that
+      if (question.userSolution[newLanguage]) {
+        onCodeChange(newLanguage, question.userSolution[newLanguage] || '');
         return;
       }
 
-      // Otherwise, fetch the template from DB
+      // Else, fetch the template from DB
       const { data, error } = await supabase
         .from('coding_languages')
         .select('solution_template')
         .eq('coding_question_id', question.id)
-        .eq('coding_lang', language)
+        .eq('coding_lang', newLanguage)
         .single();
 
       if (error) {
@@ -114,8 +78,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           variant: "destructive",
         });
       } else if (data) {
-        console.log('Template loaded for language change:', language);
-        onCodeChange(language, data.solution_template);
+        onCodeChange(newLanguage, data.solution_template);
       }
     } catch (err) {
       console.error('Error in template fetch:', err);
@@ -124,11 +87,64 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     }
   };
 
-  const handleCodeChange = (value: string | undefined) => {
-    if (value !== undefined) {
-      onCodeChange(selectedLanguage, value);
+  fetchTemplate();
+}, [question.id]);
+
+
+ const handleLanguageChange = async (language: string) => {
+  setSelectedLanguage(language);
+  setIsLoadingTemplate(true);
+  setOutput('');
+
+  // If user has already typed code in this language, restore it
+  if (userCode[language]) {
+    onCodeChange(language, userCode[language]);
+    setIsLoadingTemplate(false);
+    return;
+  }
+
+  // If there's a stored solution in question object, use it
+  if (question.userSolution[language]) {
+    onCodeChange(language, question.userSolution[language]);
+    setIsLoadingTemplate(false);
+    return;
+  }
+
+  // Else, fetch the default template
+  try {
+    const { data, error } = await supabase
+      .from('coding_languages')
+      .select('solution_template')
+      .eq('coding_question_id', question.id)
+      .eq('coding_lang', language)
+      .single();
+
+    if (error) {
+      console.error('Error fetching template:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load code template',
+        variant: 'destructive',
+      });
+    } else if (data) {
+      onCodeChange(language, data.solution_template);
     }
-  };
+  } catch (err) {
+    console.error('Error in template fetch:', err);
+  } finally {
+    setIsLoadingTemplate(false);
+  }
+};
+  
+const handleCodeChange = (value: string | undefined) => {
+  if (value !== undefined) {
+    setUserCode((prev) => ({
+      ...prev,
+      [selectedLanguage]: value,
+    }));
+    onCodeChange(selectedLanguage, value);
+  }
+};
 
   const cleanErrorOutput = (errorOutput: string): string => {
     return errorOutput
