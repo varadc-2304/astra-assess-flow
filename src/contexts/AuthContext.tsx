@@ -68,20 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       let userId: string;
       
       if (!existingUsers || existingUsers.length === 0) {
-        // Create new user if doesn't exist
-        const { data: newUser, error: createError } = await supabase
-          .from('auth')
-          .insert({
-            email,
-            password,
-            role,
-            name: email.split('@')[0] // Simple name extraction from email
-          })
-          .select()
-          .single();
-          
-        if (createError) throw createError;
-        userId = newUser.id;
+        throw new Error("No account found with this email.");
       } else {
         const user = existingUsers[0];
         
