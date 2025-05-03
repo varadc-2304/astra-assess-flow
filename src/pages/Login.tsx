@@ -63,7 +63,7 @@ const Login = () => {
                     <Label htmlFor="student-email">Username</Label>
                     <Input 
                       id="student-email" 
-                      type="email" 
+                      type="text" 
                       placeholder="your.email@example.com" 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -105,7 +105,7 @@ const Login = () => {
                     <Label htmlFor="admin-email">Email</Label>
                     <Input 
                       id="admin-email" 
-                      type="email" 
+                      type="text" 
                       placeholder="admin@example.com" 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
