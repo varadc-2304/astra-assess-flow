@@ -27,12 +27,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const [selectedLanguage, setSelectedLanguage] = useState<string>(
     Object.keys(question.solutionTemplate)[0] || 'python'
   );
-  const [codeByLanguage, setCodeByLanguage] = useState<{ [lang: string]: string }>({});
+const [selectedLanguage, setSelectedLanguage] = useState<string>('');
+const [codeByLanguage, setCodeByLanguage] = useState<{ [lang: string]: string }>({});
+const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
+
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const [isLoadingTemplate, setIsLoadingTemplate] = useState<boolean>(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -43,25 +45,22 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
 
   // Effect to handle when question changes
 useEffect(() => {
-  const fetchInitialTemplate = async () => {
+  const loadInitialTemplate = async () => {
     const availableLanguages = Object.keys(question.solutionTemplate);
     if (availableLanguages.length === 0) return;
 
-    const initialLanguage = availableLanguages.includes(selectedLanguage)
-      ? selectedLanguage
-      : availableLanguages[0];
-
-    setSelectedLanguage(initialLanguage);
+    const defaultLanguage = availableLanguages[0];
+    setSelectedLanguage(defaultLanguage);
+    setCodeByLanguage({}); // reset stored code
     setIsLoadingTemplate(true);
     setOutput('');
-    setCodeByLanguage({}); // Clear previous user code when question changes
 
     try {
       const { data, error } = await supabase
         .from('coding_languages')
         .select('solution_template')
         .eq('coding_question_id', question.id)
-        .eq('coding_lang', initialLanguage)
+        .eq('coding_lang', defaultLanguage)
         .single();
 
       if (error) {
@@ -70,32 +69,35 @@ useEffect(() => {
           description: 'Failed to load code template',
           variant: 'destructive',
         });
-        console.error('Template fetch error:', error);
-      } else if (data) {
-        onCodeChange(initialLanguage, data.solution_template);
-        setCodeByLanguage({ [initialLanguage]: data.solution_template });
+        console.error(error);
+        return;
       }
+
+      const template = data.solution_template;
+      setCodeByLanguage({ [defaultLanguage]: template });
+      onCodeChange(defaultLanguage, template);
     } catch (err) {
-      console.error('Error fetching template:', err);
+      console.error('Error loading initial template:', err);
     } finally {
       setIsLoadingTemplate(false);
     }
   };
 
-  fetchInitialTemplate();
+  loadInitialTemplate();
 }, [question.id]);
 
 const handleLanguageChange = async (language: string) => {
   setSelectedLanguage(language);
   setIsLoadingTemplate(true);
 
+  // If user already typed code for this language, just use it
   if (codeByLanguage[language]) {
-    // Show previously typed code
     onCodeChange(language, codeByLanguage[language]);
     setIsLoadingTemplate(false);
     return;
   }
 
+  // Otherwise fetch the template
   try {
     const { data, error } = await supabase
       .from('coding_languages')
@@ -110,16 +112,13 @@ const handleLanguageChange = async (language: string) => {
         description: 'Failed to load code template',
         variant: 'destructive',
       });
-      console.error('Template fetch error:', error);
+      console.error(error);
     } else if (data) {
+      setCodeByLanguage(prev => ({ ...prev, [language]: data.solution_template }));
       onCodeChange(language, data.solution_template);
-      setCodeByLanguage((prev) => ({
-        ...prev,
-        [language]: data.solution_template,
-      }));
     }
   } catch (err) {
-    console.error('Error fetching template on language change:', err);
+    console.error('Error fetching template:', err);
   } finally {
     setIsLoadingTemplate(false);
   }
@@ -127,13 +126,11 @@ const handleLanguageChange = async (language: string) => {
 
 const handleCodeChange = (value: string | undefined) => {
   if (value !== undefined) {
+    setCodeByLanguage(prev => ({ ...prev, [selectedLanguage]: value }));
     onCodeChange(selectedLanguage, value);
-    setCodeByLanguage((prev) => ({
-      ...prev,
-      [selectedLanguage]: value,
-    }));
   }
 };
+
 
 
   const cleanErrorOutput = (errorOutput: string): string => {
@@ -526,29 +523,24 @@ const handleCodeChange = (value: string | undefined) => {
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-between items-center p-4">
-        {isLoadingTemplate && (
-          <div className="text-sm text-muted-foreground ml-2 animate-pulse">
-            Loading template...
-          </div>
-        )}
+      <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+  <SelectTrigger className="w-40">
+    <SelectValue placeholder="Language" />
+  </SelectTrigger>
+  <SelectContent>
+    {Object.keys(question.solutionTemplate).map((lang) => (
+      <SelectItem key={lang} value={lang}>
+        {lang.charAt(0).toUpperCase() + lang.slice(1)}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
 {isLoadingTemplate && (
   <div className="text-sm text-muted-foreground ml-2 animate-pulse">
     Loading template...
   </div>
 )}
 
-<Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-  <SelectTrigger className="w-40">
-    <SelectValue placeholder="Language" />
-  </SelectTrigger>
-  <SelectContent>
-    {Object.keys(question.solutionTemplate).map((lang) => (
-      <SelectItem value={lang} key={lang}>
-        {lang.charAt(0).toUpperCase() + lang.slice(1)}
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
 
 
         <div className="flex gap-2">
