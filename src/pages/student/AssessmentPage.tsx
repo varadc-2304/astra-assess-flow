@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -14,6 +13,7 @@ import { useFullscreen, MAX_WARNINGS } from '@/hooks/useFullscreen';
 import { Timer } from '@/components/Timer';
 import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2 } from 'lucide-react';
@@ -280,9 +280,9 @@ const AssessmentPage = () => {
         </div>
       </header>
       
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-6xl mx-auto">
-          {isMCQQuestion(currentQuestion) ? (
+      <div className="flex-1 overflow-hidden p-0">
+        {isMCQQuestion(currentQuestion) ? (
+          <div className="max-w-6xl mx-auto p-6">
             <div className="bg-white p-6 rounded-lg shadow">
               <MCQQuestion 
                 question={currentQuestion} 
@@ -290,9 +290,11 @@ const AssessmentPage = () => {
                 isWarningActive={isAntiCheatingWarningActive}
               />
             </div>
-          ) : (
-            <div className="flex flex-col md:flex-row gap-4 h-full">
-              <div className={`md:w-1/2 bg-white p-6 rounded-lg shadow overflow-y-auto max-h-[calc(100vh-180px)] ${isAntiCheatingWarningActive ? 'border border-red-300' : ''}`}>
+          </div>
+        ) : (
+          <ResizablePanelGroup direction="horizontal" className="h-full">
+            <ResizablePanel defaultSize={40} minSize={30} className="overflow-auto">
+              <div className={`bg-white h-full overflow-y-auto p-6 ${isAntiCheatingWarningActive ? 'border-r border-red-300' : 'border-r border-gray-200'}`}>
                 {isAntiCheatingWarningActive && (
                   <div className="mb-3 bg-red-50 p-2 rounded-md flex items-center gap-2">
                     <AlertTriangle className="h-5 w-5 text-red-500" />
@@ -340,21 +342,23 @@ const AssessmentPage = () => {
                   </div>
                 )}
               </div>
-              
-              <div className={`md:w-1/2 bg-white rounded-lg shadow flex flex-col overflow-hidden ${isAntiCheatingWarningActive ? 'border border-red-300' : ''}`}>
-                <div className="p-4 flex-1 overflow-hidden">
-                  {isCodeQuestion(currentQuestion) && (
-                    <CodeEditor 
-                      question={currentQuestion}
-                      onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
-                      onMarksUpdate={handleUpdateMarks}
-                    />
-                  )}
+            </ResizablePanel>
+            
+            <ResizableHandle withHandle />
+            
+            <ResizablePanel defaultSize={60} minSize={40} className="bg-white">
+              {isCodeQuestion(currentQuestion) && (
+                <div className="h-full">
+                  <CodeEditor 
+                    question={currentQuestion}
+                    onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
+                    onMarksUpdate={handleUpdateMarks}
+                  />
                 </div>
-              </div>
-            </div>
-          )}
-        </div>
+              )}
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
       </div>
       
       <div className={`${isAntiCheatingWarningActive ? 'bg-red-50 border-red-300' : 'bg-white border-gray-200'} border-t py-3 px-6 flex items-center justify-between sticky bottom-0 z-10 transition-colors duration-300`}>
