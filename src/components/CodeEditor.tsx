@@ -507,7 +507,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     renderLineHighlight: 'all' as 'all',
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: 'on' }
+    lightbulb: { enabled: 'auto' }
   };
 
   const handleEditorDidMount = (editor: any) => {
@@ -588,7 +588,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
                     height="100%"
                     defaultLanguage={selectedLanguage}
                     language={selectedLanguage}
-                    value={currentCode}
+                    defaultValue={currentCode}
                     onChange={handleCodeChange}
                     theme="vs-dark"
                     options={editorOptions}
