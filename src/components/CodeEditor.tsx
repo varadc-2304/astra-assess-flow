@@ -32,6 +32,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isLoadingTemplate, setIsLoadingTemplate] = useState<boolean>(false);
+  const [userCode, setUserCode] = useState<Record<string, string>>({});
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -41,7 +42,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     '';
 
   // Effect to handle when question changes
-  useEffect(() => {
+ useEffect(() => {
     console.log('Question changed, fetching template for:', question.id);
     const fetchTemplate = async () => {
       const availableLanguages = Object.keys(question.solutionTemplate);
@@ -53,9 +54,19 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
 
       setSelectedLanguage(newLanguage);
       setIsLoadingTemplate(true);
-      setOutput(''); // Reset output when question changes
+      setOutput('');
 
       try {
+        if (userCode[newLanguage]) {
+          onCodeChange(newLanguage, userCode[newLanguage]);
+          return;
+        }
+
+        if (question.userSolution[newLanguage]) {
+          onCodeChange(newLanguage, question.userSolution[newLanguage]);
+          return;
+        }
+
         const { data, error } = await supabase
           .from('coding_languages')
           .select('solution_template')
@@ -84,21 +95,25 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     fetchTemplate();
   }, [question.id]);
 
-  const handleLanguageChange = async (language: string) => {
+ const handleLanguageChange = async (language: string) => {
     setSelectedLanguage(language);
     setIsLoadingTemplate(true);
+    setOutput('');
     console.log('Language changed to:', language, 'for question:', question.id);
 
     try {
-      // If user already has a solution for this language, use it
-      if (question.userSolution[language]) {
-        console.log('Using existing user solution for language:', language);
-        onCodeChange(language, question.userSolution[language] || '');
-        setIsLoadingTemplate(false);
-        return;
+      if (userCode[language]) {
+        console.log('Using local user code for language:', language);
+        onCodeChange(language, userCode[language]);
+        return setIsLoadingTemplate(false);
       }
 
-      // Otherwise, fetch the template from DB
+      if (question.userSolution[language]) {
+        console.log('Using existing userSolution for language:', language);
+        onCodeChange(language, question.userSolution[language]);
+        return setIsLoadingTemplate(false);
+      }
+
       const { data, error } = await supabase
         .from('coding_languages')
         .select('solution_template')
@@ -109,27 +124,29 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       if (error) {
         console.error('Error fetching solution template:', error);
         toast({
-          title: "Error",
-          description: "Failed to load code template",
-          variant: "destructive",
+          title: 'Error',
+          description: 'Failed to load code template',
+          variant: 'destructive',
         });
       } else if (data) {
-        console.log('Template loaded for language change:', language);
+        console.log('Template loaded for language:', language);
         onCodeChange(language, data.solution_template);
       }
     } catch (err) {
-      console.error('Error in template fetch:', err);
+      console.error('Error fetching template for language:', err);
     } finally {
       setIsLoadingTemplate(false);
     }
   };
-
-  const handleCodeChange = (value: string | undefined) => {
+const handleCodeChange = (value: string | undefined) => {
     if (value !== undefined) {
+      setUserCode((prev) => ({
+        ...prev,
+        [selectedLanguage]: value,
+      }));
       onCodeChange(selectedLanguage, value);
     }
   };
-
   const cleanErrorOutput = (errorOutput: string): string => {
     return errorOutput
       .replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI color codes
@@ -526,24 +543,24 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           </div>
         )}
 {isLoadingTemplate && (
-  <div className="text-sm text-muted-foreground ml-2 animate-pulse">
-    Loading template...
-  </div>
-)}
+        <div className="text-sm text-muted-foreground ml-2 animate-pulse">
+          Loading template...
+        </div>
+      )}
 
-<Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-  <SelectTrigger className="w-40">
-    <SelectValue placeholder="Language" />
-  </SelectTrigger>
-  <SelectContent>
-    {Object.keys(question.solutionTemplate).map((lang) => (
-      <SelectItem value={lang} key={lang}>
-        {lang.charAt(0).toUpperCase() + lang.slice(1)}
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
-
+      {/* Language Select */}
+      <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+        <SelectTrigger className="w-40">
+          <SelectValue placeholder="Language" />
+        </SelectTrigger>
+        <SelectContent>
+          {Object.keys(question.solutionTemplate).map((lang) => (
+            <SelectItem value={lang} key={lang}>
+              {lang.charAt(0).toUpperCase() + lang.slice(1)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
         <div className="flex gap-2">
           <Button 
@@ -594,7 +611,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
                     height="100%"
                     defaultLanguage={selectedLanguage}
                     language={selectedLanguage}
-                    defaultValue={currentCode}
+                    defaultValue={userCode[selectedLanguage] ?? ''}
                     onChange={handleCodeChange}
                     theme="vs-dark"
                     options={editorOptions}
