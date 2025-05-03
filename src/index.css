@@ -263,9 +263,7 @@
   @apply font-mono text-sm rounded-md overflow-auto shadow-inner bg-black/90 text-green-400;
 }
 
-.question-content {
-  @apply prose dark:prose-invert max-w-none;
-}
+
 
 .question-content pre {
   @apply bg-gray-100 dark:bg-gray-800 p-3 rounded-md overflow-x-auto;
