@@ -60,7 +60,7 @@ const Login = () => {
               <CardContent>
                 <form onSubmit={(e) => { e.preventDefault(); handleLogin('student'); }} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="student-email">Email</Label>
+                    <Label htmlFor="student-email">Username</Label>
                     <Input 
                       id="student-email" 
                       type="email" 
