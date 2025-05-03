@@ -511,7 +511,7 @@ const handleCodeChange = (value: string | undefined) => {
     renderLineHighlight: 'all' as 'all',
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: true } // Fixed: changed from 'auto' to true
+    lightbulb: { enabled: 'auto' } // Fixed: changed from 'auto' to true
   };
 
   const handleEditorDidMount = (editor: any) => {
