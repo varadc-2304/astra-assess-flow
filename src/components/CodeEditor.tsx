@@ -81,6 +81,9 @@ useEffect(() => {
   fetchTemplate();
 }, [question.id]);
 
+
+
+
 const handleLanguageChange = async (language: string) => {
   setSelectedLanguage(language);
   setIsLoadingTemplate(true);
@@ -477,53 +480,54 @@ const handleCodeChange = (value: string | undefined) => {
     minimap: { enabled: true },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    wordWrap: 'on' as const,
+    wordWrap: 'on' as 'on',
     automaticLayout: true,
     tabSize: 2,
     formatOnPaste: true,
-    formatOnType: false,
-    autoIndent: 'advanced' as const,
+    formatOnType: false, // Changed from true to false to prevent cursor jumping
+    autoIndent: 'advanced' as 'advanced',
     quickSuggestions: true,
     suggestOnTriggerCharacters: true,
     fixedOverflowWidgets: true,
-    cursorBlinking: 'smooth' as const,
-    cursorSmoothCaretAnimation: 'off' as const,
-    cursorStyle: 'line' as const,
+    cursorBlinking: 'smooth' as 'smooth',
+    cursorSmoothCaretAnimation: 'off' as 'off', // Changed from 'on' to 'off' to prevent cursor jumping
+    cursorStyle: 'line' as 'line',
     mouseWheelZoom: true,
-    renderWhitespace: 'selection' as const,
-    renderLineHighlight: 'all' as const,
+    renderWhitespace: 'selection' as 'selection',
+    renderLineHighlight: 'all' as 'all',
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: true as any }
+    lightbulb: { enabled: 'auto' }
   };
 
   const handleEditorDidMount = (editor: any) => {
     setTimeout(() => {
       editor.layout();
+      //editor.focus();
     }, 100);
   };
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center p-4 border-b">
+      <div className="flex justify-between items-center mb-2">
         {isLoadingTemplate && (
-          <div className="text-sm text-muted-foreground mr-2 animate-pulse">
-            Loading template...
-          </div>
-        )}
+  <div className="text-sm text-muted-foreground ml-2 animate-pulse">
+    Loading template...
+  </div>
+)}
 
        <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-        <SelectTrigger className="w-40">
-          <SelectValue placeholder="Language" />
-        </SelectTrigger>
-        <SelectContent>
-          {Object.keys(question.solutionTemplate).map((lang) => (
-            <SelectItem value={lang} key={lang}>
-              {lang.charAt(0).toUpperCase() + lang.slice(1)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+  <SelectTrigger className="w-40">
+    <SelectValue placeholder="Language" />
+  </SelectTrigger>
+  <SelectContent>
+    {Object.keys(question.solutionTemplate).map((lang) => (
+      <SelectItem value={lang} key={lang}>
+        {lang.charAt(0).toUpperCase() + lang.slice(1)}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
 
         <div className="flex gap-2">
           <Button 
@@ -556,13 +560,13 @@ const handleCodeChange = (value: string | undefined) => {
       </div>
 
       <Tabs defaultValue="code" className="flex-1 flex flex-col">
-        <TabsList className="px-4 pt-2">
+        <TabsList className="mb-2">
           <TabsTrigger value="code">Code</TabsTrigger>
           <TabsTrigger value="output">Output</TabsTrigger>
         </TabsList>
         <div className="flex-1 flex">
-          <TabsContent value="code" className="flex-1 h-full m-0 p-0">
-            <div className="h-full">
+          <TabsContent value="code" className="flex-1 h-full m-0">
+            <div className="h-[calc(100vh-280px)] border border-gray-200 rounded-md overflow-hidden">
               {isLoadingTemplate ? (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -579,13 +583,12 @@ const handleCodeChange = (value: string | undefined) => {
                   options={editorOptions}
                   className="monaco-editor"
                   onMount={handleEditorDidMount}
-                  value={currentCode}
                 />
               )}
             </div>
           </TabsContent>
-          <TabsContent value="output" className="flex-1 h-full m-0 p-4">
-            <div className="h-full bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto whitespace-pre-wrap">
+          <TabsContent value="output" className="flex-1 h-full m-0">
+            <div className="h-[calc(100vh-280px)] bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto whitespace-pre-wrap">
               <div className="flex items-center mb-2">
                 <Terminal className="h-4 w-4 mr-2" />
                 <span>Output</span>
