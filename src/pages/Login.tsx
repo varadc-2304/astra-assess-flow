@@ -54,7 +54,7 @@ const Login = () => {
               <CardHeader>
                 <CardTitle>Student Login</CardTitle>
                 <CardDescription>
-                  Enter your email and password to access your assessments.
+                  Enter your username and password to access your assessments.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -64,7 +64,7 @@ const Login = () => {
                     <Input 
                       id="student-email" 
                       type="text" 
-                      placeholder="your.email@example.com" 
+                      placeholder="Username" 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
@@ -102,11 +102,11 @@ const Login = () => {
               <CardContent>
                 <form onSubmit={(e) => { e.preventDefault(); handleLogin('admin'); }} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="admin-email">Email</Label>
+                    <Label htmlFor="admin-email">username</Label>
                     <Input 
                       id="admin-email" 
                       type="text" 
-                      placeholder="admin@example.com" 
+                      placeholder="Username" 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
