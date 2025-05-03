@@ -293,7 +293,7 @@
 }
 
 .webcam-flash {
-  @apply absolute inset-0 bg-white animate-flash;
+  @apply absolute inset-0 bg-white ;
 }
 
 @keyframes flash {
