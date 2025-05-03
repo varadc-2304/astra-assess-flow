@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,7 @@ import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, CircleSlash, CircleEllipsis } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
@@ -203,27 +204,10 @@ const AssessmentPage = () => {
 
   // Anti-cheating warning is active when either fullscreen or tab warnings are shown
   const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
-
-  // Get code question submission status for the current question
-  const getCodeQuestionStatus = () => {
-    if (isCodeQuestion(currentQuestion)) {
-      const totalTests = currentQuestion.testCases.length;
-      const passingTests = currentQuestion.testCases.filter(testCase => testCase.passed).length;
-      
-      if (totalTests === 0) return { status: "Not Submitted", icon: CircleSlash, color: "text-gray-400" };
-      
-      if (passingTests === 0) return { status: "Not Submitted", icon: CircleSlash, color: "text-gray-400" };
-      else if (passingTests === totalTests) return { status: "All Tests Passed", icon: CheckCircle2, color: "text-green-500" };
-      else return { status: "Partially Submitted", icon: CircleEllipsis, color: "text-amber-500" };
-    }
-    return null;
-  };
-  
-  const codeStatus = isCodeQuestion(currentQuestion) ? getCodeQuestionStatus() : null;
   
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
-      <header className={`${isAntiCheatingWarningActive ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'} border-b py-2 px-4 flex items-center justify-between sticky top-0 z-10 transition-colors duration-300`}>
+    <div className="flex flex-col h-screen bg-gray-50">
+      <header className={`${isAntiCheatingWarningActive ? 'bg-red-50 border-red-300' : 'bg-white border-gray-200'} border-b py-2 px-4 flex items-center justify-between sticky top-0 z-10 transition-colors duration-300`}>
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="outline" size="icon" className="mr-4">
@@ -232,7 +216,7 @@ const AssessmentPage = () => {
           </SheetTrigger>
           <SheetContent side="left" className="w-72 overflow-y-auto">
             <SheetHeader>
-              <SheetTitle className="text-astra-red">Questions</SheetTitle>
+              <SheetTitle>Questions</SheetTitle>
             </SheetHeader>
             <div className="py-4 space-y-4">
               <div className="grid grid-cols-5 gap-2">
@@ -242,8 +226,8 @@ const AssessmentPage = () => {
                     variant="outline"
                     size="sm"
                     className={`relative ${
-                      currentQuestionIndex === index ? 'border-astra-red bg-astra-red/10' : ''
-                    } hover:bg-astra-red/5`}
+                      currentQuestionIndex === index ? 'border-astra-red' : ''
+                    }`}
                     onClick={() => setCurrentQuestionIndex(index)}
                   >
                     {index + 1}
@@ -256,25 +240,26 @@ const AssessmentPage = () => {
                 ))}
               </div>
               
-              <div className="space-y-1 bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
+              <div className="space-y-1">
                 <p className="text-sm font-medium">Assessment Summary</p>
                 <div className="flex items-center justify-between text-xs">
                   <span>Total Questions:</span>
-                  <span className="font-medium">{assessment.questions.length}</span>
+                  <span>{assessment.questions.length}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span>Answered:</span>
-                  <span className="font-medium text-green-600">{questionStatus.filter(Boolean).length}</span>
+                  <span>{questionStatus.filter(Boolean).length}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span>Not Answered:</span>
-                  <span className="font-medium text-amber-600">{questionStatus.filter(status => !status).length}</span>
+                  <span>{questionStatus.filter(status => !status).length}</span>
                 </div>
               </div>
               
               <Button 
                 onClick={handleEndAssessment}
-                className="w-full mt-4 bg-astra-red hover:bg-red-600 text-white"
+                className="w-full mt-4"
+                variant="destructive"
               >
                 End Assessment
               </Button>
@@ -286,7 +271,7 @@ const AssessmentPage = () => {
           {isAntiCheatingWarningActive && (
             <div className="flex items-center mr-3">
               <AlertTriangle className="h-5 w-5 text-red-500 mr-1" />
-              <span className="text-sm font-medium text-red-700 dark:text-red-400">
+              <span className="text-sm font-medium text-red-700">
                 {showExitWarning ? `Fullscreen Warning: ${fullscreenWarnings}/${MAX_WARNINGS}` : 
                  tabSwitchWarning ? `Tab Switch Warning: ${visibilityViolations}/${MAX_WARNINGS}` : ''}
               </span>
@@ -297,9 +282,9 @@ const AssessmentPage = () => {
       </header>
       
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-6xl mx-auto h-full">
+                <div className="max-w-6xl mx-auto h-full">
           {isMCQQuestion(currentQuestion) ? (
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700">
+            <div className="bg-white p-6 rounded-lg shadow">
               <MCQQuestion 
                 question={currentQuestion} 
                 onAnswerSelect={answerMCQ}
@@ -307,42 +292,32 @@ const AssessmentPage = () => {
               />
             </div>
           ) : (
-            <div className="h-[calc(100vh-180px)]">
+<div className="h-[calc(100vh-180px)]">
               <ResizablePanelGroup direction="horizontal" className="h-full">
-                <ResizablePanel defaultSize={40} minSize={30} className={`bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm overflow-y-auto ${isAntiCheatingWarningActive ? 'border border-red-300 dark:border-red-700' : 'border border-gray-100 dark:border-gray-700'}`}>
+                <ResizablePanel defaultSize={40} minSize={30} className={`bg-white p-4 rounded-lg shadow-sm overflow-y-auto ${isAntiCheatingWarningActive ? 'border border-red-300' : ''}`}>
                   {isAntiCheatingWarningActive && (
-                    <div className="mb-3 bg-red-50 dark:bg-red-900/20 p-2 rounded-md flex items-center gap-2">
+                    <div className="mb-3 bg-red-50 p-2 rounded-md flex items-center gap-2">
                       <AlertTriangle className="h-5 w-5 text-red-500" />
-                      <p className="text-sm text-red-700 dark:text-red-400">Anti-cheating warning active</p>
+                      <p className="text-sm text-red-700">Anti-cheating warning active</p>
                     </div>
                   )}
 
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-lg font-medium">{currentQuestion.title}</h3>
-                    
-                    {codeStatus && (
-                      <div className={`flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 ${codeStatus.color}`}>
-                        <codeStatus.icon className="h-4 w-4" />
-                        <span className="text-xs font-medium">{codeStatus.status}</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line mb-4">{currentQuestion.description}</p>
+                  <h3 className="text-lg font-medium mb-3">{currentQuestion.title}</h3>
+                  <p className="text-gray-700 whitespace-pre-line mb-4">{currentQuestion.description}</p>
                   
                   {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (
                     <div className="mb-4">
                       <h4 className="font-medium text-sm mb-2">Examples:</h4>
                       <div className="space-y-3">
                         {currentQuestion.examples.map((example, index) => (
-                          <div key={index} className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md border border-gray-200 dark:border-gray-600">
+                          <div key={index} className="bg-gray-50 p-3 rounded-md">
                             <div className="mb-1">
                               <span className="font-medium text-xs">Input:</span>
-                              <pre className="text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded mt-1 overflow-x-auto">{example.input}</pre>
+                              <pre className="text-xs bg-gray-100 p-1 rounded mt-1">{example.input}</pre>
                             </div>
                             <div className="mb-1">
                               <span className="font-medium text-xs">Output:</span>
-                              <pre className="text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded mt-1 overflow-x-auto">{example.output}</pre>
+                              <pre className="text-xs bg-gray-100 p-1 rounded mt-1">{example.output}</pre>
                             </div>
                             {example.explanation && (
                               <div>
@@ -359,7 +334,7 @@ const AssessmentPage = () => {
                   {isCodeQuestion(currentQuestion) && currentQuestion.constraints.length > 0 && (
                     <div>
                       <h4 className="font-medium text-sm mb-2">Constraints:</h4>
-                      <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 p-3 rounded-md border border-gray-200 dark:border-gray-600">
+                      <ul className="list-disc list-inside text-sm text-gray-700">
                         {currentQuestion.constraints.map((constraint, index) => (
                           <li key={index}>{constraint}</li>
                         ))}
@@ -370,7 +345,7 @@ const AssessmentPage = () => {
 
                 <ResizableHandle withHandle />
 
-                <ResizablePanel defaultSize={60} minSize={40} className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden ${isAntiCheatingWarningActive ? 'border border-red-300 dark:border-red-700' : 'border border-gray-100 dark:border-gray-700'}`}>
+                <ResizablePanel defaultSize={60} minSize={40} className={`bg-white rounded-lg shadow-sm overflow-hidden ${isAntiCheatingWarningActive ? 'border border-red-300' : ''}`}>
                   {isCodeQuestion(currentQuestion) && (
                     <CodeEditor 
                       question={currentQuestion}
@@ -378,19 +353,18 @@ const AssessmentPage = () => {
                       onMarksUpdate={handleUpdateMarks}
                     />
                   )}
-                </ResizablePanel>
+                     </ResizablePanel>
               </ResizablePanelGroup>
             </div>
           )}
         </div>
       </div>
       
-      <div className={`${isAntiCheatingWarningActive ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'} border-t py-3 px-6 flex items-center justify-between sticky bottom-0 z-10 transition-colors duration-300`}>
+      <div className={`${isAntiCheatingWarningActive ? 'bg-red-50 border-red-300' : 'bg-white border-gray-200'} border-t py-3 px-6 flex items-center justify-between sticky bottom-0 z-10 transition-colors duration-300`}>
         <Button
           variant="outline"
           onClick={handlePrevQuestion}
           disabled={currentQuestionIndex === 0 || isNavigating || isEndingAssessment}
-          className="hover:bg-gray-100 dark:hover:bg-gray-700"
         >
           <ChevronLeft className="h-5 w-5 mr-1" /> Previous
         </Button>
@@ -400,7 +374,7 @@ const AssessmentPage = () => {
             <div 
               key={index} 
               className={`h-2 w-2 rounded-full ${
-                index === currentQuestionIndex ? 'bg-astra-red' : 'bg-gray-300 dark:bg-gray-600'
+                index === currentQuestionIndex ? 'bg-astra-red' : 'bg-gray-300'
               }`}
             />
           ))}
@@ -424,7 +398,6 @@ const AssessmentPage = () => {
               variant="outline"
               onClick={handleNextQuestion}
               disabled={isNavigating || isEndingAssessment}
-              className="hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               Next <ChevronRight className="h-5 w-5 ml-1" />
             </Button>
@@ -442,7 +415,7 @@ const AssessmentPage = () => {
             <AlertDialogDescription>
               Are you sure you want to end the assessment? This action cannot be undone, and all your answers will be submitted.
               {questionStatus.some(status => !status) && (
-                <div className="mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md text-amber-700 dark:text-amber-400 text-sm">
+                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md text-amber-700 text-sm">
                   <HelpCircle className="h-4 w-4 inline mr-1" />
                   You have {questionStatus.filter(status => !status).length} unanswered question(s).
                 </div>
