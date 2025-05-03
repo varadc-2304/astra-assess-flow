@@ -294,57 +294,6 @@ export type Database = {
           },
         ]
       }
-      proctoring_sessions: {
-        Row: {
-          assessment_id: string
-          created_at: string | null
-          ended_at: string | null
-          flagged_actions: Json | null
-          id: string
-          recording_path: string
-          started_at: string | null
-          submission_id: string | null
-          user_id: string
-        }
-        Insert: {
-          assessment_id: string
-          created_at?: string | null
-          ended_at?: string | null
-          flagged_actions?: Json | null
-          id?: string
-          recording_path: string
-          started_at?: string | null
-          submission_id?: string | null
-          user_id: string
-        }
-        Update: {
-          assessment_id?: string
-          created_at?: string | null
-          ended_at?: string | null
-          flagged_actions?: Json | null
-          id?: string
-          recording_path?: string
-          started_at?: string | null
-          submission_id?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "proctoring_sessions_assessment_id_fkey"
-            columns: ["assessment_id"]
-            isOneToOne: false
-            referencedRelation: "assessments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "proctoring_sessions_submission_id_fkey"
-            columns: ["submission_id"]
-            isOneToOne: false
-            referencedRelation: "submissions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       question_submissions: {
         Row: {
           code_solution: string | null
