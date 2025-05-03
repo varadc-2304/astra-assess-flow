@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -193,6 +194,11 @@ const handleCodeChange = (value: string | undefined) => {
       
       setOutput(prev => `${prev}\n${passedCount}/${totalTestCases} test cases passed\n`);
       
+      // Update test results to parent component
+      if (onTestResultsUpdate) {
+        onTestResultsUpdate(passedCount, totalTestCases);
+      }
+      
       toast({
         title: passedCount === totalTestCases ? "Success!" : "Test Cases Completed",
         description: `${passedCount}/${totalTestCases} test cases passed.`,
@@ -354,6 +360,12 @@ const handleCodeChange = (value: string | undefined) => {
         onMarksUpdate(question.id, totalMarksEarned);
       }
       
+      // Update test results status
+      const passedTests = finalResults.filter(r => r.passed).length;
+      if (onTestResultsUpdate) {
+        onTestResultsUpdate(passedTests, testCases.length);
+      }
+      
       if (user) {
         try {
           const { data: submissions, error: submissionError } = await supabase
@@ -499,7 +511,7 @@ const handleCodeChange = (value: string | undefined) => {
     renderLineHighlight: 'all' as 'all',
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: 'auto' }
+    lightbulb: { enabled: true } // Fixed: changed from 'auto' to true
   };
 
   const handleEditorDidMount = (editor: any) => {

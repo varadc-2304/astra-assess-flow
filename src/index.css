@@ -43,6 +43,13 @@
     --sidebar-accent-foreground: 0 0% 9%;
     --sidebar-border: 0 0% 89.8%;
     --sidebar-ring: 0 0% 3.9%;
+
+    --status-submitted: 142 76% 95%;
+    --status-submitted-text: 142 72% 29%;
+    --status-partial: 38 92% 95%; 
+    --status-partial-text: 38 92% 30%;
+    --status-not-submitted: 220 14% 96%;
+    --status-not-submitted-text: 220 9% 46%;
   }
  
   .dark {
@@ -82,6 +89,13 @@
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 0 0% 14.9%;
     --sidebar-ring: 0 0% 83.1%;
+
+    --status-submitted: 143 70% 20%;
+    --status-submitted-text: 143 80% 85%;
+    --status-partial: 38 92% 22%; 
+    --status-partial-text: 38 92% 85%;
+    --status-not-submitted: 220 14% 20%;
+    --status-not-submitted-text: 220 9% 85%;
   }
 }
  
@@ -162,15 +176,15 @@
 }
 
 .status-submitted {
-  @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300;
+  @apply bg-[hsl(var(--status-submitted))] text-[hsl(var(--status-submitted-text))];
 }
 
 .status-partial {
-  @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300;
+  @apply bg-[hsl(var(--status-partial))] text-[hsl(var(--status-partial-text))];
 }
 
 .status-not-submitted {
-  @apply bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300;
+  @apply bg-[hsl(var(--status-not-submitted))] text-[hsl(var(--status-not-submitted-text))];
 }
 
 .resizable-panel {
@@ -185,4 +199,78 @@
 
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.animate-pulse-custom {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.code-question-status {
+  @apply flex items-center gap-1 px-2 py-1 rounded-full font-medium text-xs transition-colors duration-200;
+}
+
+.success-icon {
+  @apply text-emerald-500;
+}
+
+.warning-icon {
+  @apply text-amber-500;
+}
+
+.neutral-icon {
+  @apply text-gray-400;
+}
+
+/* Glass effect for cards and panels */
+.glass-card {
+  @apply backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 shadow-md transition-all hover:shadow-lg;
+}
+
+/* Button enhancements */
+.btn-submit {
+  @apply bg-primary hover:bg-primary/90 text-white shadow-md hover:shadow-lg transition-all duration-200;
+}
+
+.btn-secondary {
+  @apply bg-secondary hover:bg-secondary/80 text-secondary-foreground shadow-sm hover:shadow transition-all duration-200;
+}
+
+/* Enhanced scrollbars for code view */
+.code-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.code-scrollbar::-webkit-scrollbar-track {
+  @apply bg-gray-100 dark:bg-gray-800 rounded-full;
+}
+
+.code-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-600 rounded-full hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors;
+}
+
+/* Improve code output styling */
+.code-output {
+  @apply font-mono text-sm rounded-md overflow-auto shadow-inner bg-black/90 text-green-400;
+}
+
+.question-content {
+  @apply prose dark:prose-invert max-w-none;
+}
+
+.question-content pre {
+  @apply bg-gray-100 dark:bg-gray-800 p-3 rounded-md overflow-x-auto;
+}
+
+.question-content code {
+  @apply text-sm font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded;
 }

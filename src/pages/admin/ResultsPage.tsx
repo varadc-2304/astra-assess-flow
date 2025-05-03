@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -175,7 +174,7 @@ const ResultsPage = () => {
           division: user.division || 'N/A',
           batch: user.batch || 'N/A',
           assessmentId: result.assessment_id,
-          assessmentName: assessment.name || 'Unknown',
+          assessmentName: assessment.title || "", // Fix TypeScript error here
           score: result.total_score,
           totalMarks: result.total_marks,
           percentage: result.percentage,
