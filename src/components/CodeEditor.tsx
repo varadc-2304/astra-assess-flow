@@ -27,7 +27,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const [selectedLanguage, setSelectedLanguage] = useState<string>(
     Object.keys(question.solutionTemplate)[0] || 'python'
   );
-const [selectedLanguage, setSelectedLanguage] = useState<string>('');
 const [codeByLanguage, setCodeByLanguage] = useState<{ [lang: string]: string }>({});
 const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
 
