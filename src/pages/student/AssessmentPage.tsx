@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -360,7 +362,7 @@ const AssessmentPage = () => {
           ) : (
             <div className="h-[calc(100vh-180px)] animate-fade-in">
               <ResizablePanelGroup direction="horizontal" className="h-full">
-                <ResizablePanel defaultSize={40} minSize={30} className={`bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm overflow-y-auto ${isAntiCheatingWarningActive ? 'border border-red-300 dark:border-red-800' : ''}`}>
+                <ResizablePanel defaultSize={40} minSize={30} className={`bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm ${isAntiCheatingWarningActive ? 'border border-red-300 dark:border-red-800' : ''}`}>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-medium">{currentQuestion.title}</h3>
                     
@@ -379,46 +381,48 @@ const AssessmentPage = () => {
                     </div>
                   )}
                   
-                  <div className="prose dark:prose-invert max-w-none mb-4 overflow-y-auto max-h-[calc(100vh-320px)]">
-                    <p className="text-gray-700 dark:text-gray-200 whitespace-pre-line">{currentQuestion.description}</p>
-                  </div>
-                  
-                  {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (
-                    <div className="mb-4 overflow-y-auto max-h-[calc(100vh-400px)]">
-                      <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Examples:</h4>
-                      <div className="space-y-3">
-                        {currentQuestion.examples.map((example, index) => (
-                          <div key={index} className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
-                            <div className="mb-1">
-                              <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Input:</span>
-                              <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1 overflow-x-auto">{example.input}</pre>
-                            </div>
-                            <div className="mb-1">
-                              <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Output:</span>
-                              <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1 overflow-x-auto">{example.output}</pre>
-                            </div>
-                            {example.explanation && (
-                              <div>
-                                <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Explanation:</span>
-                                <p className="text-xs mt-1 text-gray-600 dark:text-gray-400">{example.explanation}</p>
+                  <ScrollArea className="h-[calc(100vh-280px)] pr-3">
+                    <div className="prose dark:prose-invert max-w-none mb-4">
+                      <p className="text-gray-700 dark:text-gray-200 whitespace-pre-line">{currentQuestion.description}</p>
+                    </div>
+                    
+                    {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (
+                      <div className="mb-4">
+                        <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Examples:</h4>
+                        <div className="space-y-3">
+                          {currentQuestion.examples.map((example, index) => (
+                            <div key={index} className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
+                              <div className="mb-1">
+                                <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Input:</span>
+                                <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1 overflow-x-auto">{example.input}</pre>
                               </div>
-                            )}
-                          </div>
-                        ))}
+                              <div className="mb-1">
+                                <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Output:</span>
+                                <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1 overflow-x-auto">{example.output}</pre>
+                              </div>
+                              {example.explanation && (
+                                <div>
+                                  <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Explanation:</span>
+                                  <p className="text-xs mt-1 text-gray-600 dark:text-gray-400">{example.explanation}</p>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  
-                  {isCodeQuestion(currentQuestion) && currentQuestion.constraints.length > 0 && (
-                    <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md overflow-y-auto max-h-[300px]">
-                      <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Constraints:</h4>
-                      <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                        {currentQuestion.constraints.map((constraint, index) => (
-                          <li key={index}>{constraint}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                    )}
+                    
+                    {isCodeQuestion(currentQuestion) && currentQuestion.constraints.length > 0 && (
+                      <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
+                        <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Constraints:</h4>
+                        <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                          {currentQuestion.constraints.map((constraint, index) => (
+                            <li key={index}>{constraint}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </ScrollArea>
                 </ResizablePanel>
 
                 <ResizableHandle withHandle className="bg-gray-200 dark:bg-gray-700" />

@@ -174,7 +174,7 @@ const ResultsPage = () => {
           division: user.division || 'N/A',
           batch: user.batch || 'N/A',
           assessmentId: result.assessment_id,
-          assessmentName: assessment.title || "", // Fix TypeScript error here
+          assessmentName: assessment.name || 'Unnamed Assessment', // Fix TypeScript error here
           score: result.total_score,
           totalMarks: result.total_marks,
           percentage: result.percentage,

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +18,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { TestCase, QuestionSubmission, TestResult, Json } from '@/types/database';
 import Editor from '@monaco-editor/react';
 
-// Add this somewhere after imports at the top of the file
 export interface CodeEditorProps {
   question: CodeQuestion;
   onCodeChange: (language: string, code: string) => void;
@@ -36,15 +36,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const [isLoadingTemplate, setIsLoadingTemplate] = useState<boolean>(false);
   const { toast } = useToast();
   const { user } = useAuth();
-
-  const currentCode =
-    question.userSolution[selectedLanguage] ??
-    question.solutionTemplate[selectedLanguage] ??
-    '';
+  
+  const [currentCode, setCurrentCode] = useState<string>(
+    question.userSolution[selectedLanguage] ||
+    question.solutionTemplate[selectedLanguage] ||
+    ''
+  );
 
   // Effect to handle language changes when question changes
   useEffect(() => {
     const fetchTemplate = async () => {
+      setIsLoadingTemplate(true);
       const availableLanguages = Object.keys(question.solutionTemplate);
       if (availableLanguages.length === 0) return;
 
@@ -53,7 +55,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         : availableLanguages[0];
 
       setSelectedLanguage(newLanguage);
-      setIsLoadingTemplate(true);
 
       try {
         // First check if there's a saved code snippet for this question and language
@@ -65,32 +66,38 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             .eq('assessment_id', question.assessmentId)
             .eq('question_id', question.id)
             .eq('language', newLanguage)
-            .single();
+            .maybeSingle();
             
           if (!savedCodeError && savedCode) {
+            setCurrentCode(savedCode.code);
             onCodeChange(newLanguage, savedCode.code);
             setIsLoadingTemplate(false);
             return;
           }
         }
 
-        // If no saved code, get the template
-        const { data, error } = await supabase
-          .from('coding_languages')
-          .select('solution_template')
-          .eq('coding_question_id', question.id)
-          .eq('coding_lang', newLanguage)
-          .single();
+        // If no saved code, get the template or use existing solution
+        if (question.userSolution[newLanguage]) {
+          setCurrentCode(question.userSolution[newLanguage]);
+        } else {
+          const { data, error } = await supabase
+            .from('coding_languages')
+            .select('solution_template')
+            .eq('coding_question_id', question.id)
+            .eq('coding_lang', newLanguage)
+            .maybeSingle();
 
-        if (error) {
-          console.error('Error fetching solution template:', error);
-          toast({
-            title: "Error",
-            description: "Failed to load code template",
-            variant: "destructive",
-          });
-        } else if (data) {
-          onCodeChange(newLanguage, data.solution_template);
+          if (error) {
+            console.error('Error fetching solution template:', error);
+            toast({
+              title: "Error",
+              description: "Failed to load code template",
+              variant: "destructive",
+            });
+          } else if (data) {
+            setCurrentCode(data.solution_template);
+            onCodeChange(newLanguage, data.solution_template);
+          }
         }
       } catch (err) {
         console.error('Error in template fetch:', err);
@@ -100,7 +107,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     };
 
     fetchTemplate();
-  }, [question.id]);
+  }, [question.id, question.assessmentId, user]);
 
   const handleLanguageChange = async (language: string) => {
     setSelectedLanguage(language);
@@ -116,22 +123,30 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           .eq('assessment_id', question.assessmentId)
           .eq('question_id', question.id)
           .eq('language', language)
-          .single();
+          .maybeSingle();
           
         if (!savedCodeError && savedCode) {
+          setCurrentCode(savedCode.code);
           onCodeChange(language, savedCode.code);
           setIsLoadingTemplate(false);
           return;
         }
       }
 
-      // If no saved code, get the template
+      // If no saved code, check if there's a user solution already
+      if (question.userSolution[language]) {
+        setCurrentCode(question.userSolution[language]);
+        setIsLoadingTemplate(false);
+        return;
+      }
+
+      // If no user solution, get the template
       const { data, error } = await supabase
         .from('coding_languages')
         .select('solution_template')
         .eq('coding_question_id', question.id)
         .eq('coding_lang', language)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching solution template:', error);
@@ -141,6 +156,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           variant: "destructive",
         });
       } else if (data) {
+        setCurrentCode(data.solution_template);
         onCodeChange(language, data.solution_template);
       }
     } catch (err) {
@@ -153,6 +169,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   // Save code snippet when code changes
   const handleCodeChange = async (value: string | undefined) => {
     if (value !== undefined) {
+      setCurrentCode(value);
       onCodeChange(selectedLanguage, value);
       
       // Save code to database
@@ -587,13 +604,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     renderLineHighlight: 'all' as 'all',
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: 'auto' }  // Fixed: changed from 'auto' to true
+    lightbulb: { enabled: 'on' as const }
   };
 
   const handleEditorDidMount = (editor: any) => {
     setTimeout(() => {
       editor.layout();
-      //editor.focus();
     }, 100);
   };
 
@@ -667,7 +683,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
                   height="100%"
                   defaultLanguage={selectedLanguage}
                   language={selectedLanguage}
-                  defaultValue={currentCode}
+                  value={currentCode}
                   onChange={handleCodeChange}
                   theme="vs-dark"
                   options={editorOptions}
