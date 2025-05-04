@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,24 +43,94 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     '';
 
   // Effect to handle language changes when question changes
-useEffect(() => {
-  const fetchTemplate = async () => {
-    const availableLanguages = Object.keys(question.solutionTemplate);
-    if (availableLanguages.length === 0) return;
+  useEffect(() => {
+    const fetchTemplate = async () => {
+      const availableLanguages = Object.keys(question.solutionTemplate);
+      if (availableLanguages.length === 0) return;
 
-    const newLanguage = availableLanguages.includes(selectedLanguage)
-      ? selectedLanguage
-      : availableLanguages[0];
+      const newLanguage = availableLanguages.includes(selectedLanguage)
+        ? selectedLanguage
+        : availableLanguages[0];
 
-    setSelectedLanguage(newLanguage);
+      setSelectedLanguage(newLanguage);
+      setIsLoadingTemplate(true);
+
+      try {
+        // First check if there's a saved code snippet for this question and language
+        if (user && question.assessmentId) {
+          const { data: savedCode, error: savedCodeError } = await supabase
+            .from('user_code_snippets')
+            .select('code')
+            .eq('user_id', user.id)
+            .eq('assessment_id', question.assessmentId)
+            .eq('question_id', question.id)
+            .eq('language', newLanguage)
+            .single();
+            
+          if (!savedCodeError && savedCode) {
+            onCodeChange(newLanguage, savedCode.code);
+            setIsLoadingTemplate(false);
+            return;
+          }
+        }
+
+        // If no saved code, get the template
+        const { data, error } = await supabase
+          .from('coding_languages')
+          .select('solution_template')
+          .eq('coding_question_id', question.id)
+          .eq('coding_lang', newLanguage)
+          .single();
+
+        if (error) {
+          console.error('Error fetching solution template:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load code template",
+            variant: "destructive",
+          });
+        } else if (data) {
+          onCodeChange(newLanguage, data.solution_template);
+        }
+      } catch (err) {
+        console.error('Error in template fetch:', err);
+      } finally {
+        setIsLoadingTemplate(false);
+      }
+    };
+
+    fetchTemplate();
+  }, [question.id]);
+
+  const handleLanguageChange = async (language: string) => {
+    setSelectedLanguage(language);
     setIsLoadingTemplate(true);
 
     try {
+      // First check if there's a saved code snippet for this question and language
+      if (user && question.assessmentId) {
+        const { data: savedCode, error: savedCodeError } = await supabase
+          .from('user_code_snippets')
+          .select('code')
+          .eq('user_id', user.id)
+          .eq('assessment_id', question.assessmentId)
+          .eq('question_id', question.id)
+          .eq('language', language)
+          .single();
+          
+        if (!savedCodeError && savedCode) {
+          onCodeChange(language, savedCode.code);
+          setIsLoadingTemplate(false);
+          return;
+        }
+      }
+
+      // If no saved code, get the template
       const { data, error } = await supabase
         .from('coding_languages')
         .select('solution_template')
         .eq('coding_question_id', question.id)
-        .eq('coding_lang', newLanguage)
+        .eq('coding_lang', language)
         .single();
 
       if (error) {
@@ -72,7 +141,7 @@ useEffect(() => {
           variant: "destructive",
         });
       } else if (data) {
-        onCodeChange(newLanguage, data.solution_template);
+        onCodeChange(language, data.solution_template);
       }
     } catch (err) {
       console.error('Error in template fetch:', err);
@@ -81,47 +150,54 @@ useEffect(() => {
     }
   };
 
-  fetchTemplate();
-}, [question.id]);
+  // Save code snippet when code changes
+  const handleCodeChange = async (value: string | undefined) => {
+    if (value !== undefined) {
+      onCodeChange(selectedLanguage, value);
+      
+      // Save code to database
+      if (user && question.assessmentId) {
+        try {
+          const { data, error } = await supabase
+            .from('user_code_snippets')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('assessment_id', question.assessmentId)
+            .eq('question_id', question.id)
+            .eq('language', selectedLanguage);
 
+          if (error) {
+            console.error('Error checking existing code snippet:', error);
+            return;
+          }
 
-
-
-const handleLanguageChange = async (language: string) => {
-  setSelectedLanguage(language);
-  setIsLoadingTemplate(true);
-
-  try {
-    const { data, error } = await supabase
-      .from('coding_languages')
-      .select('solution_template')
-      .eq('coding_question_id', question.id)
-      .eq('coding_lang', language)
-      .single();
-
-    if (error) {
-      console.error('Error fetching solution template:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load code template",
-        variant: "destructive",
-      });
-    } else if (data) {
-      onCodeChange(language, data.solution_template);
+          if (data && data.length > 0) {
+            // Update existing code snippet
+            await supabase
+              .from('user_code_snippets')
+              .update({
+                code: value,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', data[0].id);
+          } else {
+            // Insert new code snippet
+            await supabase
+              .from('user_code_snippets')
+              .insert({
+                user_id: user.id,
+                assessment_id: question.assessmentId,
+                question_id: question.id,
+                language: selectedLanguage,
+                code: value
+              });
+          }
+        } catch (err) {
+          console.error('Error saving code snippet:', err);
+        }
+      }
     }
-  } catch (err) {
-    console.error('Error in template fetch:', err);
-  } finally {
-    setIsLoadingTemplate(false);
-  }
-};
-
-const handleCodeChange = (value: string | undefined) => {
-  if (value !== undefined) {
-    onCodeChange(selectedLanguage, value);
-  }
-};
-
+  };
 
   const cleanErrorOutput = (errorOutput: string): string => {
     return errorOutput
@@ -498,20 +574,20 @@ const handleCodeChange = (value: string | undefined) => {
     automaticLayout: true,
     tabSize: 2,
     formatOnPaste: true,
-    formatOnType: false, // Changed from true to false to prevent cursor jumping
+    formatOnType: false,
     autoIndent: 'advanced' as 'advanced',
     quickSuggestions: true,
     suggestOnTriggerCharacters: true,
     fixedOverflowWidgets: true,
     cursorBlinking: 'smooth' as 'smooth',
-    cursorSmoothCaretAnimation: 'off' as 'off', // Changed from 'on' to 'off' to prevent cursor jumping
+    cursorSmoothCaretAnimation: 'off' as 'off',
     cursorStyle: 'line' as 'line',
     mouseWheelZoom: true,
     renderWhitespace: 'selection' as 'selection',
     renderLineHighlight: 'all' as 'all',
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: 'auto' } // Fixed: changed from 'auto' to true
+    lightbulb: { enabled: true }  // Fixed: changed from 'auto' to true
   };
 
   const handleEditorDidMount = (editor: any) => {
@@ -525,23 +601,23 @@ const handleCodeChange = (value: string | undefined) => {
     <div className="flex flex-col h-full">
       <div className="flex justify-between items-center mb-2">
         {isLoadingTemplate && (
-  <div className="text-sm text-muted-foreground ml-2 animate-pulse">
-    Loading template...
-  </div>
-)}
+          <div className="text-sm text-muted-foreground ml-2 animate-pulse">
+            Loading template...
+          </div>
+        )}
 
-       <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-  <SelectTrigger className="w-40">
-    <SelectValue placeholder="Language" />
-  </SelectTrigger>
-  <SelectContent>
-    {Object.keys(question.solutionTemplate).map((lang) => (
-      <SelectItem value={lang} key={lang}>
-        {lang.charAt(0).toUpperCase() + lang.slice(1)}
-      </SelectItem>
-    ))}
-  </SelectContent>
-</Select>
+        <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Language" />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.keys(question.solutionTemplate).map((lang) => (
+              <SelectItem value={lang} key={lang}>
+                {lang.charAt(0).toUpperCase() + lang.slice(1)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <div className="flex gap-2">
           <Button 

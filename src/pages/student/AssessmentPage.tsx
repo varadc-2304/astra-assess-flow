@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -380,12 +379,12 @@ const AssessmentPage = () => {
                     </div>
                   )}
                   
-                  <div className="prose dark:prose-invert max-w-none mb-4">
+                  <div className="prose dark:prose-invert max-w-none mb-4 overflow-y-auto max-h-[calc(100vh-320px)]">
                     <p className="text-gray-700 dark:text-gray-200 whitespace-pre-line">{currentQuestion.description}</p>
                   </div>
                   
                   {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (
-                    <div className="mb-4">
+                    <div className="mb-4 overflow-y-auto max-h-[calc(100vh-400px)]">
                       <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Examples:</h4>
                       <div className="space-y-3">
                         {currentQuestion.examples.map((example, index) => (
@@ -411,7 +410,7 @@ const AssessmentPage = () => {
                   )}
                   
                   {isCodeQuestion(currentQuestion) && currentQuestion.constraints.length > 0 && (
-                    <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
+                    <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md overflow-y-auto max-h-[300px]">
                       <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Constraints:</h4>
                       <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
                         {currentQuestion.constraints.map((constraint, index) => (

@@ -2,103 +2,71 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
- 
+
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    --foreground: 222.2 84% 4.9%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
- 
+    --card-foreground: 222.2 84% 4.9%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
- 
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
- 
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
- 
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
- 
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
- 
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
- 
-    --radius: 0.75rem;
-    
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 3.9%;
-    --sidebar-primary: 0 0% 9%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 0 0% 96.1%;
-    --sidebar-accent-foreground: 0 0% 9%;
-    --sidebar-border: 0 0% 89.8%;
-    --sidebar-ring: 0 0% 3.9%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
 
-    --status-submitted: 142 76% 95%;
-    --status-submitted-text: 142 72% 29%;
-    --status-partial: 38 92% 95%; 
-    --status-partial-text: 38 92% 30%;
-    --status-not-submitted: 220 14% 96%;
-    --status-not-submitted-text: 220 9% 46%;
+    --radius: 0.5rem;
   }
- 
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
- 
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
- 
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
- 
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
- 
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
- 
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
- 
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
- 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
- 
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    
-    --sidebar-background: 0 0% 3.9%;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 0 0% 98%;
-    --sidebar-primary-foreground: 0 0% 9%;
-    --sidebar-accent: 0 0% 14.9%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 0 0% 14.9%;
-    --sidebar-ring: 0 0% 83.1%;
 
-    --status-submitted: 143 70% 20%;
-    --status-submitted-text: 143 80% 85%;
-    --status-partial: 38 92% 22%; 
-    --status-partial-text: 38 92% 85%;
-    --status-not-submitted: 220 14% 20%;
-    --status-not-submitted-text: 220 9% 85%;
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
   }
 }
- 
+
 @layer base {
   * {
     @apply border-border;
@@ -108,167 +76,89 @@
   }
 }
 
-/* Fix for Monaco Editor */
-.monaco-editor, .monaco-editor-background, .monaco-editor .inputarea.ime-input {
-  background-color: #1e1e1e !important;
+@layer utilities {
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-in;
+  }
+
+  .animate-flash {
+    animation: flash 1s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: .5;
+    }
+  }
+
+  @keyframes flash {
+    0%, 50%, 100% {
+      opacity: 1;
+    }
+    25%, 75% {
+      opacity: 0;
+    }
+  }
 }
 
-.monaco-editor .margin {
-  background-color: #1e1e1e !important;
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-/* Enhanced fixes for cursor position issue in Monaco Editor */
-.monaco-editor .inputarea {
-  z-index: 10 !important;
-  position: absolute !important; 
-  overflow: visible !important; 
-  width: 0px !important; 
-  height: 0px !important; 
-  min-height: 0px !important; 
-  min-width: 0px !important; 
-  color: transparent !important;
-  background: transparent !important;
-  padding: 0 !important;
-  resize: none !important;
-  border: none !important;
-  outline: none !important;
-  white-space: pre !important; 
-  -webkit-user-select: none !important; 
-  user-select: none !important;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.monaco-editor .cursor {
-  z-index: 5 !important;
-  visibility: visible !important;
+::-webkit-scrollbar-thumb {
+  background: var(--secondary);
+  border-radius: 8px;
 }
 
-/* Make sure textareas in monaco editor don't have any restrictions */
-.monaco-editor textarea {
-  opacity: 1 !important;
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
 }
 
-/* Additional textarea fixes */
-.monaco-editor .monaco-editor-background + textarea {
-  opacity: 0 !important;
-  color: transparent !important;
-  background: transparent !important;
-}
-
-/* Add enhanced styling for the assessment page */
-.question-card {
-  @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md transition-all duration-200;
-}
-
-.question-card:hover {
-  @apply shadow-lg;
-}
-
-.assessment-container {
-  @apply bg-gray-50 dark:bg-gray-900;
-}
-
-.nav-button {
-  @apply transition-all duration-200 transform hover:-translate-y-1;
-}
-
-.status-badge {
-  @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium;
-}
-
+/* Status colors */
 .status-submitted {
-  @apply bg-[hsl(var(--status-submitted))] text-[hsl(var(--status-submitted-text))];
+  @apply bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800;
 }
 
 .status-partial {
-  @apply bg-[hsl(var(--status-partial))] text-[hsl(var(--status-partial-text))];
+  @apply bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800;
 }
 
 .status-not-submitted {
-  @apply bg-[hsl(var(--status-not-submitted))] text-[hsl(var(--status-not-submitted-text))];
+  @apply bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800/50 dark:text-gray-300 dark:border-gray-700;
 }
 
-.resizable-panel {
-  @apply transition-all duration-200;
+/* Custom button styles */
+.nav-button {
+  @apply flex items-center justify-center h-9 px-4 transition-all;
 }
 
-/* Add some animation */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+/* Tailwind doesn't natively has a bg-astra-red */
+.bg-astra-red {
+  @apply bg-red-500;
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.3s ease-out forwards;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
-
-.animate-pulse-custom {
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-.code-question-status {
-  @apply flex items-center gap-1 px-2 py-1 rounded-full font-medium text-xs transition-colors duration-200;
-}
-
-.success-icon {
-  @apply text-emerald-500;
-}
-
-.warning-icon {
-  @apply text-amber-500;
-}
-
-.neutral-icon {
-  @apply text-gray-400;
-}
-
-/* Glass effect for cards and panels */
-.glass-card {
-  @apply backdrop-blur-sm bg-white/90 dark:bg-gray-800/90 shadow-md transition-all hover:shadow-lg;
-}
-
-/* Button enhancements */
-.btn-submit {
-  @apply bg-primary hover:bg-primary/90 text-white shadow-md hover:shadow-lg transition-all duration-200;
-}
-
-.btn-secondary {
-  @apply bg-secondary hover:bg-secondary/80 text-secondary-foreground shadow-sm hover:shadow transition-all duration-200;
-}
-
-/* Enhanced scrollbars for code view */
-.code-scrollbar::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.code-scrollbar::-webkit-scrollbar-track {
-  @apply bg-gray-100 dark:bg-gray-800 rounded-full;
-}
-
-.code-scrollbar::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 dark:bg-gray-600 rounded-full hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors;
-}
-
-/* Improve code output styling */
-.code-output {
-  @apply font-mono text-sm rounded-md overflow-auto shadow-inner bg-black/90 text-green-400;
-}
-
-
-
-.question-content pre {
-  @apply bg-gray-100 dark:bg-gray-800 p-3 rounded-md overflow-x-auto;
-}
-
-.question-content code {
-  @apply text-sm font-mono bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded;
+.hover\:bg-astra-red-600:hover {
+  @apply hover:bg-red-600;
 }
