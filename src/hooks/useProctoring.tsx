@@ -167,7 +167,7 @@ export function useProctoring() {
       // Store facial features as benchmark for identity verification later
       const tensorFace = tf.browser.fromPixels(videoEl);
       const normalizedFace = tf.div(tensorFace, 255);
-      const resizedFace = tf.image.resizeBilinear(normalizedFace, [128, 128]);
+      const resizedFace = tf.image.resizeBilinear(normalizedFace as tf.Tensor3D, [128, 128]);
       const faceTensor = resizedFace.reshape([128 * 128 * 3]);
       setFaceBenchmark(faceTensor.dataSync() as Float32Array);
       
@@ -341,7 +341,7 @@ export function useProctoring() {
         if (faceBenchmark) {
           const currentFrame = tf.browser.fromPixels(video);
           const normalizedFrame = tf.div(currentFrame, 255);
-          const resizedFrame = tf.image.resizeBilinear(normalizedFrame, [128, 128]);
+          const resizedFrame = tf.image.resizeBilinear(normalizedFrame as tf.Tensor3D, [128, 128]);
           const currentFaceTensor = resizedFrame.reshape([128 * 128 * 3]);
           const currentFace = currentFaceTensor.dataSync() as Float32Array;
           
