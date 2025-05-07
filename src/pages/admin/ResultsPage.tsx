@@ -34,7 +34,7 @@ const ResultsPage = () => {
     searchQuery: ''
   });
   const [isExporting, setIsExporting] = useState(false);
-  const [assessmentOptions, setAssessmentOptions] = useState<{ name: string }[]>([]);
+  const [assessmentOptions, setAssessmentOptions] = useState<Array<{ name: string }>>([]);
   const [yearOptions, setYearOptions] = useState<string[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
   const [divisionOptions, setDivisionOptions] = useState<string[]>([]);
@@ -64,6 +64,10 @@ const ResultsPage = () => {
           });
         }
         
+        // Convert to array of objects with name property
+        const assessmentNamesArray = Array.from(uniqueAssessmentNames).map(name => ({ name }));
+        setAssessmentOptions(assessmentNamesArray);
+        
         // Fetch unique values for other filters from auth table
         const { data: authData, error: authError } = await supabase
           .from('auth')
@@ -86,7 +90,6 @@ const ResultsPage = () => {
           if (user.batch) uniqueBatches.add(user.batch);
         });
 
-        setAssessmentOptions(Array.from(uniqueAssessmentNames).map(name => ({ name })));
         setYearOptions(Array.from(uniqueYears));
         setDepartmentOptions(Array.from(uniqueDepartments));
         setDivisionOptions(Array.from(uniqueDivisions));

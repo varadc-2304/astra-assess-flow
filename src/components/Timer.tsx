@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
 
@@ -26,7 +27,8 @@ export const Timer: React.FC<TimerProps> = ({ variant, startTime }) => {
 
     if (timeRemaining > 0) {
       intervalId = setInterval(() => {
-        setTimeRemaining(prevTime => prevTime - 1);
+        // Fix: Pass a number directly rather than using a callback function
+        setTimeRemaining(timeRemaining - 1);
       }, 1000);
     } else if (timeRemaining === 0 && variant === 'assessment') {
       // Ensure endAssessment is a function before calling it

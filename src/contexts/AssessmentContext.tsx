@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState } from 'react';
 
 // Define the Question types
@@ -60,7 +59,7 @@ export interface AssessmentContextType {
   assessment: Assessment | null;
   loading: boolean;
   error: string | null;
-  fetchAssessment: (code: string) => Promise<void>;
+  fetchAssessment: (code: string) => Promise<boolean>; // Changed to match implementation
   assessmentStarted: boolean;
   startAssessment: () => void;
   currentQuestionIndex: number;
@@ -83,7 +82,7 @@ const AssessmentContext = createContext<AssessmentContextType>({
   assessment: null,
   loading: false,
   error: null,
-  fetchAssessment: async () => {},
+  fetchAssessment: async () => false, // Updated to match return type
   assessmentStarted: false,
   startAssessment: () => {},
   currentQuestionIndex: 0,
@@ -118,7 +117,7 @@ export const AssessmentProvider = ({ children }: { children: React.ReactNode }) 
   ) || 0;
 
   // Fetch assessment data
-  const fetchAssessment = async (code: string) => {
+  const fetchAssessment = async (code: string): Promise<boolean> => {
     setLoading(true);
     setError(null);
     
@@ -259,7 +258,7 @@ export const AssessmentProvider = ({ children }: { children: React.ReactNode }) 
     setFullscreenWarnings(prev => prev + 1);
   };
 
-  const value = {
+  const value: AssessmentContextType = {
     assessment,
     loading,
     error,

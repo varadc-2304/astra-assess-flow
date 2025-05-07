@@ -26,7 +26,7 @@ export interface CodeEditorProps {
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarksUpdate, onTestResultsUpdate }) => {
   const [selectedLanguage, setSelectedLanguage] = useState<string>(
-    Object.keys(question.solutionTemplate)[0] || 'python'
+    Object.keys(question.solutionTemplate || {})[0] || 'python'
   );
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -37,8 +37,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const { user } = useAuth();
   
   const [currentCode, setCurrentCode] = useState<string>(
-    question.userSolution[selectedLanguage] ||
-    question.solutionTemplate[selectedLanguage] ||
+    (question.userSolution && question.userSolution[selectedLanguage]) ||
+    (question.solutionTemplate && question.solutionTemplate[selectedLanguage]) ||
     ''
   );
 
@@ -46,7 +46,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   useEffect(() => {
     const fetchTemplate = async () => {
       setIsLoadingTemplate(true);
-      const availableLanguages = Object.keys(question.solutionTemplate);
+      const availableLanguages = Object.keys(question.solutionTemplate || {});
       if (availableLanguages.length === 0) return;
 
       const newLanguage = availableLanguages.includes(selectedLanguage)
@@ -76,7 +76,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         }
 
         // If no saved code, get the template or use existing solution
-        if (question.userSolution[newLanguage]) {
+        if (question.userSolution && question.userSolution[newLanguage]) {
           setCurrentCode(question.userSolution[newLanguage]);
         } else {
           const { data, error } = await supabase
@@ -582,6 +582,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     }
   };
 
+  // Fix the editor options to use correct type for lightbulb.enabled
   const editorOptions = {
     minimap: { enabled: true },
     scrollBeyondLastLine: false,
@@ -603,7 +604,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     renderLineHighlight: 'all' as const,
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: true }
+    lightbulb: { enabled: true as unknown as 'on' }
   };
 
   const handleEditorDidMount = (editor: any) => {
