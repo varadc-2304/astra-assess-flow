@@ -57,20 +57,29 @@ const MobileRestriction = () => {
   const { screenWidth } = useIsMobile();
   
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <Card className="w-full max-w-md border-red-500 border-2">
-        <CardHeader className="text-center">
-          <CardTitle className="text-xl text-red-600">Access Restricted</CardTitle>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
+      <Card className="mobile-restriction-card w-full max-w-md border-red-500 border glass-effect">
+        <CardHeader className="text-center border-b border-gray-100 pb-4">
+          <CardTitle className="text-2xl text-red-600 font-bold">Access Restricted</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center space-y-4">
-            <p className="text-gray-700 font-medium">
-  You cannot access this platform from a mobile phone.
-</p>
-<p className="text-sm text-gray-500">
-  Please use a laptop or desktop computer, to continue.
-</p>
-
+          <div className="text-center space-y-6 py-4">
+            <div className="text-red-500 mx-auto mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
+              </svg>
+            </div>
+            <p className="text-gray-800 font-medium text-lg">
+              You cannot access this platform from a mobile device.
+            </p>
+            <p className="text-gray-600">
+              Please use a laptop or desktop computer to continue.
+            </p>
+            <div className="text-gray-500 text-sm mt-4 pt-4 border-t border-gray-100">
+              <p>Detected screen width: {screenWidth}px</p>
+            </div>
           </div>
         </CardContent>
       </Card>
