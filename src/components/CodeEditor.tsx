@@ -604,7 +604,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     renderLineHighlight: 'all' as const,
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: true as unknown as 'on' }
+    lightbulb: { enabled: 'auto' }
   };
 
   const handleEditorDidMount = (editor: any) => {
