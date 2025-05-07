@@ -25,3 +25,10 @@ export function useIsMobile() {
 
   return { isMobile: !!isMobile, screenWidth };
 }
+
+// Declare MOBILE_BREAKPOINT for global window access
+declare global {
+  interface Window {
+    MOBILE_BREAKPOINT: number;
+  }
+}
