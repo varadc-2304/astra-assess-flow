@@ -10,9 +10,9 @@ import { useIsMobile } from '@/hooks/use-mobile';
 const InstructionsPage = () => {
   const { 
     assessment, 
-    assessmentLoading, 
-    assessmentError, 
-    fetchAssessmentByCode 
+    loading: assessmentLoading, 
+    error: assessmentError, 
+    fetchAssessment 
   } = useAssessment();
   const [assessmentCode, setAssessmentCode] = useState('');
   const [enableProctoring, setEnableProctoring] = useState(true);
@@ -25,11 +25,11 @@ const InstructionsPage = () => {
     const code = localStorage.getItem('assessmentCode');
     if (code) {
       setAssessmentCode(code);
-      fetchAssessmentByCode(code);
+      fetchAssessment(code);
     } else {
       navigate('/student');
     }
-  }, [fetchAssessmentByCode, navigate]);
+  }, [fetchAssessment, navigate]);
 
   const handleStartAssessment = () => {
     if (enableProctoring) {
@@ -74,7 +74,7 @@ const InstructionsPage = () => {
         <p>Please read the following instructions carefully before starting the assessment:</p>
         <ul className="list-disc pl-5 space-y-2">
           <li>The assessment contains multiple choice questions and coding problems.</li>
-          <li>Total duration: <span className="font-medium text-gray-900 dark:text-gray-100">{assessment.duration_minutes} minutes</span></li>
+          <li>Total duration: <span className="font-medium text-gray-900 dark:text-gray-100">{assessment.durationMinutes} minutes</span></li>
           <li>You can navigate between questions using the Next and Previous buttons.</li>
           <li>Your progress will be automatically saved as you go.</li>
           <li>Once you submit the assessment, you cannot retake it.</li>
@@ -173,7 +173,7 @@ const InstructionsPage = () => {
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-2">{assessment.name}</h1>
         <div className="text-gray-600 dark:text-gray-400 flex items-center justify-center space-x-4">
-          <span>Duration: {assessment.duration_minutes} minutes</span>
+          <span>Duration: {assessment.durationMinutes} minutes</span>
           <span>•</span>
           <span>Questions: {assessment.questions?.length || 0}</span>
         </div>

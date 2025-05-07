@@ -16,7 +16,7 @@ import AssessmentPage from '@/pages/student/AssessmentPage';
 import InstructionsPage from '@/pages/student/InstructionsPage';
 import SummaryPage from '@/pages/student/SummaryPage';
 import ProctoringSplash from '@/components/ProctoringSplash';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile, MOBILE_BREAKPOINT } from '@/hooks/use-mobile';
 import { ShieldAlert } from 'lucide-react';
 import { Button } from './components/ui/button';
 
