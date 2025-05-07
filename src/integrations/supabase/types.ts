@@ -595,7 +595,20 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      assessment_results_view: {
+        Row: {
+          assessment_code: string | null
+          assessment_title: string | null
+          department: string | null
+          percentage: number | null
+          prn: string | null
+          termination_status: string | null
+          total_marks: number | null
+          total_score: number | null
+          user_name: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       calculate_assessment_total_marks: {

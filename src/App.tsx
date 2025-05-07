@@ -16,6 +16,8 @@ import AssessmentForm from "@/components/admin/AssessmentForm";
 import AssessmentDetail from "@/pages/admin/AssessmentDetail";
 import QuestionForm from "@/components/admin/QuestionForm";
 import { Toaster } from "@/components/ui/toaster";
+import { useIsMobile } from "./hooks/use-mobile";
+import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 
 const queryClient = new QueryClient();
 
@@ -50,39 +52,80 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-const AppRoutes = () => (
-  <Routes>
-    <Route path="/" element={<AuthRoute><Login /></AuthRoute>} />
-    
-    {/* Student Routes - strictly enforce student role */}
-    <Route path="/student" element={<ProtectedRoute requiredRole="student"><StudentDashboard /></ProtectedRoute>} />
-    <Route path="/instructions" element={<ProtectedRoute requiredRole="student"><InstructionsPage /></ProtectedRoute>} />
-    <Route path="/assessment" element={<ProtectedRoute requiredRole="student"><AssessmentPage /></ProtectedRoute>} />
-    <Route path="/summary" element={<ProtectedRoute requiredRole="student"><SummaryPage /></ProtectedRoute>} />
-    
-    {/* Admin Routes - strictly enforce admin role */}
-    <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
-    <Route path="/admin/results" element={<ProtectedRoute requiredRole="admin"><ResultsPage /></ProtectedRoute>} />
-    <Route path="/admin/assessments/:id" element={<ProtectedRoute requiredRole="admin"><AssessmentDetail /></ProtectedRoute>} />
-    
-    {/* 404 Route */}
-    <Route path="*" element={<NotFound />} />
-  </Routes>
-);
+// Mobile access restriction component
+const MobileRestriction = () => {
+  const { screenWidth } = useIsMobile();
+  
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <Card className="w-full max-w-md border-red-500 border-2">
+        <CardHeader className="text-center">
+          <CardTitle className="text-xl text-red-600">Access Restricted</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center space-y-4">
+            <p className="text-gray-700">This platform is not accessible from mobile devices.</p>
+            <p className="text-sm text-gray-500">Current screen width: {screenWidth}px</p>
+            <p className="text-sm text-gray-500">Please access from a desktop or laptop computer with a minimum screen width of {MOBILE_BREAKPOINT}px.</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <BrowserRouter>
-        <AuthProvider>
-          <AssessmentProvider>
-            <AppRoutes />
-            <Toaster />
-          </AssessmentProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const AppRoutes = () => {
+  const { isMobile } = useIsMobile();
+
+  // If on mobile, show restriction message instead of routes
+  if (isMobile) {
+    return <MobileRestriction />;
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<AuthRoute><Login /></AuthRoute>} />
+      
+      {/* Student Routes - strictly enforce student role */}
+      <Route path="/student" element={<ProtectedRoute requiredRole="student"><StudentDashboard /></ProtectedRoute>} />
+      <Route path="/instructions" element={<ProtectedRoute requiredRole="student"><InstructionsPage /></ProtectedRoute>} />
+      <Route path="/assessment" element={<ProtectedRoute requiredRole="student"><AssessmentPage /></ProtectedRoute>} />
+      <Route path="/summary" element={<ProtectedRoute requiredRole="student"><SummaryPage /></ProtectedRoute>} />
+      
+      {/* Admin Routes - strictly enforce admin role */}
+      <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
+      <Route path="/admin/results" element={<ProtectedRoute requiredRole="admin"><ResultsPage /></ProtectedRoute>} />
+      <Route path="/admin/assessments/:id" element={<ProtectedRoute requiredRole="admin"><AssessmentDetail /></ProtectedRoute>} />
+      
+      {/* 404 Route */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
+
+const App = () => {
+  const { isMobile } = useIsMobile();
+  
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <AssessmentProvider>
+              {isMobile ? (
+                <MobileRestriction />
+              ) : (
+                <>
+                  <AppRoutes />
+                  <Toaster />
+                </>
+              )}
+            </AssessmentProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
