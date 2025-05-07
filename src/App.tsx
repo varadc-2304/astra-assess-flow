@@ -64,9 +64,13 @@ const MobileRestriction = () => {
         </CardHeader>
         <CardContent>
           <div className="text-center space-y-4">
-            <p className="text-gray-700">This platform is not accessible from mobile devices.</p>
-            <p className="text-sm text-gray-500">Current screen width: {screenWidth}px</p>
-            <p className="text-sm text-gray-500">Please access from a desktop or laptop computer with a minimum screen width of {MOBILE_BREAKPOINT}px.</p>
+            <p className="text-gray-700 font-medium">
+  You cannot access this platform from a mobile phone.
+</p>
+<p className="text-sm text-gray-500">
+  Please use a laptop or desktop computer, to continue.
+</p>
+
           </div>
         </CardContent>
       </Card>
