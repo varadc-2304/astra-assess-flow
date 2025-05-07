@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -587,24 +586,24 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     minimap: { enabled: true },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    wordWrap: 'on' as 'on',
+    wordWrap: 'on' as const,
     automaticLayout: true,
     tabSize: 2,
     formatOnPaste: true,
     formatOnType: false,
-    autoIndent: 'advanced' as 'advanced',
+    autoIndent: 'advanced' as const,
     quickSuggestions: true,
     suggestOnTriggerCharacters: true,
     fixedOverflowWidgets: true,
-    cursorBlinking: 'smooth' as 'smooth',
-    cursorSmoothCaretAnimation: 'off' as 'off',
-    cursorStyle: 'line' as 'line',
+    cursorBlinking: 'smooth' as const,
+    cursorSmoothCaretAnimation: 'off' as const,
+    cursorStyle: 'line' as const,
     mouseWheelZoom: true,
-    renderWhitespace: 'selection' as 'selection',
-    renderLineHighlight: 'all' as 'all',
+    renderWhitespace: 'selection' as const,
+    renderLineHighlight: 'all' as const,
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
-    lightbulb: { enabled: 'auto' }
+    lightbulb: { enabled: true }
   };
 
   const handleEditorDidMount = (editor: any) => {

@@ -14,6 +14,10 @@ export interface MCQQuestion {
   text: string;
   options: MCQOption[];
   marks: number;
+  title?: string;
+  description?: string;
+  imageUrl?: string;
+  selectedOption?: string;
 }
 
 export interface CodeQuestion {
@@ -24,6 +28,18 @@ export interface CodeQuestion {
   testCases?: Array<{input: string; expectedOutput: string}>;
   language?: string; // e.g., "javascript", "python"
   marks: number;
+  title?: string;
+  description?: string;
+  assessmentId?: string;
+  solutionTemplate?: Record<string, string>;
+  userSolution?: Record<string, string>;
+  examples?: Array<{
+    input: string;
+    output: string;
+    explanation?: string;
+  }>;
+  constraints?: string[];
+  marksObtained?: number;
 }
 
 export type Question = MCQQuestion | CodeQuestion;
@@ -59,7 +75,7 @@ export interface AssessmentContextType {
   setTimeRemaining: (time: number) => void;
   fullscreenWarnings: number;
   addFullscreenWarning: () => void;
-  loadAssessment: (code: string) => Promise<void>;
+  loadAssessment: (code: string) => Promise<boolean>;
 }
 
 // Create the context with default values
@@ -82,7 +98,7 @@ const AssessmentContext = createContext<AssessmentContextType>({
   setTimeRemaining: () => {},
   fullscreenWarnings: 0,
   addFullscreenWarning: () => {},
-  loadAssessment: async () => {},
+  loadAssessment: async () => false,
 });
 
 // Provider component
@@ -120,6 +136,8 @@ export const AssessmentProvider = ({ children }: { children: React.ReactNode }) 
             id: '1',
             type: 'mcq',
             text: 'What is JavaScript?',
+            title: 'JavaScript Basics',
+            description: 'Choose the correct definition for JavaScript',
             options: [
               { id: '1a', text: 'A programming language', isCorrect: true },
               { id: '1b', text: 'A markup language', isCorrect: false },
@@ -131,6 +149,8 @@ export const AssessmentProvider = ({ children }: { children: React.ReactNode }) 
           {
             id: '2',
             type: 'code',
+            title: 'Addition Function',
+            description: 'Write a function that adds two numbers and returns the result',
             text: 'Write a function that returns the sum of two numbers',
             starterCode: 'function add(a, b) {\n  // Your code here\n}',
             testCases: [
@@ -138,7 +158,18 @@ export const AssessmentProvider = ({ children }: { children: React.ReactNode }) 
               { input: 'add(-1, 1)', expectedOutput: '0' }
             ],
             language: 'javascript',
-            marks: 10
+            marks: 10,
+            assessmentId: '1',
+            solutionTemplate: {
+              javascript: 'function add(a, b) {\n  // Your code here\n}',
+              python: 'def add(a, b):\n    # Your code here\n    pass'
+            },
+            userSolution: {},
+            examples: [
+              { input: 'add(2, 3)', output: '5', explanation: 'Basic addition' },
+              { input: 'add(-1, 1)', output: '0', explanation: 'Adding a negative number' }
+            ],
+            constraints: ['Function must be named "add"', 'Return value must be the sum of a and b']
           }
         ],
         code: code,
@@ -149,16 +180,26 @@ export const AssessmentProvider = ({ children }: { children: React.ReactNode }) 
       setAssessment(mockAssessment);
       // Set initial time remaining based on assessment duration
       setTimeRemaining(mockAssessment.durationMinutes * 60);
+      return true;
     } catch (err) {
       console.error('Error fetching assessment:', err);
       setError('Failed to load assessment. Please try again.');
+      return false;
     } finally {
       setLoading(false);
     }
   };
 
-  // Alias for fetchAssessment
-  const loadAssessment = fetchAssessment;
+  // Alias for fetchAssessment with boolean return
+  const loadAssessment = async (code: string): Promise<boolean> => {
+    try {
+      await fetchAssessment(code);
+      return true;
+    } catch (error) {
+      console.error("Load assessment error:", error);
+      return false;
+    }
+  };
 
   // Start assessment
   const startAssessment = () => {
@@ -167,14 +208,36 @@ export const AssessmentProvider = ({ children }: { children: React.ReactNode }) 
 
   // Answer MCQ question
   const answerMCQ = (questionId: string, optionId: string) => {
-    // Implementation would save the answer
-    console.log(`Answered MCQ ${questionId} with option ${optionId}`);
+    if (assessment && assessment.questions) {
+      const updatedQuestions = assessment.questions.map(q => {
+        if (q.id === questionId && q.type === 'mcq') {
+          return { ...q, selectedOption: optionId };
+        }
+        return q;
+      });
+      
+      setAssessment({ ...assessment, questions: updatedQuestions });
+    }
   };
 
   // Update code solution
   const updateCodeSolution = (questionId: string, solution: string, language: string) => {
-    // Implementation would save the code solution
-    console.log(`Updated code solution for ${questionId}`);
+    if (assessment && assessment.questions) {
+      const updatedQuestions = assessment.questions.map(q => {
+        if (q.id === questionId && q.type === 'code') {
+          return { 
+            ...q, 
+            userSolution: { 
+              ...q.userSolution,
+              [language]: solution 
+            } 
+          };
+        }
+        return q;
+      });
+      
+      setAssessment({ ...assessment, questions: updatedQuestions });
+    }
   };
 
   // Update marks obtained for a question
