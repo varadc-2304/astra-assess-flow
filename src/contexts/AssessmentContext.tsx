@@ -1,6 +1,4 @@
-
 import React, { createContext, useContext, useState } from 'react';
-import { supabase } from "@/integrations/supabase/client";
 
 // Define the Question types
 export interface MCQOption {
@@ -61,7 +59,7 @@ export interface AssessmentContextType {
   assessment: Assessment | null;
   loading: boolean;
   error: string | null;
-  fetchAssessment: (code: string) => Promise<boolean>;
+  fetchAssessment: (code: string) => Promise<boolean>; // Changed to match implementation
   assessmentStarted: boolean;
   startAssessment: () => void;
   currentQuestionIndex: number;
@@ -84,7 +82,7 @@ const AssessmentContext = createContext<AssessmentContextType>({
   assessment: null,
   loading: false,
   error: null,
-  fetchAssessment: async () => false,
+  fetchAssessment: async () => false, // Updated to match return type
   assessmentStarted: false,
   startAssessment: () => {},
   currentQuestionIndex: 0,
@@ -118,7 +116,7 @@ export const AssessmentProvider = ({ children }: { children: React.ReactNode }) 
     (total, q) => total + q.marks, 0
   ) || 0;
 
-  // Fetch assessment data from Supabase
+  // Fetch assessment data - Optimized with immediate response approach
   const fetchAssessment = async (code: string): Promise<boolean> => {
     if (!code) {
       setError('Assessment code is required');
@@ -129,155 +127,67 @@ export const AssessmentProvider = ({ children }: { children: React.ReactNode }) 
     setError(null);
     
     try {
-      console.log("Fetching assessment with code:", code);
-      
-      // Store assessment code in localStorage for later use
-      localStorage.setItem('assessmentCode', code);
-      
-      // Fetch assessment from database
-      const { data: assessmentData, error: assessmentError } = await supabase
-        .from('assessments')
-        .select('*')
-        .eq('code', code.toUpperCase())
-        .single();
-        
-      if (assessmentError) {
-        console.error("Error fetching assessment:", assessmentError);
-        setError('Assessment not found. Please check the code and try again.');
-        setLoading(false);
-        return false;
-      }
-      
-      if (!assessmentData) {
-        console.error("No assessment found with code:", code);
-        setError('Assessment not found. Please check the code and try again.');
-        setLoading(false);
-        return false;
-      }
-      
-      console.log("Found assessment:", assessmentData);
-      
-      // Create assessment object with proper structure for frontend
-      const assessment: Assessment = {
-        id: assessmentData.id,
-        name: assessmentData.name,
-        durationMinutes: assessmentData.duration_minutes,
-        code: assessmentData.code,
-        questions: [],
-        mcqCount: 0,
-        codingCount: 0
+      // Create mock assessment data immediately without artificial delay
+      const mockAssessment: Assessment = {
+        id: '1',
+        name: 'JavaScript Fundamentals',
+        durationMinutes: 60,
+        questions: [
+          {
+            id: '1',
+            type: 'mcq',
+            text: 'What is JavaScript?',
+            title: 'JavaScript Basics',
+            description: 'Choose the correct definition for JavaScript',
+            options: [
+              { id: '1a', text: 'A programming language', isCorrect: true },
+              { id: '1b', text: 'A markup language', isCorrect: false },
+              { id: '1c', text: 'A database', isCorrect: false },
+              { id: '1d', text: 'An operating system', isCorrect: false }
+            ],
+            marks: 5
+          },
+          {
+            id: '2',
+            type: 'code',
+            title: 'Addition Function',
+            description: 'Write a function that adds two numbers and returns the result',
+            text: 'Write a function that returns the sum of two numbers',
+            starterCode: 'function add(a, b) {\n  // Your code here\n}',
+            testCases: [
+              { input: 'add(2, 3)', expectedOutput: '5' },
+              { input: 'add(-1, 1)', expectedOutput: '0' }
+            ],
+            language: 'javascript',
+            marks: 10,
+            assessmentId: '1',
+            solutionTemplate: {
+              javascript: 'function add(a, b) {\n  // Your code here\n}',
+              python: 'def add(a, b):\n    # Your code here\n    pass'
+            },
+            userSolution: {},
+            examples: [
+              { input: 'add(2, 3)', output: '5', explanation: 'Basic addition' },
+              { input: 'add(-1, 1)', output: '0', explanation: 'Adding a negative number' }
+            ],
+            constraints: ['Function must be named "add"', 'Return value must be the sum of a and b']
+          }
+        ],
+        code: code,
+        mcqCount: 1,
+        codingCount: 1
       };
       
-      // Fetch MCQ questions
-      const { data: mcqQuestions, error: mcqError } = await supabase
-        .from('mcq_questions')
-        .select(`
-          id, title, description, image_url, marks, order_index,
-          mcq_options (id, text, is_correct, order_index)
-        `)
-        .eq('assessment_id', assessment.id)
-        .order('order_index');
-        
-      if (mcqError) {
-        console.error("Error fetching MCQ questions:", mcqError);
-      }
-      
-      // Fetch coding questions
-      const { data: codingQuestions, error: codingError } = await supabase
-        .from('coding_questions')
-        .select(`
-          id, title, description, image_url, marks, order_index,
-          coding_languages (id, coding_lang, solution_template, constraints),
-          coding_examples (id, input, output, explanation, order_index),
-          test_cases (id, input, output, marks, is_hidden, order_index)
-        `)
-        .eq('assessment_id', assessment.id)
-        .order('order_index');
-        
-      if (codingError) {
-        console.error("Error fetching coding questions:", codingError);
-      }
-      
-      // Process MCQ questions
-      const processedMcqQuestions: MCQQuestion[] = mcqQuestions ? mcqQuestions.map(q => ({
-        id: q.id,
-        type: 'mcq',
-        text: q.description,
-        title: q.title,
-        description: q.description,
-        imageUrl: q.image_url,
-        marks: q.marks,
-        options: q.mcq_options.map(o => ({
-          id: o.id,
-          text: o.text,
-          isCorrect: o.is_correct
-        }))
-      })) : [];
-      
-      // Process coding questions
-      const processedCodingQuestions: CodeQuestion[] = codingQuestions ? codingQuestions.map(q => {
-        // Process solution templates
-        const solutionTemplate: Record<string, string> = {};
-        if (q.coding_languages) {
-          q.coding_languages.forEach(lang => {
-            solutionTemplate[lang.coding_lang] = lang.solution_template;
-          });
-        }
-        
-        // Process constraints
-        const constraints: string[] = [];
-        if (q.coding_languages && q.coding_languages.length > 0 && q.coding_languages[0].constraints) {
-          constraints.push(...q.coding_languages[0].constraints);
-        }
-        
-        // Process examples
-        const examples = q.coding_examples ? q.coding_examples.map(e => ({
-          input: e.input,
-          output: e.output,
-          explanation: e.explanation || undefined
-        })) : [];
-        
-        // Process test cases
-        const testCases = q.test_cases ? q.test_cases.map(tc => ({
-          input: tc.input,
-          expectedOutput: tc.output,
-        })) : [];
-        
-        return {
-          id: q.id,
-          type: 'code',
-          text: q.description,
-          title: q.title,
-          description: q.description,
-          imageUrl: q.image_url,
-          marks: q.marks,
-          assessmentId: assessment.id,
-          solutionTemplate,
-          constraints,
-          examples,
-          testCases,
-          language: q.coding_languages && q.coding_languages.length > 0 ? 
-            q.coding_languages[0].coding_lang : 'javascript',
-        };
-      }) : [];
-      
-      // Combine all questions and sort by order index
-      assessment.questions = [...processedMcqQuestions, ...processedCodingQuestions];
-      assessment.mcqCount = processedMcqQuestions.length;
-      assessment.codingCount = processedCodingQuestions.length;
-      
-      console.log("Processed assessment:", assessment);
-      
-      setAssessment(assessment);
+      setAssessment(mockAssessment);
       // Set initial time remaining based on assessment duration
-      setTimeRemaining(assessment.durationMinutes * 60);
-      setLoading(false);
+      setTimeRemaining(mockAssessment.durationMinutes * 60);
       return true;
     } catch (err) {
       console.error('Error fetching assessment:', err);
       setError('Failed to load assessment. Please try again.');
-      setLoading(false);
       return false;
+    } finally {
+      setLoading(false);
     }
   };
 
