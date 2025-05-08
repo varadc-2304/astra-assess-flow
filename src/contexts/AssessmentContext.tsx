@@ -116,16 +116,18 @@ export const AssessmentProvider = ({ children }: { children: React.ReactNode }) 
     (total, q) => total + q.marks, 0
   ) || 0;
 
-  // Fetch assessment data - Significantly reduced delay from 1000ms to 100ms
+  // Fetch assessment data - Optimized with immediate response approach
   const fetchAssessment = async (code: string): Promise<boolean> => {
+    if (!code) {
+      setError('Assessment code is required');
+      return false;
+    }
+    
     setLoading(true);
     setError(null);
     
     try {
-      // Mock API call - with reduced timeout (from 1000ms to 100ms)
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Mock assessment data with proper question types
+      // Create mock assessment data immediately without artificial delay
       const mockAssessment: Assessment = {
         id: '1',
         name: 'JavaScript Fundamentals',
@@ -189,15 +191,16 @@ export const AssessmentProvider = ({ children }: { children: React.ReactNode }) 
     }
   };
 
-  // Alias for fetchAssessment with boolean return
+  // Alias for fetchAssessment with better error handling
   const loadAssessment = async (code: string): Promise<boolean> => {
-    try {
-      await fetchAssessment(code);
-      return true;
-    } catch (error) {
-      console.error("Load assessment error:", error);
+    if (!code) {
+      console.error("No assessment code provided");
+      setError("Please provide an assessment code");
       return false;
     }
+    
+    console.log(`Loading assessment with code: ${code}`);
+    return await fetchAssessment(code);
   };
 
   // Start assessment

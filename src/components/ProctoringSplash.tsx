@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -28,15 +29,19 @@ const ProctoringSplash = () => {
   
   useEffect(() => {
     if (!assessment) {
+      console.log("No assessment found in ProctoringSplash, redirecting to student dashboard");
       navigate('/student');
     }
   }, [assessment, navigate]);
   
   const handleCameraAccess = async () => {
     setStep('camera');
+    console.log("Requesting camera access...");
     const stream = await requestCameraAccess();
     if (!stream) {
       setError('Camera access denied. Please allow camera access to continue.');
+    } else {
+      console.log("Camera access granted");
     }
   };
   
@@ -54,9 +59,13 @@ const ProctoringSplash = () => {
       return;
     }
     
+    console.log("Starting environment check...");
     const passed = await checkEnvironment();
     if (passed) {
+      console.log("Environment check passed");
       setStep('ready');
+    } else {
+      console.log("Environment check failed");
     }
   };
   
@@ -70,10 +79,12 @@ const ProctoringSplash = () => {
       return;
     }
     
+    console.log("Starting recording and proctoring...");
     // Start recording and proctoring
     startRecording();
     
     // Start assessment and navigate to assessment page
+    console.log("Starting assessment and navigating to assessment page");
     startAssessment();
     navigate('/assessment');
   };

@@ -12,7 +12,7 @@ const InstructionsPage = () => {
     assessment, 
     loading: assessmentLoading, 
     error: assessmentError, 
-    fetchAssessment 
+    loadAssessment 
   } = useAssessment();
   const [assessmentCode, setAssessmentCode] = useState('');
   const [enableProctoring, setEnableProctoring] = useState(true);
@@ -25,13 +25,28 @@ const InstructionsPage = () => {
     const code = localStorage.getItem('assessmentCode');
     if (code) {
       setAssessmentCode(code);
-      fetchAssessment(code);
+      console.log("Found assessment code in localStorage:", code);
+      // Call loadAssessment and handle any issues
+      loadAssessment(code).then(success => {
+        if (!success) {
+          console.error("Failed to load assessment with code:", code);
+          toast({
+            title: "Error",
+            description: "Could not load assessment. Please check the code and try again.",
+            variant: "destructive"
+          });
+        }
+      }).catch(err => {
+        console.error("Error loading assessment:", err);
+      });
     } else {
+      console.error("No assessment code found in localStorage");
       navigate('/student');
     }
-  }, [fetchAssessment, navigate]);
+  }, [loadAssessment, navigate, toast]);
 
   const handleStartAssessment = () => {
+    console.log("Start assessment clicked, enableProctoring:", enableProctoring);
     if (enableProctoring) {
       // Navigate to proctoring setup page
       navigate('/proctoring-setup');
