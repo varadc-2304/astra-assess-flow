@@ -116,14 +116,14 @@ export const AssessmentProvider = ({ children }: { children: React.ReactNode }) 
     (total, q) => total + q.marks, 0
   ) || 0;
 
-  // Fetch assessment data
+  // Fetch assessment data - Significantly reduced delay from 1000ms to 100ms
   const fetchAssessment = async (code: string): Promise<boolean> => {
     setLoading(true);
     setError(null);
     
     try {
-      // Mock API call - replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Mock API call - with reduced timeout (from 1000ms to 100ms)
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Mock assessment data with proper question types
       const mockAssessment: Assessment = {
