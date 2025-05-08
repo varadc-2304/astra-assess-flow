@@ -25,6 +25,7 @@ export function useProctoring() {
   const [faceModel, setFaceModel] = useState<faceDetection.FaceDetector | null>(null);
   const [poseModel, setPoseModel] = useState<poseDetection.PoseDetector | null>(null);
   const [faceBenchmark, setFaceBenchmark] = useState<Float32Array | null>(null);
+  const [faceTooLarge, setFaceTooLarge] = useState<boolean>(false);
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -154,6 +155,12 @@ export function useProctoring() {
       const face = faces[0];
       const boxWidth = face.box.width;
       const boxHeight = face.box.height;
+      const videoWidth = videoEl.videoWidth;
+      const videoHeight = videoEl.videoHeight;
+      
+      // Calculate face percentage of total frame
+      const faceAreaPercentage = (boxWidth * boxHeight) / (videoWidth * videoHeight) * 100;
+      console.log("Face area percentage:", faceAreaPercentage);
       
       if (boxWidth < 100 || boxHeight < 100) {
         toast({
@@ -163,6 +170,19 @@ export function useProctoring() {
         });
         return false;
       }
+      
+      // Check if face is too large (too close to camera)
+      if (faceAreaPercentage > 25) {
+        setFaceTooLarge(true);
+        toast({
+          title: "Too close to camera",
+          description: "Please move back from the camera for better monitoring.",
+          variant: "destructive"
+        });
+        return false;
+      }
+      
+      setFaceTooLarge(false);
       
       // Store facial features as benchmark for identity verification later
       const tensorFace = tf.browser.fromPixels(videoEl);
@@ -336,6 +356,27 @@ export function useProctoring() {
           });
           return;
         }
+
+        // Check if face is too large (too close to camera)
+        const face = faces[0];
+        const boxWidth = face.box.width;
+        const boxHeight = face.box.height;
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+        
+        // Calculate face percentage of total frame
+        const faceAreaPercentage = (boxWidth * boxHeight) / (videoWidth * videoHeight) * 100;
+        
+        if (faceAreaPercentage > 25 && !faceTooLarge) {
+          setFaceTooLarge(true);
+          toast({
+            title: "Warning",
+            description: "You are too close to the camera. Please move back.",
+            variant: "destructive"
+          });
+        } else if (faceAreaPercentage <= 25 && faceTooLarge) {
+          setFaceTooLarge(false);
+        }
         
         // Check if person has changed (identity verification)
         if (faceBenchmark) {
@@ -433,5 +474,6 @@ export function useProctoring() {
     stopRecording,
     getRecordedVideo,
     cameraStream,
+    faceTooLarge
   };
 }

@@ -25,6 +25,7 @@ const ProctoringSplash = () => {
     requestCameraAccess,
     checkEnvironment,
     startRecording,
+    faceTooLarge
   } = useProctoring();
   
   useEffect(() => {
@@ -66,6 +67,14 @@ const ProctoringSplash = () => {
       setStep('ready');
     } else {
       console.log("Environment check failed");
+      
+      if (faceTooLarge) {
+        toast({
+          title: "Too close to camera",
+          description: "You are too close to the camera. Please move back to ensure proper monitoring.",
+          variant: "destructive"
+        });
+      }
     }
   };
   
@@ -132,6 +141,13 @@ const ProctoringSplash = () => {
             <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-center space-x-2 text-red-700 dark:bg-red-950 dark:border-red-800 dark:text-red-300">
               <AlertTriangle className="h-5 w-5 flex-shrink-0" />
               <p>{error}</p>
+            </div>
+          )}
+          
+          {faceTooLarge && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-md flex items-center space-x-2 text-amber-700 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300">
+              <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+              <p>You appear to be too close to the camera. Please move back for a better view.</p>
             </div>
           )}
           
