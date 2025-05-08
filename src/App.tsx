@@ -58,7 +58,7 @@ function App() {
           <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
             <MobileRestriction />
             <Routes>
-              <Route path="/" element={<IndexPage />} />
+              <Route path="/" element={<Navigate to="/login" />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/student" element={<StudentDashboard />} />
               <Route path="/admin" element={<AdminDashboard />} />
