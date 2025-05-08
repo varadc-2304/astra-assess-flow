@@ -1,100 +1,52 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
-import { Clock } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
-type TimerProps = {
-  variant?: 'countdown' | 'assessment';
-  targetTime?: string; // ISO date string for countdown to start time
-  onCountdownEnd?: () => void;
-  value?: number; // For manually controlled timers (fullscreen warning)
-};
+interface TimerProps {
+  variant: 'assessment' | 'countdown';
+  startTime?: number;
+}
 
-export const Timer: React.FC<TimerProps> = ({ 
-  variant = 'assessment',
-  targetTime,
-  onCountdownEnd,
-  value
-}) => {
-  const { timeRemaining, setTimeRemaining, endAssessment } = useAssessment();
-  const [countdownTime, setCountdownTime] = useState<number | null>(null);
-  const navigate = useNavigate();
-  
-  // For countdown timer to assessment start
+export const Timer: React.FC<TimerProps> = ({ variant, startTime }) => {
+  const { timeRemaining, setTimeRemaining, endAssessment, assessment } = useAssessment();
+  const [duration, setDuration] = useState(startTime || 0);
+
   useEffect(() => {
-    if (variant === 'countdown' && targetTime) {
-      const intervalId = setInterval(() => {
-        const now = new Date().getTime();
-        const target = new Date(targetTime).getTime();
-        const distance = target - now;
-        
-        if (distance <= 0) {
-          clearInterval(intervalId);
-          setCountdownTime(0);
-          if (onCountdownEnd) onCountdownEnd();
-        } else {
-          setCountdownTime(Math.floor(distance / 1000));
-        }
-      }, 1000);
-      
-      return () => clearInterval(intervalId);
+    if (variant === 'countdown' && startTime) {
+      setDuration(startTime);
+      setTimeRemaining(startTime);
     }
-  }, [variant, targetTime, onCountdownEnd]);
-  
-  // For assessment timer countdown
+  }, [variant, startTime, setTimeRemaining]);
+
   useEffect(() => {
-    if (variant === 'assessment' && timeRemaining > 0) {
-      const intervalId = setInterval(() => {
+    let intervalId: NodeJS.Timeout;
+
+    if (variant === 'assessment' && assessment) {
+      setTimeRemaining(assessment.durationMinutes * 60);
+    }
+
+    if (timeRemaining > 0) {
+      intervalId = setInterval(() => {
+        // Fix: Pass a number directly rather than using a callback function
         setTimeRemaining(timeRemaining - 1);
-        
-        if (timeRemaining <= 1) {
-          // End assessment when time runs out
-          clearInterval(intervalId);
-          endAssessment().then(success => {
-            // Navigate to results page after assessment ends
-            if (success) {
-              navigate('/summary');
-            }
-          });
-        }
       }, 1000);
-      
-      return () => clearInterval(intervalId);
+    } else if (timeRemaining === 0 && variant === 'assessment') {
+      // Ensure endAssessment is a function before calling it
+      if (endAssessment && typeof endAssessment === 'function') {
+        endAssessment();
+      }
     }
-  }, [variant, timeRemaining, setTimeRemaining, endAssessment, navigate]);
-  
-  // Format seconds to hh:mm:ss
-  const formatTime = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    return [
-      hours.toString().padStart(2, '0'),
-      minutes.toString().padStart(2, '0'),
-      secs.toString().padStart(2, '0')
-    ].join(':');
+
+    return () => clearInterval(intervalId);
+  }, [timeRemaining, setTimeRemaining, endAssessment, variant, assessment]);
+
+  const formatTime = (timeInSeconds: number): string => {
+    const minutes = Math.floor(timeInSeconds / 60);
+    const seconds = timeInSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
-  
-  // Calculate warning thresholds
-  const getColorClass = (): string => {
-    if (variant === 'assessment') {
-      if (timeRemaining <= 300) return 'text-red-500'; // Last 5 minutes
-      if (timeRemaining <= 600) return 'text-orange-500'; // Last 10 minutes
-    }
-    return 'text-astra-darkGray';
-  };
-  
-  // Determine what time to display
-  const displayTime = variant === 'countdown' 
-    ? (countdownTime !== null ? formatTime(countdownTime) : '--:--:--')
-    : value !== undefined ? formatTime(value) : formatTime(timeRemaining);
-  
+
   return (
-    <div className={`flex items-center gap-2 font-mono text-lg font-bold ${getColorClass()}`}>
-      <Clock className="h-5 w-5" />
-      <span>{displayTime}</span>
-    </div>
+    <span>{formatTime(timeRemaining)}</span>
   );
 };

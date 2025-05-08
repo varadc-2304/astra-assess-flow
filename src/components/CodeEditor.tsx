@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,7 +26,7 @@ export interface CodeEditorProps {
 
 const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarksUpdate, onTestResultsUpdate }) => {
   const [selectedLanguage, setSelectedLanguage] = useState<string>(
-    Object.keys(question.solutionTemplate)[0] || 'python'
+    Object.keys(question.solutionTemplate || {})[0] || 'python'
   );
   const [output, setOutput] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
@@ -38,8 +37,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const { user } = useAuth();
   
   const [currentCode, setCurrentCode] = useState<string>(
-    question.userSolution[selectedLanguage] ||
-    question.solutionTemplate[selectedLanguage] ||
+    (question.userSolution && question.userSolution[selectedLanguage]) ||
+    (question.solutionTemplate && question.solutionTemplate[selectedLanguage]) ||
     ''
   );
 
@@ -47,7 +46,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   useEffect(() => {
     const fetchTemplate = async () => {
       setIsLoadingTemplate(true);
-      const availableLanguages = Object.keys(question.solutionTemplate);
+      const availableLanguages = Object.keys(question.solutionTemplate || {});
       if (availableLanguages.length === 0) return;
 
       const newLanguage = availableLanguages.includes(selectedLanguage)
@@ -77,7 +76,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         }
 
         // If no saved code, get the template or use existing solution
-        if (question.userSolution[newLanguage]) {
+        if (question.userSolution && question.userSolution[newLanguage]) {
           setCurrentCode(question.userSolution[newLanguage]);
         } else {
           const { data, error } = await supabase
@@ -583,25 +582,26 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     }
   };
 
+  // Fix the editor options to use correct type for lightbulb.enabled
   const editorOptions = {
     minimap: { enabled: true },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    wordWrap: 'on' as 'on',
+    wordWrap: 'on' as const,
     automaticLayout: true,
     tabSize: 2,
     formatOnPaste: true,
     formatOnType: false,
-    autoIndent: 'advanced' as 'advanced',
+    autoIndent: 'advanced' as const,
     quickSuggestions: true,
     suggestOnTriggerCharacters: true,
     fixedOverflowWidgets: true,
-    cursorBlinking: 'smooth' as 'smooth',
-    cursorSmoothCaretAnimation: 'off' as 'off',
-    cursorStyle: 'line' as 'line',
+    cursorBlinking: 'smooth' as const,
+    cursorSmoothCaretAnimation: 'off' as const,
+    cursorStyle: 'line' as const,
     mouseWheelZoom: true,
-    renderWhitespace: 'selection' as 'selection',
-    renderLineHighlight: 'all' as 'all',
+    renderWhitespace: 'selection' as const,
+    renderLineHighlight: 'all' as const,
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
     lightbulb: { enabled: 'auto' }
