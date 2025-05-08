@@ -40,6 +40,12 @@ function MobileRestriction() {
           <p className="text-sm text-gray-400">(Minimum required: {MOBILE_BREAKPOINT}px)</p>
         </div>
       </div>
+      <Button 
+        className="bg-amber-500 hover:bg-amber-600 text-white"
+        onClick={() => window.location.href = "https://lovable.dev"}
+      >
+        Exit Platform
+      </Button>
     </div>
   );
 }
@@ -52,6 +58,7 @@ function App() {
           <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
             <MobileRestriction />
             <Routes>
+              <Route path="/" element={<IndexPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/student" element={<StudentDashboard />} />
               <Route path="/admin" element={<AdminDashboard />} />
