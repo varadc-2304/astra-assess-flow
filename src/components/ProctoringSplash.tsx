@@ -12,6 +12,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 const ProctoringSplash = () => {
   const [step, setStep] = useState<'intro' | 'camera' | 'environment' | 'ready'>('intro');
   const [error, setError] = useState<string | null>(null);
+  const [environmentCheckAttempts, setEnvironmentCheckAttempts] = useState(0);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { assessment, startAssessment } = useAssessment();
@@ -60,11 +61,18 @@ const ProctoringSplash = () => {
       return;
     }
     
+    // Increment check attempts
+    setEnvironmentCheckAttempts(prev => prev + 1);
+    
     console.log("Starting environment check...");
     const passed = await checkEnvironment();
     if (passed) {
       console.log("Environment check passed");
       setStep('ready');
+      toast({
+        title: "Success",
+        description: "Environment check passed! You're ready to start the assessment."
+      });
     } else {
       console.log("Environment check failed");
       
@@ -74,12 +82,20 @@ const ProctoringSplash = () => {
           description: "You are too close to the camera. Please move back to ensure proper monitoring.",
           variant: "destructive"
         });
+      } else if (environmentCheckAttempts >= 3) {
+        // Allow proceeding after 3 failed attempts
+        toast({
+          title: "Multiple check attempts",
+          description: "You've made multiple attempts. You may proceed, but ensure you're visible during the assessment.",
+          variant: "warning"
+        });
+        setStep('ready');
       }
     }
   };
   
   const handleStartAssessment = () => {
-    if (!environmentCheckPassed) {
+    if (!environmentCheckPassed && environmentCheckAttempts < 3) {
       toast({
         title: "Environment check required",
         description: "Please complete the environment check before starting.",
@@ -209,11 +225,11 @@ const ProctoringSplash = () => {
                   )}
                 </div>
                 
-                <div className={`p-3 flex items-center justify-between rounded-md border ${environmentCheckPassed ? 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900' : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'}`}>
+                <div className={`p-3 flex items-center justify-between rounded-md border ${environmentCheckPassed || environmentCheckAttempts >= 3 ? 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900' : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'}`}>
                   <div className="flex items-center">
                     <span className="mr-2 font-medium">Environment Check</span>
                   </div>
-                  {environmentCheckPassed ? (
+                  {environmentCheckPassed || environmentCheckAttempts >= 3 ? (
                     <Check className="h-5 w-5 text-green-500" />
                   ) : (
                     <X className="h-5 w-5 text-gray-400" />
@@ -229,6 +245,7 @@ const ProctoringSplash = () => {
                     <li>Don't use virtual backgrounds</li>
                     <li>Avoid looking away from the screen</li>
                     <li>Any violations will be recorded</li>
+                    {faceTooLarge && <li className="text-amber-600 font-medium">Move back from the camera</li>}
                   </ul>
                 </div>
               </div>
@@ -262,7 +279,7 @@ const ProctoringSplash = () => {
             </Button>
           )}
           
-          {step === 'ready' && environmentCheckPassed && (
+          {step === 'ready' && (environmentCheckPassed || environmentCheckAttempts >= 3) && (
             <Button 
               onClick={handleStartAssessment}
               variant="default"

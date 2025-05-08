@@ -131,11 +131,14 @@ export const AssessmentProvider = ({ children }: { children: React.ReactNode }) 
     try {
       console.log("Fetching assessment with code:", code);
       
+      // Store assessment code in localStorage for later use
+      localStorage.setItem('assessmentCode', code);
+      
       // Fetch assessment from database
       const { data: assessmentData, error: assessmentError } = await supabase
         .from('assessments')
         .select('*')
-        .eq('code', code)
+        .eq('code', code.toUpperCase())
         .single();
         
       if (assessmentError) {

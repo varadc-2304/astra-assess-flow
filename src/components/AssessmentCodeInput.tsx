@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { supabase } from '@/integrations/supabase/client';
+import { Loader2 } from 'lucide-react';
 
 const AssessmentCodeInput = () => {
   const [code, setCode] = useState('');
@@ -19,72 +20,40 @@ const AssessmentCodeInput = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!code.trim()) {
+      toast({
+        title: "Missing Code",
+        description: "Please enter an assessment code.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setLoading(true);
 
     try {
-      // Check if the assessment exists and get its details
-      const { data: assessmentData, error: assessmentError } = await supabase
-        .from('assessments')
-        .select('*')
-        .eq('code', code.trim().toUpperCase())
-        .single();
-
-      if (assessmentError || !assessmentData) {
-        toast({
-          title: "Invalid Code",
-          description: "Please check the assessment code and try again.",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Check if user has already completed this assessment
-      const { data: results, error: resultsError } = await supabase
-        .from('results')
-        .select('*')
-        .eq('user_id', user?.id)
-        .eq('assessment_id', assessmentData.id);
-
-      if (resultsError) {
-        console.error('Error checking previous attempts:', resultsError);
-        toast({
-          title: "Error",
-          description: "Failed to verify your previous attempts. Please try again.",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
-      // If results exist and reattempt is not allowed, prevent access
-      if (results && results.length > 0 && !assessmentData.reattempt) {
-        toast({
-          title: "Assessment Already Completed",
-          description: "You have already completed this assessment and retakes are not allowed.",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Load the assessment and navigate to instructions
-      const success = await loadAssessment(code);
+      console.log("Verifying assessment code:", code);
+      
+      // Store code for later use
+      localStorage.setItem('assessmentCode', code.trim().toUpperCase());
+      
+      // Attempt to load the assessment
+      const success = await loadAssessment(code.trim().toUpperCase());
       
       if (success) {
         toast({
-          title: "Assessment Loaded",
+          title: "Assessment Found",
           description: "The assessment has been loaded successfully.",
         });
         navigate('/instructions');
       } else {
         toast({
-          title: "Error",
-          description: "Failed to load assessment. Please check the code and try again.",
+          title: "Invalid Code",
+          description: "Please check the assessment code and try again.",
           variant: "destructive",
         });
       }
-
     } catch (error) {
       console.error('Error verifying assessment code:', error);
       toast({
@@ -115,7 +84,12 @@ const AssessmentCodeInput = () => {
             disabled={loading}
           />
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Verifying..." : "Start Assessment"}
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Verifying...
+              </>
+            ) : "Start Assessment"}
           </Button>
         </form>
       </CardContent>

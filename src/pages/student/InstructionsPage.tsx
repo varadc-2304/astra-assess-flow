@@ -14,7 +14,6 @@ const InstructionsPage = () => {
     error: assessmentError, 
     loadAssessment 
   } = useAssessment();
-  const [assessmentCode, setAssessmentCode] = useState('');
   const [enableProctoring, setEnableProctoring] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -24,7 +23,6 @@ const InstructionsPage = () => {
     // Get assessment code from localStorage
     const code = localStorage.getItem('assessmentCode');
     if (code) {
-      setAssessmentCode(code);
       console.log("Found assessment code in localStorage:", code);
       // Call loadAssessment and handle any issues
       loadAssessment(code).then(success => {

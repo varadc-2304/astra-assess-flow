@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
@@ -38,9 +37,12 @@ export function useProctoring() {
   useEffect(() => {
     const initializeTf = async () => {
       try {
+        console.log("Initializing TensorFlow.js...");
         await tf.ready();
+        console.log("TensorFlow.js initialized");
         
         // Load face detection model
+        console.log("Loading face detection model...");
         const faceModel = await faceDetection.createDetector(
           faceDetection.SupportedModels.MediaPipeFaceDetector,
           {
@@ -49,8 +51,10 @@ export function useProctoring() {
           }
         );
         setFaceModel(faceModel);
+        console.log("Face detection model loaded");
         
         // Load pose detection model
+        console.log("Loading pose detection model...");
         const poseModel = await poseDetection.createDetector(
           poseDetection.SupportedModels.MoveNet,
           {
@@ -59,6 +63,7 @@ export function useProctoring() {
           }
         );
         setPoseModel(poseModel);
+        console.log("Pose detection model loaded");
         
         setLoadingModels(false);
       } catch (error) {
@@ -83,6 +88,7 @@ export function useProctoring() {
   // Request camera access
   const requestCameraAccess = async () => {
     try {
+      console.log("Requesting camera access...");
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           width: { ideal: 640 },
@@ -102,6 +108,7 @@ export function useProctoring() {
         };
       }
       
+      console.log("Camera access granted");
       return stream;
     } catch (error) {
       console.error('Error accessing camera:', error);
@@ -117,6 +124,7 @@ export function useProctoring() {
   // Check environment (good lighting, clear face visibility)
   const checkEnvironment = async () => {
     if (!faceModel || !videoRef.current || !cameraStream) {
+      console.log("Missing requirements for environment check");
       return false;
     }
     
@@ -126,17 +134,20 @@ export function useProctoring() {
       
       // Make sure video is playing and has dimensions
       if (videoEl.paused || videoEl.videoWidth === 0 || videoEl.videoHeight === 0) {
+        console.log("Video is not playing or has no dimensions");
         return false;
       }
       
+      console.log("Detecting faces...");
       // Detect faces in the current frame
       const faces = await faceModel.estimateFaces(videoEl);
+      console.log(`Detected ${faces.length} faces`);
       
       // Environment checks
       if (faces.length === 0) {
         toast({
           title: "No face detected",
-          description: "Make sure your face is visible in the camera.",
+          description: "Make sure your face is clearly visible in the camera.",
           variant: "destructive"
         });
         return false;
@@ -162,17 +173,18 @@ export function useProctoring() {
       const faceAreaPercentage = (boxWidth * boxHeight) / (videoWidth * videoHeight) * 100;
       console.log("Face area percentage:", faceAreaPercentage);
       
-      if (boxWidth < 100 || boxHeight < 100) {
+      // Check if face is too small (too far from camera)
+      if (boxWidth < 60 || boxHeight < 60) {
         toast({
           title: "Face too small",
-          description: "Please move closer to the camera.",
+          description: "Please move closer to the camera for better visibility.",
           variant: "destructive"
         });
         return false;
       }
       
       // Check if face is too large (too close to camera)
-      if (faceAreaPercentage > 25) {
+      if (faceAreaPercentage > 20) {
         setFaceTooLarge(true);
         toast({
           title: "Too close to camera",
@@ -219,6 +231,7 @@ export function useProctoring() {
   // Start recording
   const startRecording = () => {
     if (!cameraStream || !videoRef.current) {
+      console.log("Missing requirements for recording");
       return;
     }
     
@@ -240,6 +253,7 @@ export function useProctoring() {
       
       // Start AI monitoring
       startMonitoring();
+      console.log("Recording and monitoring started");
     } catch (error) {
       console.error('Error starting recording:', error);
       toast({
@@ -261,6 +275,7 @@ export function useProctoring() {
         clearInterval(monitoringIntervalRef.current);
         monitoringIntervalRef.current = null;
       }
+      console.log("Recording and monitoring stopped");
     }
     
     // Release camera stream
@@ -268,6 +283,7 @@ export function useProctoring() {
       cameraStream.getTracks().forEach(track => track.stop());
       setCameraStream(null);
       setCameraAccess(false);
+      console.log("Camera stream released");
     }
   };
 
@@ -299,6 +315,7 @@ export function useProctoring() {
   // Continuous AI monitoring
   const startMonitoring = () => {
     if (!faceModel || !poseModel || !videoRef.current) {
+      console.log("Missing requirements for monitoring");
       return;
     }
     
@@ -367,14 +384,14 @@ export function useProctoring() {
         // Calculate face percentage of total frame
         const faceAreaPercentage = (boxWidth * boxHeight) / (videoWidth * videoHeight) * 100;
         
-        if (faceAreaPercentage > 25 && !faceTooLarge) {
+        if (faceAreaPercentage > 20 && !faceTooLarge) {
           setFaceTooLarge(true);
           toast({
             title: "Warning",
             description: "You are too close to the camera. Please move back.",
             variant: "destructive"
           });
-        } else if (faceAreaPercentage <= 25 && faceTooLarge) {
+        } else if (faceAreaPercentage <= 20 && faceTooLarge) {
           setFaceTooLarge(false);
         }
         
