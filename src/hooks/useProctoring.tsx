@@ -155,7 +155,7 @@ export function useProctoring() {
       const boxWidth = face.box.width;
       const boxHeight = face.box.height;
       
-      if (boxWidth < 100 || boxHeight < 100) {
+      if (boxWidth < 10 || boxHeight < 10) {
         toast({
           title: "Face too small",
           description: "Please move closer to the camera.",
