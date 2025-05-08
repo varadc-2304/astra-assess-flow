@@ -40,12 +40,6 @@ function MobileRestriction() {
           <p className="text-sm text-gray-400">(Minimum required: {MOBILE_BREAKPOINT}px)</p>
         </div>
       </div>
-      <Button 
-        className="bg-amber-500 hover:bg-amber-600 text-white"
-        onClick={() => window.location.href = "https://lovable.dev"}
-      >
-        Exit Platform
-      </Button>
     </div>
   );
 }
