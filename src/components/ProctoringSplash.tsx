@@ -3,12 +3,13 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Video, Check, AlertTriangle, X, ShieldAlert, Eye, Camera } from 'lucide-react';
+import { Loader2, Video, Check, AlertTriangle, X, ShieldAlert, Eye, Camera, Cpu } from 'lucide-react';
 import { useProctoring } from '@/hooks/useProctoring';
 import { useToast } from '@/hooks/use-toast';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const ProctoringSplash = () => {
   const [step, setStep] = useState<'intro' | 'camera' | 'environment' | 'ready'>('intro');
@@ -34,7 +35,8 @@ const ProctoringSplash = () => {
     faceTooClose,
     isLookingAway,
     modelLoadingProgress,
-    isModelReady
+    isModelReady,
+    fallbackMode
   } = useProctoring();
   
   // Setup progress calculation
@@ -78,6 +80,31 @@ const ProctoringSplash = () => {
       navigate('/student');
     }
   }, [assessment, navigate]);
+
+  // Effect to check if camera is actually working
+  useEffect(() => {
+    let checkTimer: number;
+    
+    if (cameraAccess && videoRef.current) {
+      // Give the camera a moment to initialize and then check if it's working
+      checkTimer = window.setTimeout(() => {
+        if (videoRef.current && 
+           (videoRef.current.videoWidth === 0 || 
+            videoRef.current.videoHeight === 0)) {
+          console.log("Video element not showing camera feed despite camera access being granted");
+          toast({
+            title: "Camera Issue",
+            description: "Your camera appears to be on but not showing video. Try refreshing the page or using a different browser.",
+            variant: "destructive"
+          });
+        }
+      }, 3000);
+    }
+    
+    return () => {
+      if (checkTimer) clearTimeout(checkTimer);
+    };
+  }, [cameraAccess, videoRef, toast]);
   
   const handleCameraAccess = async () => {
     setStep('camera');
@@ -110,6 +137,7 @@ const ProctoringSplash = () => {
     
     console.log("Starting environment check...");
     const passed = await checkEnvironment();
+    
     if (passed) {
       console.log("Environment check passed");
       setStep('ready');
@@ -204,6 +232,17 @@ const ProctoringSplash = () => {
             </div>
           )}
           
+          {fallbackMode && (
+            <Alert variant="warning" className="bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-800">
+              <div className="flex items-center">
+                <Cpu className="h-4 w-4 mr-2 text-amber-500" />
+                <AlertDescription className="text-amber-800 dark:text-amber-300">
+                  Running in CPU mode - Face detection may be slower than usual.
+                </AlertDescription>
+              </div>
+            </Alert>
+          )}
+          
           <div className="flex flex-col md:flex-row gap-6">
             <div className="flex-1 space-y-4">
               <div className="rounded-lg overflow-hidden bg-black relative h-80 flex items-center justify-center">
@@ -223,6 +262,17 @@ const ProctoringSplash = () => {
                       className="absolute inset-0 pointer-events-none"
                       style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                     />
+                    
+                    {/* Face positioning guide overlay */}
+                    {cameraAccess && detectedFaces.length === 0 && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <div className="border-2 border-dashed border-yellow-400 w-1/2 h-2/3 rounded-full opacity-60 flex items-center justify-center">
+                          <div className="text-white text-center bg-black/50 p-2 rounded">
+                            <p>Position your face here</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
                 
@@ -257,6 +307,20 @@ const ProctoringSplash = () => {
                 {detectedFaces.length > 1 && step === 'environment' && (
                   <div className="absolute bottom-0 left-0 right-0 bg-amber-500/80 text-white p-2 text-center text-sm">
                     Multiple faces detected. Only one person should be visible.
+                  </div>
+                )}
+                
+                {cameraAccess && videoRef.current && 
+                 (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) && (
+                  <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                    <div className="text-white text-center p-4">
+                      <AlertTriangle className="h-10 w-10 text-yellow-400 mx-auto mb-2" />
+                      <p className="font-bold mb-1">Camera issue detected</p>
+                      <p className="text-sm mb-2">Your camera appears to be on but not showing video.</p>
+                      <div className="text-xs">
+                        Try refreshing the page or using a different browser.
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -331,6 +395,23 @@ const ProctoringSplash = () => {
                       <li>Avoid very bright backgrounds or backlighting</li>
                       <li>Look directly at the screen</li>
                       <li>Stay centered in the frame</li>
+                    </ul>
+                  </div>
+                )}
+                
+                {cameraAccess && detectedFaces.length === 0 && (
+                  <div className="mt-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md p-4">
+                    <h4 className="font-medium mb-2 flex items-center">
+                      <AlertTriangle className="h-4 w-4 mr-2 text-amber-500" />
+                      Troubleshooting Face Detection
+                    </h4>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                      <li>Make sure your face is well-lit from the front</li>
+                      <li>Avoid backlighting (like sitting with a window behind you)</li>
+                      <li>Try moving closer to the camera</li>
+                      <li>Ensure your entire face is visible</li>
+                      <li>Remove face coverings if possible</li>
+                      <li>Try a different browser if problems persist</li>
                     </ul>
                   </div>
                 )}

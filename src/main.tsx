@@ -10,6 +10,12 @@ tf.ready().then(() => {
   console.log("TensorFlow initialized early");
 }).catch(err => {
   console.error("Error initializing TensorFlow:", err);
+  // Try to fall back to CPU backend if WebGL initialization fails
+  tf.setBackend('cpu').then(() => {
+    console.log("TensorFlow initialized with CPU fallback");
+  }).catch(cpuErr => {
+    console.error("Error initializing TensorFlow with CPU fallback:", cpuErr);
+  });
 });
 
 // Make MOBILE_BREAKPOINT accessible globally

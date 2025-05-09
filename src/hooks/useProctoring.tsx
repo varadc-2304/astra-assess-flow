@@ -1,18 +1,17 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
 import * as poseDetection from '@tensorflow-models/pose-detection';
 import { useToast } from '@/hooks/use-toast';
 
-// Constants for detection - adjusted thresholds for better detection
-const FACE_SIZE_THRESHOLD = 0.35; // If face takes up more than 35% of screen height, it's too close
-const FACE_DISTANCE_THRESHOLD = 0.05; // If face takes up less than 5% of screen height, it's too far
-const GAZE_DEVIATION_THRESHOLD = 0.2; // Maximum allowed head deviation from center (as fraction of image width)
-const FACE_CONFIDENCE_THRESHOLD = 0.6; // Lower threshold for face detection to be more permissive
-const POSE_CONFIDENCE_THRESHOLD = 0.3; // Minimum confidence for pose keypoints
-const MIN_FACE_LANDMARKS = 2; // Reduced minimum number of facial landmarks for valid detection
-const DETECTION_INTERVAL = 300; // Run detection more frequently (in ms)
+// Constants for detection - adjusted for better detection
+const FACE_SIZE_THRESHOLD = 0.25; // Reduced from 0.35 to be less sensitive
+const FACE_DISTANCE_THRESHOLD = 0.03; // Reduced from 0.05 to be less sensitive
+const GAZE_DEVIATION_THRESHOLD = 0.25; // Increased from 0.2 to be less sensitive
+const FACE_CONFIDENCE_THRESHOLD = 0.5; // Reduced from 0.6 to be less strict
+const POSE_CONFIDENCE_THRESHOLD = 0.2; // Reduced from 0.3 to be less strict
+const MIN_FACE_LANDMARKS = 1; // Reduced from 2 to be more permissive
+const DETECTION_INTERVAL = 500; // Detection interval in ms
 
 // Violation types
 export type ViolationType = 'no_face' | 'multiple_faces' | 'looking_away' | 'unusual_posture' | 'person_switched' | 'face_too_close' | 'face_too_far';
@@ -61,6 +60,7 @@ export function useProctoring() {
   const [faceTooFar, setFaceTooFar] = useState<boolean>(false);
   const [isLookingAway, setIsLookingAway] = useState<boolean>(false);
   const [isModelReady, setIsModelReady] = useState<boolean>(false);
+  const [fallbackMode, setFallbackMode] = useState<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -81,20 +81,45 @@ export function useProctoring() {
       try {
         logDebug('Initializing TensorFlow');
         setModelLoadingProgress(5);
+        
+        // Force CPU backend if WebGL initialization fails
+        try {
+          await tf.setBackend('webgl');
+          const webglContext = await tf.backend().getGPGPUContext();
+          if (!webglContext) throw new Error('WebGL context not available');
+        } catch (e) {
+          logDebug('WebGL initialization failed, falling back to CPU', e);
+          await tf.setBackend('cpu');
+          setFallbackMode(true);
+          toast({
+            title: "Performance Notice",
+            description: "Using CPU mode for AI processing. This may be slower.",
+            variant: "default"
+          });
+        }
+        
         await tf.ready();
         setModelLoadingProgress(20);
-        logDebug('TensorFlow initialized');
+        logDebug('TensorFlow initialized with backend:', tf.getBackend());
         
         // Load face detection model
         setModelLoadingProgress(25);
         logDebug('Loading face detection model');
+        const faceModelOptions = fallbackMode
+          ? {
+              runtime: 'tfjs' as const,
+              maxFaces: 4,
+              modelType: 'short' as const,
+            }
+          : {
+              runtime: 'tfjs' as const,
+              maxFaces: 4,
+              modelType: 'short' as const,
+            };
+            
         const faceModel = await faceDetection.createDetector(
           faceDetection.SupportedModels.MediaPipeFaceDetector,
-          {
-            runtime: 'tfjs',
-            maxFaces: 4,
-            modelType: 'short',
-          }
+          faceModelOptions
         );
         setFaceModel(faceModel);
         setModelLoadingProgress(60);
@@ -102,26 +127,71 @@ export function useProctoring() {
         
         // Load pose detection model
         logDebug('Loading pose detection model');
-        const poseModel = await poseDetection.createDetector(
-          poseDetection.SupportedModels.MoveNet,
-          {
-            modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
-            enableSmoothing: true,
-          }
-        );
-        setPoseModel(poseModel);
-        setModelLoadingProgress(100);
+        try {
+          const poseModel = await poseDetection.createDetector(
+            poseDetection.SupportedModels.MoveNet,
+            {
+              modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+              enableSmoothing: true,
+            }
+          );
+          setPoseModel(poseModel);
+          logDebug('Pose detection model loaded');
+        } catch (error) {
+          logDebug('Failed to load pose detection model, continuing without it', error);
+          // Continue without pose detection
+        }
         
+        setModelLoadingProgress(100);
         setLoadingModels(false);
         setIsModelReady(true);
         logDebug("AI models loaded successfully");
       } catch (error) {
         console.error('Error loading TensorFlow models:', error);
-        toast({
-          title: "Error",
-          description: "Failed to initialize AI proctoring models. Please refresh the page and try again.",
-          variant: "destructive"
-        });
+        
+        // Attempt to load with CPU backend as fallback
+        if (!fallbackMode) {
+          logDebug('Attempting to initialize with CPU backend');
+          setFallbackMode(true);
+          try {
+            await tf.setBackend('cpu');
+            await tf.ready();
+            logDebug('TensorFlow initialized with CPU backend');
+            
+            // Continue with model loading on CPU
+            const faceModel = await faceDetection.createDetector(
+              faceDetection.SupportedModels.MediaPipeFaceDetector,
+              {
+                runtime: 'tfjs',
+                maxFaces: 4,
+                modelType: 'short',
+              }
+            );
+            setFaceModel(faceModel);
+            setModelLoadingProgress(100);
+            setLoadingModels(false);
+            setIsModelReady(true);
+            
+            toast({
+              title: "Limited AI Functionality",
+              description: "Using basic face detection only. Some features may be limited.",
+              variant: "default"
+            });
+          } catch (cpuError) {
+            console.error('Error loading TensorFlow with CPU fallback:', cpuError);
+            toast({
+              title: "Error",
+              description: "Failed to initialize AI proctoring. Your browser may not be compatible.",
+              variant: "destructive"
+            });
+          }
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to initialize AI proctoring models. Please refresh the page and try again.",
+            variant: "destructive"
+          });
+        }
       }
     };
     
@@ -136,7 +206,7 @@ export function useProctoring() {
         clearInterval(detectionIntervalRef.current);
       }
     };
-  }, []);
+  }, [fallbackMode]);
 
   // Request camera access
   const requestCameraAccess = async () => {
@@ -157,9 +227,11 @@ export function useProctoring() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play().catch(err => {
-            logDebug('Error playing video:', err);
-          });
+          if (videoRef.current) {
+            videoRef.current.play().catch(err => {
+              logDebug('Error playing video:', err);
+            });
+          }
         };
       }
       
@@ -187,7 +259,6 @@ export function useProctoring() {
     
     logDebug('Starting continuous detection');
     
-    // Run detection more frequently for better user experience
     detectionIntervalRef.current = window.setInterval(async () => {
       if (!videoRef.current || videoRef.current.paused || !faceModel) return;
       
@@ -197,6 +268,9 @@ export function useProctoring() {
           logDebug('Video dimensions not ready');
           return;
         }
+        
+        // Log video dimensions
+        logDebug(`Video dimensions: ${videoRef.current.videoWidth}x${videoRef.current.videoHeight}`);
 
         // Detect faces
         logDebug('Running face detection');
@@ -235,8 +309,12 @@ export function useProctoring() {
         
         // Detect pose if poseModel is available
         if (poseModel) {
-          const poses = await poseModel.estimatePoses(videoRef.current);
-          setDetectedPose(poses.length > 0 ? poses[0] : null);
+          try {
+            const poses = await poseModel.estimatePoses(videoRef.current);
+            setDetectedPose(poses.length > 0 ? poses[0] : null);
+          } catch (error) {
+            logDebug('Error detecting poses:', error);
+          }
         }
       } catch (error) {
         console.error('Error during continuous detection:', error);
@@ -265,6 +343,8 @@ export function useProctoring() {
       
       // Make sure video is playing and has dimensions
       if (videoEl.paused || videoEl.videoWidth === 0 || videoEl.videoHeight === 0) {
+        logDebug('Video not ready - paused:', videoEl.paused, 'dimensions:', videoEl.videoWidth, 'x', videoEl.videoHeight);
+        
         toast({
           title: "Video not ready",
           description: "Please ensure your camera is working properly.",
@@ -275,7 +355,7 @@ export function useProctoring() {
       
       // Run face detection to get latest results
       const faces = await faceModel.estimateFaces(videoEl);
-      logDebug(`Environment check detected ${faces.length} faces`);
+      logDebug(`Environment check detected ${faces.length} faces`, faces);
       
       // Update the state with the detection results
       setDetectedFaces(faces as unknown as DetectedFace[]);
@@ -327,39 +407,6 @@ export function useProctoring() {
         });
         return false;
       }
-      
-      // Check if face confidence is high enough
-      if (face.score < FACE_CONFIDENCE_THRESHOLD) {
-        toast({
-          title: "Face not clear",
-          description: "Please ensure better lighting and clear visibility of your face.",
-          variant: "destructive"
-        });
-        return false;
-      }
-      
-      // Check if enough facial landmarks are detected
-      if (!face.keypoints || face.keypoints.length < MIN_FACE_LANDMARKS) {
-        toast({
-          title: "Face landmarks not detected",
-          description: "Please ensure your full face is visible in good lighting.",
-          variant: "destructive"
-        });
-        return false;
-      }
-      
-      // Store facial features as benchmark for identity verification later
-      const tensorFace = tf.browser.fromPixels(videoEl);
-      const normalizedFace = tf.div(tensorFace, 255);
-      const resizedFace = tf.image.resizeBilinear(normalizedFace as tf.Tensor3D, [128, 128]);
-      const faceTensor = resizedFace.reshape([128 * 128 * 3]);
-      setFaceBenchmark(faceTensor.dataSync() as Float32Array);
-      
-      // Clean up tensors
-      tensorFace.dispose();
-      normalizedFace.dispose();
-      resizedFace.dispose();
-      faceTensor.dispose();
       
       // All checks passed
       setEnvironmentCheckPassed(true);
@@ -488,16 +535,38 @@ export function useProctoring() {
       ctx.textAlign = 'center';
       ctx.fillText('No face detected - please position yourself in view', canvas.width / 2, canvas.height / 2);
       
-      // Draw a helpful face outline
-      ctx.strokeStyle = 'yellow';
+      // Draw face positioning guides
+      ctx.strokeStyle = '#ffcc00';
       ctx.lineWidth = 2;
+      
+      // Draw oval face guide
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
-      const ovalWidth = canvas.width * 0.3;
-      const ovalHeight = canvas.height * 0.4;
+      const ovalWidth = canvas.width * 0.25;
+      const ovalHeight = canvas.height * 0.35;
       
       ctx.beginPath();
-      ctx.ellipse(centerX, centerY, ovalWidth / 2, ovalHeight / 2, 0, 0, 2 * Math.PI);
+      ctx.ellipse(centerX, centerY, ovalWidth, ovalHeight, 0, 0, 2 * Math.PI);
+      ctx.stroke();
+      
+      // Draw positioning box
+      ctx.setLineDash([5, 5]);
+      const boxWidth = canvas.width * 0.5;
+      const boxHeight = canvas.height * 0.6;
+      ctx.strokeRect(
+        centerX - boxWidth/2,
+        centerY - boxHeight/2,
+        boxWidth,
+        boxHeight
+      );
+      ctx.setLineDash([]);
+      
+      // Draw center crosshair
+      ctx.beginPath();
+      ctx.moveTo(centerX - 10, centerY);
+      ctx.lineTo(centerX + 10, centerY);
+      ctx.moveTo(centerX, centerY - 10);
+      ctx.lineTo(centerX, centerY + 10);
       ctx.stroke();
     }
   }, [detectedFaces, detectedPose, faceTooClose, faceTooFar, isLookingAway]);
@@ -795,6 +864,7 @@ export function useProctoring() {
     faceTooFar,
     isLookingAway,
     isModelReady,
+    fallbackMode,
     requestCameraAccess,
     checkEnvironment,
     startRecording,
