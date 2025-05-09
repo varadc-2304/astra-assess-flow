@@ -33,7 +33,8 @@ const ProctoringSplash = () => {
     detectedPose,
     faceTooClose,
     isLookingAway,
-    modelLoadingProgress
+    modelLoadingProgress,
+    isModelReady
   } = useProctoring();
   
   // Setup progress calculation
@@ -54,11 +55,13 @@ const ProctoringSplash = () => {
       const canvas = canvasRef.current;
       
       // Match canvas dimensions to video
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
-      // Draw annotations
-      drawFaceDetection(canvas);
+      if (video.videoWidth && video.videoHeight) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Draw annotations
+        drawFaceDetection(canvas);
+      }
       
       // Request next frame
       requestAnimationFrame(drawCanvas);
@@ -115,7 +118,7 @@ const ProctoringSplash = () => {
       if (faceTooClose) {
         setError('You appear to be too close to the camera. Please move back.');
       } else if (detectedFaces.length === 0) {
-        setError('No face detected. Please ensure your face is clearly visible.');
+        setError('No face detected. Please ensure your face is clearly visible and you have good lighting.');
       } else if (detectedFaces.length > 1) {
         setError('Multiple faces detected. Only one person should be visible.');
       } else if (isLookingAway) {
@@ -261,7 +264,7 @@ const ProctoringSplash = () => {
               {step === 'environment' && cameraAccess && (
                 <Button 
                   onClick={handleEnvironmentCheck}
-                  disabled={loadingModels}
+                  disabled={loadingModels || !isModelReady}
                   className="w-full"
                 >
                   {loadingModels ? (

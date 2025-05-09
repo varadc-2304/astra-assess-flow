@@ -5,13 +5,14 @@ import * as faceDetection from '@tensorflow-models/face-detection';
 import * as poseDetection from '@tensorflow-models/pose-detection';
 import { useToast } from '@/hooks/use-toast';
 
-// Constants for detection
-const FACE_SIZE_THRESHOLD = 0.3; // If face takes up more than 30% of screen height, it's too close
-const FACE_DISTANCE_THRESHOLD = 0.1; // If face takes up less than 10% of screen height, it's too far
-const GAZE_DEVIATION_THRESHOLD = 0.15; // Maximum allowed head deviation from center (as fraction of image width)
-const FACE_CONFIDENCE_THRESHOLD = 0.8; // Minimum confidence for face detection
+// Constants for detection - adjusted thresholds for better detection
+const FACE_SIZE_THRESHOLD = 0.35; // If face takes up more than 35% of screen height, it's too close
+const FACE_DISTANCE_THRESHOLD = 0.05; // If face takes up less than 5% of screen height, it's too far
+const GAZE_DEVIATION_THRESHOLD = 0.2; // Maximum allowed head deviation from center (as fraction of image width)
+const FACE_CONFIDENCE_THRESHOLD = 0.6; // Lower threshold for face detection to be more permissive
 const POSE_CONFIDENCE_THRESHOLD = 0.3; // Minimum confidence for pose keypoints
-const MIN_FACE_LANDMARKS = 3; // Minimum number of facial landmarks needed for valid detection
+const MIN_FACE_LANDMARKS = 2; // Reduced minimum number of facial landmarks for valid detection
+const DETECTION_INTERVAL = 300; // Run detection more frequently (in ms)
 
 // Violation types
 export type ViolationType = 'no_face' | 'multiple_faces' | 'looking_away' | 'unusual_posture' | 'person_switched' | 'face_too_close' | 'face_too_far';
@@ -59,6 +60,7 @@ export function useProctoring() {
   const [faceTooClose, setFaceTooClose] = useState<boolean>(false);
   const [faceTooFar, setFaceTooFar] = useState<boolean>(false);
   const [isLookingAway, setIsLookingAway] = useState<boolean>(false);
+  const [isModelReady, setIsModelReady] = useState<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -68,16 +70,24 @@ export function useProctoring() {
   
   const { toast } = useToast();
 
+  // Debug helper
+  const logDebug = (message: string, data?: any) => {
+    console.log(`[Proctoring] ${message}`, data || '');
+  };
+
   // Initialize TensorFlow and load models
   useEffect(() => {
     const initializeTf = async () => {
       try {
+        logDebug('Initializing TensorFlow');
         setModelLoadingProgress(5);
         await tf.ready();
         setModelLoadingProgress(20);
+        logDebug('TensorFlow initialized');
         
         // Load face detection model
         setModelLoadingProgress(25);
+        logDebug('Loading face detection model');
         const faceModel = await faceDetection.createDetector(
           faceDetection.SupportedModels.MediaPipeFaceDetector,
           {
@@ -88,8 +98,10 @@ export function useProctoring() {
         );
         setFaceModel(faceModel);
         setModelLoadingProgress(60);
+        logDebug('Face detection model loaded');
         
         // Load pose detection model
+        logDebug('Loading pose detection model');
         const poseModel = await poseDetection.createDetector(
           poseDetection.SupportedModels.MoveNet,
           {
@@ -101,7 +113,8 @@ export function useProctoring() {
         setModelLoadingProgress(100);
         
         setLoadingModels(false);
-        console.log("AI models loaded successfully");
+        setIsModelReady(true);
+        logDebug("AI models loaded successfully");
       } catch (error) {
         console.error('Error loading TensorFlow models:', error);
         toast({
@@ -128,6 +141,7 @@ export function useProctoring() {
   // Request camera access
   const requestCameraAccess = async () => {
     try {
+      logDebug('Requesting camera access');
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           width: { ideal: 640 },
@@ -143,13 +157,16 @@ export function useProctoring() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play();
+          videoRef.current?.play().catch(err => {
+            logDebug('Error playing video:', err);
+          });
         };
       }
       
       // Start continuous detection when camera is on
       startContinuousDetection();
       
+      logDebug('Camera access granted');
       return stream;
     } catch (error) {
       console.error('Error accessing camera:', error);
@@ -168,13 +185,25 @@ export function useProctoring() {
       clearInterval(detectionIntervalRef.current);
     }
     
-    // Run detection every 500ms
+    logDebug('Starting continuous detection');
+    
+    // Run detection more frequently for better user experience
     detectionIntervalRef.current = window.setInterval(async () => {
-      if (!videoRef.current || videoRef.current.paused || !faceModel || !poseModel) return;
+      if (!videoRef.current || videoRef.current.paused || !faceModel) return;
       
       try {
+        // Make sure video is properly initialized
+        if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
+          logDebug('Video dimensions not ready');
+          return;
+        }
+
         // Detect faces
+        logDebug('Running face detection');
         const faces = await faceModel.estimateFaces(videoRef.current);
+        logDebug(`Detected ${faces.length} faces`, faces);
+        
+        // Update the detected faces state
         setDetectedFaces(faces as unknown as DetectedFace[]);
         
         // Check if face is too close to the camera
@@ -183,6 +212,8 @@ export function useProctoring() {
           const faceHeight = face.box.height;
           const videoHeight = videoRef.current.videoHeight;
           const faceRatio = faceHeight / videoHeight;
+          
+          logDebug(`Face ratio: ${faceRatio}, height: ${faceHeight}, video height: ${videoHeight}`);
           
           setFaceTooClose(faceRatio > FACE_SIZE_THRESHOLD);
           setFaceTooFar(faceRatio < FACE_DISTANCE_THRESHOLD);
@@ -202,13 +233,15 @@ export function useProctoring() {
           setIsLookingAway(false);
         }
         
-        // Detect pose
-        const poses = await poseModel.estimatePoses(videoRef.current);
-        setDetectedPose(poses.length > 0 ? poses[0] : null);
+        // Detect pose if poseModel is available
+        if (poseModel) {
+          const poses = await poseModel.estimatePoses(videoRef.current);
+          setDetectedPose(poses.length > 0 ? poses[0] : null);
+        }
       } catch (error) {
         console.error('Error during continuous detection:', error);
       }
-    }, 500);
+    }, DETECTION_INTERVAL);
     
     return () => {
       if (detectionIntervalRef.current) {
@@ -221,10 +254,12 @@ export function useProctoring() {
   // Check environment (good lighting, clear face visibility)
   const checkEnvironment = async () => {
     if (!faceModel || !videoRef.current || !cameraStream) {
+      logDebug('Cannot check environment - model, video, or stream not ready');
       return false;
     }
     
     try {
+      logDebug('Checking environment');
       // Take a snapshot of the current video frame
       const videoEl = videoRef.current;
       
@@ -238,14 +273,18 @@ export function useProctoring() {
         return false;
       }
       
-      // Detect faces in the current frame
+      // Run face detection to get latest results
       const faces = await faceModel.estimateFaces(videoEl);
+      logDebug(`Environment check detected ${faces.length} faces`);
+      
+      // Update the state with the detection results
+      setDetectedFaces(faces as unknown as DetectedFace[]);
       
       // Environment checks
       if (faces.length === 0) {
         toast({
           title: "No face detected",
-          description: "Make sure your face is visible in the camera.",
+          description: "Make sure your face is visible in the camera and you have good lighting.",
           variant: "destructive"
         });
         return false;
@@ -267,6 +306,8 @@ export function useProctoring() {
       const faceHeight = face.box.height;
       const videoHeight = videoEl.videoHeight;
       const faceRatio = faceHeight / videoHeight;
+      
+      logDebug(`Face ratio: ${faceRatio}, threshold close: ${FACE_SIZE_THRESHOLD}, far: ${FACE_DISTANCE_THRESHOLD}`);
       
       if (faceRatio > FACE_SIZE_THRESHOLD) {
         toast({
@@ -307,20 +348,6 @@ export function useProctoring() {
         return false;
       }
       
-      // Check for looking away
-      const nose = face.keypoints.find(kp => kp.name === 'noseTip');
-      if (nose) {
-        const centerDeviation = Math.abs((nose.x / videoEl.videoWidth) - 0.5);
-        if (centerDeviation > GAZE_DEVIATION_THRESHOLD) {
-          toast({
-            title: "Looking away",
-            description: "Please look directly at the screen.",
-            variant: "destructive"
-          });
-          return false;
-        }
-      }
-      
       // Store facial features as benchmark for identity verification later
       const tensorFace = tf.browser.fromPixels(videoEl);
       const normalizedFace = tf.div(tensorFace, 255);
@@ -341,6 +368,7 @@ export function useProctoring() {
         description: "You may now start the assessment.",
       });
       
+      logDebug('Environment check passed');
       return true;
     } catch (error) {
       console.error('Error checking environment:', error);
@@ -451,6 +479,26 @@ export function useProctoring() {
           ctx.stroke();
         }
       });
+    }
+    
+    // Draw a help message if no face is detected
+    if (detectedFaces.length === 0) {
+      ctx.fillStyle = 'white';
+      ctx.font = '16px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('No face detected - please position yourself in view', canvas.width / 2, canvas.height / 2);
+      
+      // Draw a helpful face outline
+      ctx.strokeStyle = 'yellow';
+      ctx.lineWidth = 2;
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+      const ovalWidth = canvas.width * 0.3;
+      const ovalHeight = canvas.height * 0.4;
+      
+      ctx.beginPath();
+      ctx.ellipse(centerX, centerY, ovalWidth / 2, ovalHeight / 2, 0, 0, 2 * Math.PI);
+      ctx.stroke();
     }
   }, [detectedFaces, detectedPose, faceTooClose, faceTooFar, isLookingAway]);
 
@@ -746,6 +794,7 @@ export function useProctoring() {
     faceTooClose,
     faceTooFar,
     isLookingAway,
+    isModelReady,
     requestCameraAccess,
     checkEnvironment,
     startRecording,
