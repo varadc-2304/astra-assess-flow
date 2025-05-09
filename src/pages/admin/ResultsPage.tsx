@@ -20,6 +20,11 @@ interface UserFilters {
   searchQuery: string;
 }
 
+// Add an interface for assessment options
+interface AssessmentOption {
+  name: string;
+}
+
 const ResultsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -34,7 +39,7 @@ const ResultsPage = () => {
     searchQuery: ''
   });
   const [isExporting, setIsExporting] = useState(false);
-  const [assessmentOptions, setAssessmentOptions] = useState<Array<{ name: string }>>([]);
+  const [assessmentOptions, setAssessmentOptions] = useState<AssessmentOption[]>([]);
   const [yearOptions, setYearOptions] = useState<string[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
   const [divisionOptions, setDivisionOptions] = useState<string[]>([]);
