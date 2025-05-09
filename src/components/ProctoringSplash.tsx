@@ -1,17 +1,20 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Video, Check, AlertTriangle, X, ShieldAlert } from 'lucide-react';
+import { Loader2, Video, Check, AlertTriangle, X, ShieldAlert, Eye, Camera } from 'lucide-react';
 import { useProctoring } from '@/hooks/useProctoring';
 import { useToast } from '@/hooks/use-toast';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { Progress } from '@/components/ui/progress';
 
 const ProctoringSplash = () => {
   const [step, setStep] = useState<'intro' | 'camera' | 'environment' | 'ready'>('intro');
   const [error, setError] = useState<string | null>(null);
+  const [setupProgress, setSetupProgress] = useState(0);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { assessment, startAssessment } = useAssessment();
@@ -25,7 +28,46 @@ const ProctoringSplash = () => {
     requestCameraAccess,
     checkEnvironment,
     startRecording,
+    drawFaceDetection,
+    detectedFaces,
+    detectedPose,
+    faceTooClose,
+    isLookingAway,
+    modelLoadingProgress
   } = useProctoring();
+  
+  // Setup progress calculation
+  useEffect(() => {
+    if (step === 'intro') setSetupProgress(0);
+    else if (step === 'camera' && !cameraAccess) setSetupProgress(25);
+    else if (step === 'camera' && cameraAccess) setSetupProgress(50);
+    else if (step === 'environment' && !environmentCheckPassed) setSetupProgress(75);
+    else if (step === 'ready') setSetupProgress(100);
+  }, [step, cameraAccess, environmentCheckPassed]);
+  
+  // Draw annotations on canvas
+  useEffect(() => {
+    const drawCanvas = () => {
+      if (!videoRef.current || !canvasRef.current || !cameraAccess) return;
+      
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      
+      // Match canvas dimensions to video
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      // Draw annotations
+      drawFaceDetection(canvas);
+      
+      // Request next frame
+      requestAnimationFrame(drawCanvas);
+    };
+    
+    if (cameraAccess && videoRef.current && canvasRef.current) {
+      drawCanvas();
+    }
+  }, [cameraAccess, videoRef, detectedFaces, detectedPose, drawFaceDetection]);
   
   useEffect(() => {
     if (!assessment) {
@@ -36,6 +78,7 @@ const ProctoringSplash = () => {
   
   const handleCameraAccess = async () => {
     setStep('camera');
+    setError(null);
     console.log("Requesting camera access...");
     const stream = await requestCameraAccess();
     if (!stream) {
@@ -46,10 +89,13 @@ const ProctoringSplash = () => {
   };
   
   const handleEnvironmentCheck = async () => {
+    setError(null);
+    
     if (loadingModels) {
       toast({
         title: "Please wait",
         description: "AI proctoring models are still loading.",
+        variant: "default"
       });
       return;
     }
@@ -66,6 +112,17 @@ const ProctoringSplash = () => {
       setStep('ready');
     } else {
       console.log("Environment check failed");
+      if (faceTooClose) {
+        setError('You appear to be too close to the camera. Please move back.');
+      } else if (detectedFaces.length === 0) {
+        setError('No face detected. Please ensure your face is clearly visible.');
+      } else if (detectedFaces.length > 1) {
+        setError('Multiple faces detected. Only one person should be visible.');
+      } else if (isLookingAway) {
+        setError('Please look at the screen directly.');
+      } else {
+        setError('Environment check failed. Please ensure good lighting and clear face visibility.');
+      }
     }
   };
   
@@ -125,6 +182,15 @@ const ProctoringSplash = () => {
             {step === 'environment' && "Let's check your environment"}
             {step === 'ready' && "You're ready to begin the assessment"}
           </CardDescription>
+          <div className="mt-2">
+            <Progress value={setupProgress} className="h-2 w-full" />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>Start</span>
+              <span>Camera</span>
+              <span>Environment</span>
+              <span>Ready</span>
+            </div>
+          </div>
         </CardHeader>
         
         <CardContent className="space-y-6">
@@ -141,21 +207,53 @@ const ProctoringSplash = () => {
                 {step === 'intro' ? (
                   <Video className="h-16 w-16 text-gray-500" />
                 ) : (
-                  <video 
-                    ref={videoRef} 
-                    autoPlay 
-                    playsInline
-                    muted
-                    className="w-full h-full object-contain" 
-                  />
+                  <>
+                    <video 
+                      ref={videoRef} 
+                      autoPlay 
+                      playsInline
+                      muted
+                      className="w-full h-full object-contain" 
+                    />
+                    <canvas 
+                      ref={canvasRef}
+                      className="absolute inset-0 pointer-events-none"
+                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    />
+                  </>
                 )}
                 
                 {loadingModels && step !== 'intro' && (
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                     <div className="text-white flex flex-col items-center">
                       <Loader2 className="h-8 w-8 animate-spin mb-2" />
-                      <p className="text-sm">Loading AI Models...</p>
+                      <p className="text-sm mb-2">Loading AI Models... {modelLoadingProgress}%</p>
+                      <Progress value={modelLoadingProgress} className="w-48 h-1" />
                     </div>
+                  </div>
+                )}
+                
+                {faceTooClose && step === 'environment' && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-amber-500/80 text-white p-2 text-center text-sm">
+                    You are too close to the camera. Please move back.
+                  </div>
+                )}
+                
+                {isLookingAway && step === 'environment' && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-amber-500/80 text-white p-2 text-center text-sm">
+                    Please look at the screen directly.
+                  </div>
+                )}
+                
+                {detectedFaces.length === 0 && cameraAccess && step === 'environment' && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-amber-500/80 text-white p-2 text-center text-sm">
+                    No face detected. Please ensure your face is visible.
+                  </div>
+                )}
+                
+                {detectedFaces.length > 1 && step === 'environment' && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-amber-500/80 text-white p-2 text-center text-sm">
+                    Multiple faces detected. Only one person should be visible.
                   </div>
                 )}
               </div>
@@ -184,6 +282,7 @@ const ProctoringSplash = () => {
               <div className="space-y-2">
                 <div className={`p-3 flex items-center justify-between rounded-md border ${cameraAccess ? 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900' : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'}`}>
                   <div className="flex items-center">
+                    <Camera className="h-4 w-4 mr-2 text-gray-500" />
                     <span className="mr-2 font-medium">Camera Access</span>
                   </div>
                   {cameraAccess ? (
@@ -195,6 +294,7 @@ const ProctoringSplash = () => {
                 
                 <div className={`p-3 flex items-center justify-between rounded-md border ${environmentCheckPassed ? 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900' : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'}`}>
                   <div className="flex items-center">
+                    <Eye className="h-4 w-4 mr-2 text-gray-500" />
                     <span className="mr-2 font-medium">Environment Check</span>
                   </div>
                   {environmentCheckPassed ? (
@@ -215,6 +315,22 @@ const ProctoringSplash = () => {
                     <li>Any violations will be recorded</li>
                   </ul>
                 </div>
+                
+                {step === 'environment' && (
+                  <div className="mt-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md p-4">
+                    <h4 className="font-medium mb-2 flex items-center">
+                      <AlertTriangle className="h-4 w-4 mr-2 text-blue-500" />
+                      Positioning Guidelines
+                    </h4>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                      <li>Ensure your face is well-lit and clearly visible</li>
+                      <li>Position yourself at a comfortable distance from the camera</li>
+                      <li>Avoid very bright backgrounds or backlighting</li>
+                      <li>Look directly at the screen</li>
+                      <li>Stay centered in the frame</li>
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           </div>
