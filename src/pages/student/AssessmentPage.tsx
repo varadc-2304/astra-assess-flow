@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { 
@@ -16,13 +16,12 @@ import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, Video, Camera, Eye } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useProctoring } from '@/hooks/useProctoring';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -57,10 +56,6 @@ const AssessmentPage = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [isEndingAssessment, setIsEndingAssessment] = useState(false);
   const [testCaseStatus, setTestCaseStatus] = useState<TestCaseStatus>({});
-  const [showProctoringSidebar, setShowProctoringSidebar] = useState(false);
-
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  
   const navigate = useNavigate();
   const { 
     enterFullscreen, 
@@ -74,16 +69,6 @@ const AssessmentPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   
-  const {
-    videoRef,
-    detectedFaces,
-    detectedPose,
-    isLookingAway,
-    faceTooClose,
-    drawFaceDetection,
-    violations,
-  } = useProctoring();
-  
   useEffect(() => {
     if (!assessment || !assessmentStarted) {
       navigate('/student');
@@ -96,30 +81,6 @@ const AssessmentPage = () => {
       enterFullscreen();
     }
   }, [assessmentStarted, isFullscreen, enterFullscreen]);
-
-  // Draw annotations on canvas in proctoring sidebar
-  useEffect(() => {
-    const drawCanvas = () => {
-      if (!videoRef.current || !canvasRef.current || !showProctoringSidebar) return;
-      
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      
-      // Match canvas dimensions to video
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
-      // Draw annotations
-      drawFaceDetection(canvas);
-      
-      // Request next frame
-      requestAnimationFrame(drawCanvas);
-    };
-    
-    if (showProctoringSidebar && videoRef.current && canvasRef.current) {
-      drawCanvas();
-    }
-  }, [showProctoringSidebar, drawFaceDetection]);
 
   useEffect(() => {
     const createSubmissionRecord = async () => {
@@ -302,89 +263,77 @@ const AssessmentPage = () => {
   };
 
   // Anti-cheating warning is active when either fullscreen or tab warnings are shown
-  const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning || faceTooClose || isLookingAway || detectedFaces.length !== 1;
+  const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
   
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
       <header className={`${isAntiCheatingWarningActive ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'} border-b py-2 px-4 flex items-center justify-between sticky top-0 z-10 transition-colors duration-300`}>
-        <div className="flex items-center">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="mr-4 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <MenuIcon className="h-5 w-5" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-72 overflow-y-auto">
-              <SheetHeader className="mb-4">
-                <SheetTitle className="text-primary flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-primary"></span>
-                  Questions
-                </SheetTitle>
-              </SheetHeader>
-              <div className="py-4 space-y-6">
-                <div className="grid grid-cols-5 gap-2">
-                  {assessment.questions.map((q, index) => {
-                    const status = isCodeQuestion(q) ? getQuestionSubmissionStatus(q) : null;
-                    return (
-                      <Button
-                        key={q.id}
-                        variant="outline"
-                        size="sm"
-                        className={`relative hover:shadow-md transition-shadow ${
-                          currentQuestionIndex === index ? 'border-primary bg-primary-50 dark:bg-primary-950/20' : ''
-                        }`}
-                        onClick={() => setCurrentQuestionIndex(index)}
-                      >
-                        {index + 1}
-                        {questionStatus[index] && (
-                          <span className="absolute -top-1 -right-1">
-                            <CheckCircle className="h-3 w-3 text-green-500" />
-                          </span>
-                        )}
-                      </Button>
-                    );
-                  })}
-                </div>
-                
-                <div className="space-y-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Assessment Summary</p>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
-                      <span className="text-gray-600 dark:text-gray-300">Total Questions:</span>
-                      <span className="font-medium">{assessment.questions.length}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
-                      <span className="text-gray-600 dark:text-gray-300">Answered:</span>
-                      <span className="font-medium">{questionStatus.filter(Boolean).length}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
-                      <span className="text-gray-600 dark:text-gray-300">Not Answered:</span>
-                      <span className="font-medium">{questionStatus.filter(status => !status).length}</span>
-                    </div>
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="icon" className="mr-4 hover:bg-gray-100 dark:hover:bg-gray-700">
+              <MenuIcon className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-72 overflow-y-auto">
+            <SheetHeader className="mb-4">
+              <SheetTitle className="text-primary flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-primary"></span>
+                Questions
+              </SheetTitle>
+            </SheetHeader>
+            <div className="py-4 space-y-6">
+              <div className="grid grid-cols-5 gap-2">
+                {assessment.questions.map((q, index) => {
+                  const status = isCodeQuestion(q) ? getQuestionSubmissionStatus(q) : null;
+                  return (
+                    <Button
+                      key={q.id}
+                      variant="outline"
+                      size="sm"
+                      className={`relative hover:shadow-md transition-shadow ${
+                        currentQuestionIndex === index ? 'border-primary bg-primary-50 dark:bg-primary-950/20' : ''
+                      }`}
+                      onClick={() => setCurrentQuestionIndex(index)}
+                    >
+                      {index + 1}
+                      {questionStatus[index] && (
+                        <span className="absolute -top-1 -right-1">
+                          <CheckCircle className="h-3 w-3 text-green-500" />
+                        </span>
+                      )}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              <div className="space-y-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Assessment Summary</p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
+                    <span className="text-gray-600 dark:text-gray-300">Total Questions:</span>
+                    <span className="font-medium">{assessment.questions.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
+                    <span className="text-gray-600 dark:text-gray-300">Answered:</span>
+                    <span className="font-medium">{questionStatus.filter(Boolean).length}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
+                    <span className="text-gray-600 dark:text-gray-300">Not Answered:</span>
+                    <span className="font-medium">{questionStatus.filter(status => !status).length}</span>
                   </div>
                 </div>
-                
-                <Button 
-                  onClick={handleEndAssessment}
-                  className="w-full mt-4 bg-primary hover:bg-primary-600"
-                  variant="destructive"
-                >
-                  End Assessment
-                </Button>
               </div>
-            </SheetContent>
-          </Sheet>
-          
-          <Button
-            variant={showProctoringSidebar ? "default" : "outline"}
-            size="sm"
-            className="mr-4"
-            onClick={() => setShowProctoringSidebar(!showProctoringSidebar)}
-          >
-            <Camera className="h-4 w-4 mr-2" />
-            Proctoring
-          </Button>
-        </div>
+              
+              <Button 
+                onClick={handleEndAssessment}
+                className="w-full mt-4 bg-primary hover:bg-primary-600"
+                variant="destructive"
+              >
+                End Assessment
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
         
         <div className="flex items-center gap-2">
           {isAntiCheatingWarningActive && (
@@ -392,11 +341,7 @@ const AssessmentPage = () => {
               <AlertTriangle className="h-5 w-5 text-red-500 mr-1" />
               <span className="text-sm font-medium text-red-700 dark:text-red-400">
                 {showExitWarning ? `Fullscreen Warning: ${fullscreenWarnings}/${MAX_WARNINGS}` : 
-                 tabSwitchWarning ? `Tab Switch Warning: ${visibilityViolations}/${MAX_WARNINGS}` : 
-                 detectedFaces.length === 0 ? 'No face detected' :
-                 detectedFaces.length > 1 ? 'Multiple faces detected' :
-                 faceTooClose ? 'Face too close' :
-                 isLookingAway ? 'Looking away' : ''}
+                 tabSwitchWarning ? `Tab Switch Warning: ${visibilityViolations}/${MAX_WARNINGS}` : ''}
               </span>
             </div>
           )}
@@ -405,149 +350,96 @@ const AssessmentPage = () => {
       </header>
       
       <div className="flex-1 overflow-y-auto p-4">
-        <div className={`max-w-6xl mx-auto h-full ${showProctoringSidebar ? 'grid grid-cols-4 gap-4' : ''}`}>
-          {showProctoringSidebar && (
-            <div className="col-span-1 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm">
-              <h3 className="font-medium mb-3 flex items-center">
-                <Camera className="h-4 w-4 mr-2" />
-                Proctoring Monitor
-              </h3>
-              
-              <div className="space-y-4">
-                <div className="rounded-lg overflow-hidden bg-black relative">
-                  <video 
-                    ref={videoRef} 
-                    className="w-full h-auto" 
-                    muted 
-                    playsInline
-                  />
-                  <canvas 
-                    ref={canvasRef}
-                    className="absolute inset-0 pointer-events-none" 
-                    style={{ width: '100%', height: '100%' }}
-                  />
-                </div>
-                
-                <div className="space-y-2 text-sm">
-                  <div className={`p-2 rounded-md flex items-center justify-between ${detectedFaces.length === 1 ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'}`}>
-                    <span>Face Detection:</span>
-                    <span>{detectedFaces.length === 1 ? 'OK' : detectedFaces.length === 0 ? 'No face' : 'Multiple faces'}</span>
-                  </div>
-                  
-                  <div className={`p-2 rounded-md flex items-center justify-between ${!isLookingAway ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>
-                    <span>Gaze Tracking:</span>
-                    <span>{!isLookingAway ? 'Centered' : 'Looking away'}</span>
-                  </div>
-                  
-                  <div className={`p-2 rounded-md flex items-center justify-between ${!faceTooClose ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'}`}>
-                    <span>Position:</span>
-                    <span>{!faceTooClose ? 'Good' : 'Too close'}</span>
-                  </div>
-                  
-                  <div className="p-2 rounded-md bg-gray-50 dark:bg-gray-700/50">
-                    <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">Violations: {violations.length}</p>
-                    {violations.length > 0 && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        Most recent: {new Date(violations[violations.length - 1]?.timestamp).toLocaleTimeString()}
+        <div className="max-w-6xl mx-auto h-full">
+          {isMCQQuestion(currentQuestion) ? (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-card animate-fade-in">
+              <MCQQuestion 
+                question={currentQuestion} 
+                onAnswerSelect={answerMCQ}
+                isWarningActive={isAntiCheatingWarningActive}
+              />
+            </div>
+          ) : (
+            <div className="h-[calc(100vh-180px)] animate-fade-in">
+              <ResizablePanelGroup direction="horizontal" className="h-full">
+                <ResizablePanel defaultSize={40} minSize={30} className={`bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm ${isAntiCheatingWarningActive ? 'border border-red-300 dark:border-red-800' : ''}`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-medium">{currentQuestion.title}</h3>
+                    
+                    {isCodeQuestion(currentQuestion) && (
+                      <div className={`${getStatusBadgeColor(getQuestionSubmissionStatus(currentQuestion))} flex items-center gap-1 px-2 py-1 text-xs rounded-full`}>
+                        {getStatusIcon(getQuestionSubmissionStatus(currentQuestion))}
+                        <span>{getQuestionSubmissionStatus(currentQuestion)}</span>
                       </div>
                     )}
                   </div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          <div className={showProctoringSidebar ? 'col-span-3' : 'w-full'}>
-            {isMCQQuestion(currentQuestion) ? (
-              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-card animate-fade-in">
-                <MCQQuestion 
-                  question={currentQuestion} 
-                  onAnswerSelect={answerMCQ}
-                  isWarningActive={isAntiCheatingWarningActive}
-                />
-              </div>
-            ) : (
-              <div className="h-[calc(100vh-180px)] animate-fade-in">
-                <ResizablePanelGroup direction="horizontal" className="h-full">
-                  <ResizablePanel defaultSize={40} minSize={30} className={`bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm ${isAntiCheatingWarningActive ? 'border border-red-300 dark:border-red-800' : ''}`}>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-medium">{currentQuestion.title}</h3>
-                      
-                      {isCodeQuestion(currentQuestion) && (
-                        <div className={`${getStatusBadgeColor(getQuestionSubmissionStatus(currentQuestion))} flex items-center gap-1 px-2 py-1 text-xs rounded-full`}>
-                          {getStatusIcon(getQuestionSubmissionStatus(currentQuestion))}
-                          <span>{getQuestionSubmissionStatus(currentQuestion)}</span>
-                        </div>
-                      )}
-                    </div>
 
-                    {isAntiCheatingWarningActive && (
-                      <div className="mb-3 bg-red-50 dark:bg-red-900/20 p-2 rounded-md flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-red-500" />
-                        <p className="text-sm text-red-700 dark:text-red-400">Anti-cheating warning active</p>
+                  {isAntiCheatingWarningActive && (
+                    <div className="mb-3 bg-red-50 dark:bg-red-900/20 p-2 rounded-md flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-red-500" />
+                      <p className="text-sm text-red-700 dark:text-red-400">Anti-cheating warning active</p>
+                    </div>
+                  )}
+                  
+                  <ScrollArea className="h-[calc(100vh-280px)] pr-3">
+                    <div className="prose dark:prose-invert max-w-none mb-4">
+                      <p className="text-gray-700 dark:text-gray-200 whitespace-pre-line">{currentQuestion.description}</p>
+                    </div>
+                    
+                    {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (
+                      <div className="mb-4">
+                        <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Examples:</h4>
+                        <div className="space-y-3">
+                          {currentQuestion.examples.map((example, index) => (
+                            <div key={index} className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
+                              <div className="mb-1">
+                                <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Input:</span>
+                                <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1 overflow-x-auto">{example.input}</pre>
+                              </div>
+                              <div className="mb-1">
+                                <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Output:</span>
+                                <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1 overflow-x-auto">{example.output}</pre>
+                              </div>
+                              {example.explanation && (
+                                <div>
+                                  <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Explanation:</span>
+                                  <p className="text-xs mt-1 text-gray-600 dark:text-gray-400">{example.explanation}</p>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                     
-                    <ScrollArea className="h-[calc(100vh-280px)] pr-3">
-                      <div className="prose dark:prose-invert max-w-none mb-4">
-                        <p className="text-gray-700 dark:text-gray-200 whitespace-pre-line">{currentQuestion.description}</p>
+                    {isCodeQuestion(currentQuestion) && currentQuestion.constraints.length > 0 && (
+                      <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
+                        <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Constraints:</h4>
+                        <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                          {currentQuestion.constraints.map((constraint, index) => (
+                            <li key={index}>{constraint}</li>
+                          ))}
+                        </ul>
                       </div>
-                      
-                      {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (
-                        <div className="mb-4">
-                          <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Examples:</h4>
-                          <div className="space-y-3">
-                            {currentQuestion.examples.map((example, index) => (
-                              <div key={index} className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
-                                <div className="mb-1">
-                                  <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Input:</span>
-                                  <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1 overflow-x-auto">{example.input}</pre>
-                                </div>
-                                <div className="mb-1">
-                                  <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Output:</span>
-                                  <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1 overflow-x-auto">{example.output}</pre>
-                                </div>
-                                {example.explanation && (
-                                  <div>
-                                    <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Explanation:</span>
-                                    <p className="text-xs mt-1 text-gray-600 dark:text-gray-400">{example.explanation}</p>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {isCodeQuestion(currentQuestion) && currentQuestion.constraints.length > 0 && (
-                        <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
-                          <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Constraints:</h4>
-                          <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                            {currentQuestion.constraints.map((constraint, index) => (
-                              <li key={index}>{constraint}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </ScrollArea>
-                  </ResizablePanel>
-
-                  <ResizableHandle withHandle className="bg-gray-200 dark:bg-gray-700" />
-
-                  <ResizablePanel defaultSize={60} minSize={40} className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden ${isAntiCheatingWarningActive ? 'border border-red-300 dark:border-red-800' : ''}`}>
-                    {isCodeQuestion(currentQuestion) && (
-                      <CodeEditor 
-                        question={currentQuestion}
-                        onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
-                        onMarksUpdate={handleUpdateMarks}
-                        onTestResultsUpdate={(passed, total) => handleTestResultUpdate(currentQuestion.id, passed, total)}
-                      />
                     )}
-                  </ResizablePanel>
-                </ResizablePanelGroup>
-              </div>
-            )}
-          </div>
+                  </ScrollArea>
+                </ResizablePanel>
+
+                <ResizableHandle withHandle className="bg-gray-200 dark:bg-gray-700" />
+
+                <ResizablePanel defaultSize={60} minSize={40} className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden ${isAntiCheatingWarningActive ? 'border border-red-300 dark:border-red-800' : ''}`}>
+                  {isCodeQuestion(currentQuestion) && (
+                    <CodeEditor 
+                      question={currentQuestion}
+                      onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
+                      onMarksUpdate={handleUpdateMarks}
+                      onTestResultsUpdate={(passed, total) => handleTestResultUpdate(currentQuestion.id, passed, total)}
+                    />
+                  )}
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            </div>
+          )}
         </div>
       </div>
       

@@ -70,19 +70,12 @@ const AssessmentCodeInput = () => {
 
       // Load the assessment and navigate to instructions
       const success = await loadAssessment(code);
-      
       if (success) {
         toast({
           title: "Assessment Loaded",
           description: "The assessment has been loaded successfully.",
         });
         navigate('/instructions');
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to load assessment. Please check the code and try again.",
-          variant: "destructive",
-        });
       }
 
     } catch (error) {
