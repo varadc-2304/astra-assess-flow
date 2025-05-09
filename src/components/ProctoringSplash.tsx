@@ -36,7 +36,8 @@ const ProctoringSplash = () => {
     isLookingAway,
     modelLoadingProgress,
     isModelReady,
-    fallbackMode
+    fallbackMode,
+    detectionsAttempted
   } = useProctoring();
   
   // Setup progress calculation
@@ -233,7 +234,7 @@ const ProctoringSplash = () => {
           )}
           
           {fallbackMode && (
-            <Alert variant="warning" className="bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-800">
+            <Alert variant="default" className="bg-amber-50 border-amber-200 dark:bg-amber-900/30 dark:border-amber-800">
               <div className="flex items-center">
                 <Cpu className="h-4 w-4 mr-2 text-amber-500" />
                 <AlertDescription className="text-amber-800 dark:text-amber-300">
@@ -267,8 +268,10 @@ const ProctoringSplash = () => {
                     {cameraAccess && detectedFaces.length === 0 && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                         <div className="border-2 border-dashed border-yellow-400 w-1/2 h-2/3 rounded-full opacity-60 flex items-center justify-center">
-                          <div className="text-white text-center bg-black/50 p-2 rounded">
-                            <p>Position your face here</p>
+                          <div className="text-white text-center bg-black/70 p-3 rounded">
+                            <p className="font-bold mb-1">Position your face here</p>
+                            <p className="text-xs">Make sure you have good lighting</p>
+                            <p className="text-xs mt-1">Detection attempts: {detectionsAttempted}</p>
                           </div>
                         </div>
                       </div>
@@ -317,8 +320,14 @@ const ProctoringSplash = () => {
                       <AlertTriangle className="h-10 w-10 text-yellow-400 mx-auto mb-2" />
                       <p className="font-bold mb-1">Camera issue detected</p>
                       <p className="text-sm mb-2">Your camera appears to be on but not showing video.</p>
-                      <div className="text-xs">
-                        Try refreshing the page or using a different browser.
+                      <div className="text-xs space-y-2">
+                        <p>Try these troubleshooting steps:</p>
+                        <ol className="list-decimal list-inside text-left">
+                          <li>Refresh the page</li>
+                          <li>Check browser permissions</li>
+                          <li>Close other apps using your camera</li>
+                          <li>Try a different browser</li>
+                        </ol>
                       </div>
                     </div>
                   </div>
@@ -339,6 +348,16 @@ const ProctoringSplash = () => {
                   ) : (
                     <>Check Environment</>
                   )}
+                </Button>
+              )}
+              
+              {cameraAccess && detectedFaces.length === 0 && step === 'environment' && (
+                <Button 
+                  onClick={() => window.location.reload()}
+                  variant="outline"
+                  className="w-full mt-2"
+                >
+                  Refresh Page
                 </Button>
               )}
             </div>
@@ -413,6 +432,26 @@ const ProctoringSplash = () => {
                       <li>Remove face coverings if possible</li>
                       <li>Try a different browser if problems persist</li>
                     </ul>
+                  </div>
+                )}
+                
+                {cameraAccess && detectionsAttempted > 10 && detectedFaces.length === 0 && (
+                  <div className="mt-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-md p-4">
+                    <h4 className="font-medium mb-2 flex items-center">
+                      <AlertTriangle className="h-4 w-4 mr-2 text-red-500" />
+                      Detection Issues
+                    </h4>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                      We're having trouble detecting your face. This could be due to:
+                    </p>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-gray-600 dark:text-gray-300">
+                      <li>Insufficient lighting in your environment</li>
+                      <li>Your browser's WebGL capabilities are limited</li>
+                      <li>Your system resources are constrained</li>
+                    </ul>
+                    <div className="mt-3 text-sm">
+                      Try a different browser like Chrome or Edge, or use a different device if available.
+                    </div>
                   </div>
                 )}
               </div>
