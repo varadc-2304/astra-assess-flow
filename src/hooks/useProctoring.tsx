@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as faceDetection from '@tensorflow-models/face-detection';
@@ -86,10 +87,8 @@ export function useProctoring() {
         // Check if TensorFlow is already initialized
         if (!tf.getBackend()) {
           try {
-            // Try WebGL first for best performance
             await tf.setBackend('webgl');
-            await tf.ready();
-            console.log("TensorFlow initialized with WebGL backend");
+            logDebug('Using WebGL backend');
           } catch (e) {
             logDebug('WebGL initialization failed, falling back to CPU', e);
             await tf.setBackend('cpu');
