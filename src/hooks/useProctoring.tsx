@@ -86,8 +86,10 @@ export function useProctoring() {
         // Check if TensorFlow is already initialized
         if (!tf.getBackend()) {
           try {
+            // Try WebGL first for best performance
             await tf.setBackend('webgl');
-            logDebug('Using WebGL backend');
+            await tf.ready();
+            console.log("TensorFlow initialized with WebGL backend");
           } catch (e) {
             logDebug('WebGL initialization failed, falling back to CPU', e);
             await tf.setBackend('cpu');
