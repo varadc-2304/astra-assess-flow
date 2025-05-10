@@ -16,7 +16,7 @@ import AssessmentForm from "@/components/admin/AssessmentForm";
 import AssessmentDetail from "@/pages/admin/AssessmentDetail";
 import QuestionForm from "@/components/admin/QuestionForm";
 import { Toaster } from "@/components/ui/toaster";
-import { useIsMobile } from "./hooks/use-mobile";
+import { useIsMobile, useMobileInfo } from "./hooks/use-mobile";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 
 const queryClient = new QueryClient();
@@ -54,7 +54,7 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
 
 // Mobile access restriction component
 const MobileRestriction = () => {
-  const { screenWidth } = useIsMobile();
+  const { screenWidth } = useMobileInfo();
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
@@ -88,7 +88,7 @@ const MobileRestriction = () => {
 };
 
 const AppRoutes = () => {
-  const { isMobile } = useIsMobile();
+  const isMobile = useIsMobile();
 
   // If on mobile, show restriction message instead of routes
   if (isMobile) {
@@ -117,7 +117,7 @@ const AppRoutes = () => {
 };
 
 const App = () => {
-  const { isMobile } = useIsMobile();
+  const isMobile = useIsMobile();
   
   return (
     <QueryClientProvider client={queryClient}>
