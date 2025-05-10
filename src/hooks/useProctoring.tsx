@@ -45,12 +45,12 @@ export const useProctoring = () => {
         
         // Load only tiny face detector model - simplifying to fix loading issues
         await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
-        //await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
         console.log("Tiny face detector model loaded");
         
         // Skip loading other models that might be causing errors
-        // await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-        // await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
         
         console.log("Face-api.js model loaded successfully");
         setIsModelLoaded(true);
