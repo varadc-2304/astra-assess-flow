@@ -19,6 +19,7 @@ export const useProctoring = () => {
   const [faceOutOfFrame, setFaceOutOfFrame] = useState(false);
   const [faceViolations, setFaceViolations] = useState(0);
   const [showFaceWarning, setShowFaceWarning] = useState(false);
+  const [lastPrediction, setLastPrediction] = useState<any>(null);
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -38,21 +39,36 @@ export const useProctoring = () => {
   useEffect(() => {
     const loadModel = async () => {
       try {
+        console.log("Starting TensorFlow initialization and model loading");
+        
         // Initialize TensorFlow.js
         await tf.ready();
+        console.log("TensorFlow ready");
         
         // Specify backends (CPU fallback if WebGL not available)
-        await tf.setBackend('webgl');
+        if (tf.backend() !== 'webgl') {
+          try {
+            await tf.setBackend('webgl');
+            console.log("Using WebGL backend");
+          } catch (err) {
+            console.warn("WebGL backend not available, falling back to CPU", err);
+            await tf.setBackend('cpu');
+            console.log("Using CPU backend");
+          }
+        }
+        
         console.log("TensorFlow backend:", tf.getBackend());
         
-        // Load BlazeFace model with improved configuration
+        // Load BlazeFace model with improved configuration for better detection
+        console.log("Loading BlazeFace model...");
         modelRef.current = await blazeface.load({
-          maxFaces: 3,  // Allow detection of up to 3 faces (helps identify "multiple faces" violation)
-          scoreThreshold: 0.6,  // Lower threshold for better detection (default is 0.75)
-          iouThreshold: 0.3     // Adjust intersection over union threshold
+          maxFaces: 3,             // Allow detection of up to 3 faces
+          scoreThreshold: 0.5,     // Lower threshold for better detection (default is 0.75)
+          iouThreshold: 0.3        // Adjust intersection over union threshold
         });
-        setIsModelLoaded(true);
+        
         console.log("BlazeFace model loaded successfully");
+        setIsModelLoaded(true);
       } catch (error) {
         console.error("Error loading TensorFlow model:", error);
         toast({
@@ -64,9 +80,13 @@ export const useProctoring = () => {
         // Fall back to CPU if WebGL fails
         try {
           await tf.setBackend('cpu');
-          modelRef.current = await blazeface.load();
+          modelRef.current = await blazeface.load({
+            maxFaces: 3,
+            scoreThreshold: 0.5,
+            iouThreshold: 0.3
+          });
           setIsModelLoaded(true);
-          console.log("BlazeFace model loaded on CPU backend");
+          console.log("BlazeFace model loaded on CPU backend as fallback");
         } catch (fallbackError) {
           console.error("Failed to load model on CPU as well:", fallbackError);
         }
@@ -85,26 +105,40 @@ export const useProctoring = () => {
 
   // Initialize camera
   const initCamera = useCallback(async () => {
-    if (!videoRef.current) return;
+    if (!videoRef.current) {
+      console.error("Video element reference not available");
+      return;
+    }
     
     try {
+      console.log("Initializing camera...");
       const constraints = {
         video: { 
-          width: 640,
-          height: 480,
-          facingMode: 'user'
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user',
+          // On mobile, try to get a good camera
+          advanced: [
+            { zoom: 0 },
+            { exposureMode: "continuous" },
+            { focusMode: "continuous" }
+          ]
         }
       };
       
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       videoRef.current.srcObject = stream;
+      console.log("Camera stream obtained successfully");
       
       // Wait for video to be ready
       videoRef.current.onloadedmetadata = () => {
         if (videoRef.current) {
-          videoRef.current.play();
-          setIsCameraReady(true);
-          console.log("Camera initialized successfully");
+          videoRef.current.play().then(() => {
+            setIsCameraReady(true);
+            console.log("Camera initialized and playing successfully");
+          }).catch(err => {
+            console.error("Error playing video:", err);
+          });
         }
       };
     } catch (error) {
@@ -190,14 +224,20 @@ export const useProctoring = () => {
     canvas.height = video.videoHeight;
     
     try {
-      // Get predictions with await to ensure we get the latest frame
-      const predictions = await modelRef.current.estimateFaces(video, false);
-      
-      // Clear canvas
+      // Draw video frame on canvas first
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw video frame on canvas
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // Convert the video frame to a tensor for the model
+      // Using tensor operations directly instead of tf.browser.fromPixels for better performance
+      const videoTensor = tf.browser.fromPixels(video);
+      
+      // Get predictions with better error handling
+      const predictions = await modelRef.current.estimateFaces(videoTensor, false);
+      videoTensor.dispose(); // Clean up the tensor to prevent memory leaks
+      
+      console.log("Face detection predictions:", predictions.length > 0 ? "Face detected" : "No face detected");
+      setLastPrediction(predictions.length > 0 ? predictions[0] : null);
       
       // Process detection results
       const faceCount = predictions.length;
@@ -221,13 +261,13 @@ export const useProctoring = () => {
           const faceCenterX = start[0] + size[0] / 2;
           const faceCenterY = start[1] + size[1] / 2;
           
-          // Check if face is centered enough (within middle 60% of frame)
-          const isCenteredX = faceCenterX > canvas.width * 0.2 && faceCenterX < canvas.width * 0.8;
-          const isCenteredY = faceCenterY > canvas.height * 0.2 && faceCenterY < canvas.height * 0.8;
+          // Check if face is centered enough (within middle 70% of frame - more lenient)
+          const isCenteredX = faceCenterX > canvas.width * 0.15 && faceCenterX < canvas.width * 0.85;
+          const isCenteredY = faceCenterY > canvas.height * 0.15 && faceCenterY < canvas.height * 0.85;
           
-          // Check face size (not too small)
+          // Check face size (not too small) - more lenient size requirements
           const faceAreaRatio = (size[0] * size[1]) / (canvas.width * canvas.height);
-          const isFaceLargeEnough = faceAreaRatio > 0.05; // Face should occupy at least 5% of the frame
+          const isFaceLargeEnough = faceAreaRatio > 0.03; // Face should occupy at least 3% of the frame
           
           isFaceProperlyPositioned = isCenteredX && isCenteredY && isFaceLargeEnough;
           
@@ -371,12 +411,12 @@ export const useProctoring = () => {
 
   // Start face detection
   const startDetection = useCallback(() => {
-    if (isModelLoaded && isCameraReady) {
+    if (isModelLoaded && isCameraReady && !detectionActive) {
       setDetectionActive(true);
+      console.log("Starting face detection");
       detectFace();
-      console.log("Face detection started");
     }
-  }, [isModelLoaded, isCameraReady, detectFace]);
+  }, [isModelLoaded, isCameraReady, detectionActive, detectFace]);
 
   // Stop face detection
   const stopDetection = useCallback(() => {
@@ -404,6 +444,7 @@ export const useProctoring = () => {
     faceOutOfFrame,
     faceViolations,
     showFaceWarning,
+    lastPrediction,
     initCamera,
     startDetection,
     stopDetection,

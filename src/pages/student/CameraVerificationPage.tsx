@@ -5,19 +5,20 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, Camera, Check } from 'lucide-react';
+import { AlertCircle, Camera, Check, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useProctoring } from '@/hooks/useProctoring';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const CameraVerificationPage = () => {
-  const { assessment, assessmentStarted } = useAssessment();
+  const { assessment } = useAssessment();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isVerifying, setIsVerifying] = useState(true);
   const [environmentReady, setEnvironmentReady] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [faceDetectionAttempts, setFaceDetectionAttempts] = useState(0);
+  const [faceFeedback, setFaceFeedback] = useState("");
 
   const {
     videoRef,
@@ -25,6 +26,7 @@ const CameraVerificationPage = () => {
     isModelLoaded,
     isCameraReady,
     faceDetected,
+    lastPrediction,
     initCamera,
     startDetection,
     stopDetection
@@ -42,17 +44,19 @@ const CameraVerificationPage = () => {
     }
 
     // Automatically start camera initialization
+    console.log("Starting camera initialization");
     initCamera();
     
     return () => {
       // Clean up - stop detection if it was started
+      console.log("Cleaning up camera detection");
       stopDetection();
     };
   }, [assessment, initCamera, navigate, stopDetection, toast]);
 
   useEffect(() => {
     if (isCameraReady && isModelLoaded && !cameraReady) {
-      console.log("Camera and model are ready");
+      console.log("Camera and model are ready, starting detection");
       startDetection();
       setCameraReady(true);
     }
@@ -70,20 +74,40 @@ const CameraVerificationPage = () => {
           setEnvironmentReady(true);
           setIsVerifying(false);
           clearInterval(detectionTimer);
+          
+          toast({
+            title: "Face Detected",
+            description: "Your face has been detected. You can now proceed to the assessment.",
+          });
         } else {
           // Count attempts to detect face
           setFaceDetectionAttempts(prev => {
             const newCount = prev + 1;
-            console.log(`Face detection attempt: ${newCount}, face detected: ${faceDetected}`);
+            console.log(`Face detection attempt: ${newCount}, face detected: ${faceDetected}, last prediction:`, lastPrediction);
             
-            // After 5 seconds (5 attempts), show guidance toast
+            // Update feedback based on detection attempts
             if (newCount === 5) {
+              setFaceFeedback("Make sure your face is visible and well-lit");
               toast({
                 title: "Face Not Detected",
                 description: "Please make sure your face is visible in the camera and well-lit.",
                 variant: "default",
               });
+            } else if (newCount === 10) {
+              setFaceFeedback("Try moving closer to the camera");
+            } else if (newCount === 15) {
+              setFaceFeedback("Ensure there's enough light on your face");
+            } else if (newCount === 20) {
+              setFaceFeedback("Remove any face coverings if present");
+            } else if (newCount === 25) {
+              setFaceFeedback("Center yourself in the camera frame");
+              toast({
+                title: "Detection Issues",
+                description: "Still having trouble detecting your face. Please check your lighting and positioning.",
+                variant: "default",
+              });
             }
+            
             return newCount;
           });
         }
@@ -93,7 +117,7 @@ const CameraVerificationPage = () => {
     return () => {
       if (detectionTimer) clearInterval(detectionTimer);
     };
-  }, [cameraReady, environmentReady, faceDetected, toast]);
+  }, [cameraReady, environmentReady, faceDetected, lastPrediction, toast]);
 
   const handleProceedToAssessment = () => {
     if (!environmentReady || !cameraReady) {
@@ -110,6 +134,28 @@ const CameraVerificationPage = () => {
   
   const handleBackToInstructions = () => {
     navigate('/instructions');
+  };
+
+  // Troubleshooting function to restart face detection
+  const handleRetryDetection = () => {
+    console.log("Retrying face detection");
+    stopDetection();
+    setFaceDetectionAttempts(0);
+    setFaceFeedback("");
+    
+    // Short timeout to ensure clean restart
+    setTimeout(() => {
+      if (isCameraReady && isModelLoaded) {
+        startDetection();
+        toast({
+          title: "Detection Restarted",
+          description: "Face detection has been restarted. Please position yourself in front of the camera.",
+        });
+      } else {
+        // If camera isn't ready, reinitialize
+        initCamera();
+      }
+    }, 500);
   };
 
   return (
@@ -174,6 +220,12 @@ const CameraVerificationPage = () => {
               </Alert>
             )}
             
+            {faceFeedback && cameraReady && !environmentReady && (
+              <div className="text-center py-2 px-3 bg-blue-50 border border-blue-200 rounded-md text-blue-700">
+                <p className="text-sm font-medium">{faceFeedback}</p>
+              </div>
+            )}
+            
             {cameraReady && !environmentReady && faceDetectionAttempts > 10 && (
               <Alert variant="default" className="bg-amber-50 border-amber-200">
                 <AlertCircle className="h-4 w-4 text-amber-600" />
@@ -188,6 +240,19 @@ const CameraVerificationPage = () => {
                   </ul>
                 </AlertDescription>
               </Alert>
+            )}
+            
+            {cameraReady && !environmentReady && faceDetectionAttempts > 20 && (
+              <div className="flex justify-center mt-2">
+                <Button 
+                  onClick={handleRetryDetection}
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-1 border-amber-300 text-amber-700 hover:bg-amber-50"
+                >
+                  <Loader2 className="h-3 w-3 animate-spin" /> Restart Detection
+                </Button>
+              </div>
             )}
           </CardContent>
           
