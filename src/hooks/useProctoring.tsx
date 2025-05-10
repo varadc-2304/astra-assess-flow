@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as blazeface from '@tensorflow-models/blazeface';
@@ -139,7 +138,7 @@ export const useProctoring = () => {
       const { error: updateError } = await supabase
         .from('submissions')
         .update({
-          face_violations: (submission.face_violations || 0) + 1,
+          fullscreen_violations: (submission.fullscreen_violations || 0) + 1,
           is_terminated: isTerminated
         })
         .eq('id', submission.id);
@@ -232,9 +231,9 @@ export const useProctoring = () => {
           ctx.lineWidth = 2;
           ctx.strokeRect(start[0], start[1], size[0], size[1]);
           
-          // Draw landmarks (eyes, ears, nose, mouth)
-          if (face.landmarks) {
-            face.landmarks.forEach((landmark, index) => {
+          // Draw landmarks (eyes, ears, nose, mouth) if available
+          if (face.landmarks && Array.isArray(face.landmarks)) {
+            face.landmarks.forEach((landmark: number[]) => {
               ctx.fillStyle = "blue";
               ctx.fillRect(landmark[0], landmark[1], 4, 4);
             });

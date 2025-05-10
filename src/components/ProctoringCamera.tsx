@@ -1,6 +1,6 @@
 
 import React, { useEffect } from 'react';
-import { useProctoring } from '@/hooks/useProctoring';
+import { useProctoring, MAX_FACE_VIOLATIONS } from '@/hooks/useProctoring';
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { AlertTriangle } from 'lucide-react';
 
