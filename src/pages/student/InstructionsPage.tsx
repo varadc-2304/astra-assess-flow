@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -41,7 +40,7 @@ const InstructionsPage = () => {
   
   const handleStartAssessment = () => {
     startAssessment();
-    navigate('/assessment');
+    navigate('/verification');  // Changed from '/assessment' to '/verification'
   };
 
   const handleCountdownEnd = () => {
