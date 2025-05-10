@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 export const MAX_FACE_VIOLATIONS = 3;
 
 // Models path
-const MODEL_URL = '/';
+const MODEL_URL = '/models/face-api';
 
 export const useProctoring = () => {
   const [isModelLoaded, setIsModelLoaded] = useState(false);
@@ -44,13 +44,12 @@ export const useProctoring = () => {
         console.log("Starting face-api.js model loading");
         
         // Load only tiny face detector model - simplifying to fix loading issues
-        await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
         console.log("Tiny face detector model loaded");
         
         // Skip loading other models that might be causing errors
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-        await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+        // await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        // await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
         
         console.log("Face-api.js model loaded successfully");
         setIsModelLoaded(true);
