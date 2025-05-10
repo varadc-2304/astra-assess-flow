@@ -37,23 +37,21 @@ export const useProctoring = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   
-  // Load face-api.js models
+  // Load face-api.js models with proper error handling
   useEffect(() => {
     const loadModels = async () => {
       try {
         console.log("Starting face-api.js model loading");
         
-        // Load models from the specified URL
+        // Load only tiny face detector model - simplifying to fix loading issues
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
         console.log("Tiny face detector model loaded");
         
-        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-        console.log("Face landmark model loaded");
+        // Skip loading other models that might be causing errors
+        // await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        // await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
         
-        await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
-        console.log("Face expression model loaded");
-        
-        console.log("All face-api.js models loaded successfully");
+        console.log("Face-api.js model loaded successfully");
         setIsModelLoaded(true);
         setModelLoadingError(null);
       } catch (error) {
@@ -68,6 +66,17 @@ export const useProctoring = () => {
     };
     
     loadModels();
+    
+    // Register service worker for model caching
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/tf-serviceworker.js')
+        .then(registration => {
+          console.log('TensorFlow.js ServiceWorker registration successful');
+        })
+        .catch(err => {
+          console.error('TensorFlow.js ServiceWorker registration failed:', err);
+        });
+    }
     
     // Cleanup
     return () => {
@@ -197,17 +206,17 @@ export const useProctoring = () => {
         scoreThreshold: 0.3 // Lower threshold for better detection sensitivity (default: 0.5)
       });
       
-      // Run detection with landmarks and expressions
-      const detections = await faceapi.detectAllFaces(video, detectionOptions)
-        .withFaceLandmarks()
-        .withFaceExpressions();
+      // Run detection - simplified to only detect faces without landmarks or expressions
+      const detections = await faceapi.detectAllFaces(video, detectionOptions);
       
       console.log("Face detection results:", 
         detections.length > 0 ? `${detections.length} face(s) detected` : "No face detected");
       
       // Clear previous drawings
       const ctx = canvas.getContext('2d');
-      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (!ctx) return;
+      
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       
       // Draw detections onto the canvas
       const resizedDetections = faceapi.resizeResults(detections, displaySize);
@@ -225,7 +234,7 @@ export const useProctoring = () => {
         // Draw all detections
         resizedDetections.forEach((detection, i) => {
           // Get face box dimensions
-          const box = detection.detection.box;
+          const box = detection.box;
           
           // Calculate face position relative to frame
           const faceCenterX = box.x + box.width / 2;
@@ -286,14 +295,6 @@ export const useProctoring = () => {
             ctx.lineTo(box.x + box.width, box.y + box.height);
             ctx.lineTo(box.x + box.width, box.y + box.height - cornerLength);
             ctx.stroke();
-            
-            // Draw landmarks
-            ctx.fillStyle = "#ffffff";
-            detection.landmarks.positions.forEach(point => {
-              ctx.beginPath();
-              ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI);
-              ctx.fill();
-            });
           }
         });
       } else {

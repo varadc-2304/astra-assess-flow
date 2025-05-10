@@ -2,20 +2,16 @@
 // Face-api.js service worker
 // This service worker provides caching for models and optimizes performance
 
-const CACHE_NAME = 'face-api-model-cache-v1';
+const CACHE_NAME = 'face-api-model-cache-v2';
 
 // Install event - precache model files
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll([
-        // Face-api model files will be cached here
+        // Face-api tiny face detector model files - ONLY including what we use
         '/models/face-api/tiny_face_detector_model-weights_manifest.json',
-        '/models/face-api/tiny_face_detector_model-shard1',
-        '/models/face-api/face_landmark_68_model-weights_manifest.json',
-        '/models/face-api/face_landmark_68_model-shard1',
-        '/models/face-api/face_expression_model-weights_manifest.json',
-        '/models/face-api/face_expression_model-shard1'
+        '/models/face-api/tiny_face_detector_model-shard1'
       ]);
     })
   );
@@ -39,19 +35,19 @@ self.addEventListener('activate', (event) => {
 // Fetch event - serve cached resources or fetch from network
 self.addEventListener('fetch', (event) => {
   // Only cache face-api model files
-  if (event.request.url.includes('/models/face-api/') || 
-      event.request.url.includes('.json') || 
-      event.request.url.includes('shard')) {
+  if (event.request.url.includes('/models/face-api/')) {
     event.respondWith(
       caches.match(event.request).then((response) => {
         // Cache hit - return response
         if (response) {
+          console.log('Serving from cache:', event.request.url);
           return response;
         }
         
+        console.log('Fetching from network:', event.request.url);
         return fetch(event.request).then((response) => {
           // Check if we received a valid response
-          if (!response || response.status !== 200 || response.type !== 'basic') {
+          if (!response || response.status !== 200) {
             return response;
           }
           
@@ -60,6 +56,7 @@ self.addEventListener('fetch', (event) => {
           
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
+            console.log('Cached:', event.request.url);
           });
           
           return response;
