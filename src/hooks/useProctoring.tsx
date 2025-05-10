@@ -67,6 +67,9 @@ export const useProctoring = () => {
         });
         
         console.log("BlazeFace model loaded successfully");
+        await modelRef.current.estimateFaces(tf.zeros([128, 128, 3]));
+        console.log("Model warmed up");
+
         setIsModelLoaded(true);
       } catch (error) {
         console.error("Error loading TensorFlow model:", error);
@@ -317,6 +320,7 @@ export const useProctoring = () => {
             });
           }
         }
+        await tf.nextFrame();  // Prevents browser freezing
       } else {
         // If no face detected, add guiding text
         ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
