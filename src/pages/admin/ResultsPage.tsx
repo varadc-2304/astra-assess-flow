@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import ResultsTable from '@/components/admin/ResultsTable';
@@ -79,7 +81,7 @@ const ResultsPage = () => {
             </SelectTrigger>
             <SelectContent>
               {assessmentOptions.map(option => (
-                <SelectItem key={option.id} value={option.name}>
+                <SelectItem key={option.id} value={option.id}>
                   {option.name}
                 </SelectItem>
               ))}
@@ -161,23 +163,21 @@ const ResultsPage = () => {
         </div>
 
         <div className="flex items-center space-x-2">
-          <Label htmlFor="flagged">Flagged</Label>
-          <Input
-            type="checkbox"
-            id="flagged"
-            checked={flagged}
+          <Checkbox 
+            id="flagged" 
+            checked={flagged} 
             onCheckedChange={(checked) => setFlagged(!!checked)}
           />
+          <Label htmlFor="flagged">Flagged</Label>
         </div>
 
         <div className="flex items-center space-x-2">
-          <Label htmlFor="topPerformers">Top Performers</Label>
-          <Input
-            type="checkbox"
-            id="topPerformers"
-            checked={topPerformers}
+          <Checkbox 
+            id="topPerformers" 
+            checked={topPerformers} 
             onCheckedChange={(checked) => setTopPerformers(!!checked)}
           />
+          <Label htmlFor="topPerformers">Top Performers</Label>
         </div>
       </div>
 
