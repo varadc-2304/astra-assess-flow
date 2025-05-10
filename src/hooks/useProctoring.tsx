@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as blazeface from '@tensorflow-models/blazeface';
@@ -44,8 +45,12 @@ export const useProctoring = () => {
         await tf.setBackend('webgl');
         console.log("TensorFlow backend:", tf.getBackend());
         
-        // Load BlazeFace model
-        modelRef.current = await blazeface.load();
+        // Load BlazeFace model with improved configuration
+        modelRef.current = await blazeface.load({
+          maxFaces: 3,  // Allow detection of up to 3 faces (helps identify "multiple faces" violation)
+          scoreThreshold: 0.6,  // Lower threshold for better detection (default is 0.75)
+          iouThreshold: 0.3     // Adjust intersection over union threshold
+        });
         setIsModelLoaded(true);
         console.log("BlazeFace model loaded successfully");
       } catch (error) {
@@ -168,7 +173,7 @@ export const useProctoring = () => {
     }
   }, [assessment, user, faceViolations]);
 
-  // Face detection process
+  // Face detection process with improved accuracy
   const detectFace = useCallback(async () => {
     if (!modelRef.current || !videoRef.current || !canvasRef.current || !detectionActive) {
       return;
@@ -185,7 +190,7 @@ export const useProctoring = () => {
     canvas.height = video.videoHeight;
     
     try {
-      // Get predictions
+      // Get predictions with await to ensure we get the latest frame
       const predictions = await modelRef.current.estimateFaces(video, false);
       
       // Clear canvas
@@ -226,19 +231,65 @@ export const useProctoring = () => {
           
           isFaceProperlyPositioned = isCenteredX && isCenteredY && isFaceLargeEnough;
           
-          // Draw rectangle around the face
-          ctx.strokeStyle = isFaceProperlyPositioned ? "green" : "yellow";
-          ctx.lineWidth = 2;
+          // Improve visibility of the face detection rectangle
+          const borderColor = isFaceProperlyPositioned ? "rgb(16, 185, 129)" : "rgb(245, 158, 11)"; // Green if properly positioned, amber if not
+          ctx.strokeStyle = borderColor;
+          ctx.lineWidth = 3;
           ctx.strokeRect(start[0], start[1], size[0], size[1]);
+          
+          // Add corners to make rectangle more visible
+          const cornerLength = Math.min(25, Math.min(size[0], size[1]) / 4);
+          
+          // Drawing corner marks for better visibility
+          ctx.lineWidth = 4;
+          
+          // Top-left corner
+          ctx.beginPath();
+          ctx.moveTo(start[0], start[1] + cornerLength);
+          ctx.lineTo(start[0], start[1]);
+          ctx.lineTo(start[0] + cornerLength, start[1]);
+          ctx.stroke();
+          
+          // Top-right corner
+          ctx.beginPath();
+          ctx.moveTo(end[0] - cornerLength, start[1]);
+          ctx.lineTo(end[0], start[1]);
+          ctx.lineTo(end[0], start[1] + cornerLength);
+          ctx.stroke();
+          
+          // Bottom-left corner
+          ctx.beginPath();
+          ctx.moveTo(start[0], end[1] - cornerLength);
+          ctx.lineTo(start[0], end[1]);
+          ctx.lineTo(start[0] + cornerLength, end[1]);
+          ctx.stroke();
+          
+          // Bottom-right corner
+          ctx.beginPath();
+          ctx.moveTo(end[0] - cornerLength, end[1]);
+          ctx.lineTo(end[0], end[1]);
+          ctx.lineTo(end[0], end[1] - cornerLength);
+          ctx.stroke();
           
           // Draw landmarks (eyes, ears, nose, mouth) if available
           if (face.landmarks && Array.isArray(face.landmarks)) {
+            ctx.fillStyle = "#ffffff";
             face.landmarks.forEach((landmark: number[]) => {
-              ctx.fillStyle = "blue";
-              ctx.fillRect(landmark[0], landmark[1], 4, 4);
+              ctx.beginPath();
+              ctx.arc(landmark[0], landmark[1], 3, 0, 2 * Math.PI);
+              ctx.fill();
+              ctx.stroke();
             });
           }
         }
+      } else {
+        // If no face detected, add guiding text
+        ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+        ctx.fillRect(canvas.width/2 - 100, canvas.height/2 - 15, 200, 30);
+        ctx.fillStyle = "#000000";
+        ctx.font = "14px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("Position your face in the camera", canvas.width/2, canvas.height/2);
       }
       
       setFaceOutOfFrame(!isFaceProperlyPositioned && faceCount > 0);
@@ -323,6 +374,7 @@ export const useProctoring = () => {
     if (isModelLoaded && isCameraReady) {
       setDetectionActive(true);
       detectFace();
+      console.log("Face detection started");
     }
   }, [isModelLoaded, isCameraReady, detectFace]);
 
@@ -332,6 +384,7 @@ export const useProctoring = () => {
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
+      console.log("Face detection stopped");
     }
   }, []);
 

@@ -58,13 +58,13 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({ active }) =>
             right: '20px',
             width: '160px',
             height: '120px',
-            border: '2px solid',
+            border: '3px solid',
             borderColor: faceDetected 
               ? multipleFaces 
                 ? 'rgb(239 68 68)' // red
                 : faceOutOfFrame 
-                  ? 'rgb(234 179 8)' // yellow
-                  : 'rgb(34 197 94)' // green
+                  ? 'rgb(245 158 11)' // amber
+                  : 'rgb(16 185 129)' // green
               : 'rgb(239 68 68)', // red
             borderRadius: '8px',
             zIndex: 999,

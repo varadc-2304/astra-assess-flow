@@ -17,6 +17,7 @@ const CameraVerificationPage = () => {
   const [isVerifying, setIsVerifying] = useState(true);
   const [environmentReady, setEnvironmentReady] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
+  const [faceDetectionAttempts, setFaceDetectionAttempts] = useState(0);
 
   const {
     videoRef,
@@ -57,13 +58,42 @@ const CameraVerificationPage = () => {
     }
   }, [isCameraReady, isModelLoaded, cameraReady, startDetection]);
 
+  // Face detection monitoring effect
   useEffect(() => {
-    if (faceDetected && cameraReady && !environmentReady) {
-      console.log("Face detected, environment ready");
-      setEnvironmentReady(true);
-      setIsVerifying(false);
+    let detectionTimer: number;
+    
+    if (cameraReady && !environmentReady) {
+      // Check for face detection every second
+      detectionTimer = window.setInterval(() => {
+        if (faceDetected) {
+          console.log("Face detected, environment ready");
+          setEnvironmentReady(true);
+          setIsVerifying(false);
+          clearInterval(detectionTimer);
+        } else {
+          // Count attempts to detect face
+          setFaceDetectionAttempts(prev => {
+            const newCount = prev + 1;
+            console.log(`Face detection attempt: ${newCount}, face detected: ${faceDetected}`);
+            
+            // After 5 seconds (5 attempts), show guidance toast
+            if (newCount === 5) {
+              toast({
+                title: "Face Not Detected",
+                description: "Please make sure your face is visible in the camera and well-lit.",
+                variant: "default",
+              });
+            }
+            return newCount;
+          });
+        }
+      }, 1000);
     }
-  }, [faceDetected, cameraReady, environmentReady]);
+    
+    return () => {
+      if (detectionTimer) clearInterval(detectionTimer);
+    };
+  }, [cameraReady, environmentReady, faceDetected, toast]);
 
   const handleProceedToAssessment = () => {
     if (!environmentReady || !cameraReady) {
@@ -140,6 +170,22 @@ const CameraVerificationPage = () => {
                 <AlertTitle>Camera Access Required</AlertTitle>
                 <AlertDescription>
                   Please allow camera access in your browser to proceed with the assessment.
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {cameraReady && !environmentReady && faceDetectionAttempts > 10 && (
+              <Alert variant="warning" className="bg-amber-50 border-amber-200">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertTitle className="text-amber-800">Face Detection Issues</AlertTitle>
+                <AlertDescription className="text-amber-700">
+                  <p>Trouble detecting your face. Please try:</p>
+                  <ul className="list-disc pl-4 mt-2 space-y-1">
+                    <li>Ensure your face is centered and well-lit</li>
+                    <li>Remove any face coverings or accessories</li>
+                    <li>Adjust your position to face the camera directly</li>
+                    <li>Make sure there's adequate lighting in your room</li>
+                  </ul>
                 </AlertDescription>
               </Alert>
             )}
