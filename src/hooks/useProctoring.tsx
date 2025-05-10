@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as blazeface from '@tensorflow-models/blazeface';
@@ -46,7 +45,7 @@ export const useProctoring = () => {
         console.log("TensorFlow ready");
         
         // Specify backends (CPU fallback if WebGL not available)
-        if (tf.backend() !== 'webgl') {
+        if (tf.getBackend() !== 'webgl') {
           try {
             await tf.setBackend('webgl');
             console.log("Using WebGL backend");
@@ -112,17 +111,13 @@ export const useProctoring = () => {
     
     try {
       console.log("Initializing camera...");
-      const constraints = {
+      // Define video constraints properly according to MediaStreamConstraints type
+      const constraints: MediaStreamConstraints = {
         video: { 
           width: { ideal: 640 },
           height: { ideal: 480 },
-          facingMode: 'user',
-          // On mobile, try to get a good camera
-          advanced: [
-            { zoom: 0 },
-            { exposureMode: "continuous" },
-            { focusMode: "continuous" }
-          ]
+          facingMode: 'user'
+          // Removed advanced property as it was causing type errors
         }
       };
       
