@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -22,6 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { ProctoringCamera } from '@/components/ProctoringCamera';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -117,6 +117,19 @@ const AssessmentPage = () => {
     
     createSubmissionRecord();
   }, [assessment, assessmentStarted, user]);
+
+  const [proctoringActive, setProctoringActive] = useState(false);
+
+  useEffect(() => {
+    if (assessmentStarted) {
+      // Slight delay to ensure everything else is initialized
+      const timer = setTimeout(() => {
+        setProctoringActive(true);
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [assessmentStarted]);
 
   const handleTestResultUpdate = (questionId: string, passedTests: number, totalTests: number) => {
     setTestCaseStatus(prev => ({
@@ -565,6 +578,8 @@ const AssessmentPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {proctoringActive && <ProctoringCamera active={proctoringActive} />}
     </div>
   );
 };
