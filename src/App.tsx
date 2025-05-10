@@ -8,7 +8,6 @@ import Login from "./pages/Login";
 import StudentDashboard from "./pages/student/Dashboard";
 import AdminDashboard from "./pages/admin/Dashboard";
 import InstructionsPage from "./pages/student/InstructionsPage";
-import CameraVerificationPage from "./pages/student/CameraVerificationPage";
 import AssessmentPage from "./pages/student/AssessmentPage";
 import SummaryPage from "./pages/student/SummaryPage";
 import NotFound from "./pages/NotFound";
@@ -17,7 +16,7 @@ import AssessmentForm from "@/components/admin/AssessmentForm";
 import AssessmentDetail from "@/pages/admin/AssessmentDetail";
 import QuestionForm from "@/components/admin/QuestionForm";
 import { Toaster } from "@/components/ui/toaster";
-import { useIsMobile, useMobileInfo } from "./hooks/use-mobile";
+import { useIsMobile } from "./hooks/use-mobile";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 
 const queryClient = new QueryClient();
@@ -55,7 +54,7 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
 
 // Mobile access restriction component
 const MobileRestriction = () => {
-  const { screenWidth } = useMobileInfo();
+  const { screenWidth } = useIsMobile();
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
@@ -89,7 +88,7 @@ const MobileRestriction = () => {
 };
 
 const AppRoutes = () => {
-  const isMobile = useIsMobile();
+  const { isMobile } = useIsMobile();
 
   // If on mobile, show restriction message instead of routes
   if (isMobile) {
@@ -103,7 +102,6 @@ const AppRoutes = () => {
       {/* Student Routes - strictly enforce student role */}
       <Route path="/student" element={<ProtectedRoute requiredRole="student"><StudentDashboard /></ProtectedRoute>} />
       <Route path="/instructions" element={<ProtectedRoute requiredRole="student"><InstructionsPage /></ProtectedRoute>} />
-      <Route path="/verification" element={<ProtectedRoute requiredRole="student"><CameraVerificationPage /></ProtectedRoute>} />
       <Route path="/assessment" element={<ProtectedRoute requiredRole="student"><AssessmentPage /></ProtectedRoute>} />
       <Route path="/summary" element={<ProtectedRoute requiredRole="student"><SummaryPage /></ProtectedRoute>} />
       
@@ -119,7 +117,7 @@ const AppRoutes = () => {
 };
 
 const App = () => {
-  const isMobile = useIsMobile();
+  const { isMobile } = useIsMobile();
   
   return (
     <QueryClientProvider client={queryClient}>

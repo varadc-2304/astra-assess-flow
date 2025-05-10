@@ -41,16 +41,11 @@ const InstructionsPage = () => {
   
   const handleStartAssessment = () => {
     startAssessment();
-    navigate('/verification');  // Redirect to verification page first
+    navigate('/assessment');
   };
 
   const handleCountdownEnd = () => {
     setCountdownEnded(true);
-    toast({
-      title: "Ready to Start",
-      description: "The assessment is now available. Click 'Start Assessment' to continue.",
-      variant: "default",
-    });
   };
   
   return (
@@ -113,7 +108,6 @@ const InstructionsPage = () => {
             <p>• You can navigate between questions using the navigation panel.</p>
             <p>• Your answers are auto-saved as you progress.</p>
             <p>• The assessment will automatically submit when the time expires.</p>
-            <p>• Your face should be visible in the camera throughout the assessment.</p>
           </CardContent>
         </Card>
         
