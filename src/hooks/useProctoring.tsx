@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 export const MAX_FACE_VIOLATIONS = 3;
 
 // Models path
-const MODEL_URL = '/models/face-api';
+const MODEL_URL = '/';
 
 export const useProctoring = () => {
   const [isModelLoaded, setIsModelLoaded] = useState(false);
