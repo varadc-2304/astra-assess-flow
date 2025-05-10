@@ -1,6 +1,6 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
-import * as tf from '@tensorflow/tfjs';
-import * as blazeface from '@tensorflow-models/blazeface';
+import * as faceapi from 'face-api.js';
 import { supabase } from '@/integrations/supabase/client';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { useToast } from '@/hooks/use-toast';
@@ -8,6 +8,9 @@ import { useAuth } from '@/contexts/AuthContext';
 
 // Maximum violations before terminating the assessment
 export const MAX_FACE_VIOLATIONS = 3;
+
+// Models path
+const MODEL_URL = '/models/face-api';
 
 export const useProctoring = () => {
   const [isModelLoaded, setIsModelLoaded] = useState(false);
@@ -19,10 +22,10 @@ export const useProctoring = () => {
   const [faceViolations, setFaceViolations] = useState(0);
   const [showFaceWarning, setShowFaceWarning] = useState(false);
   const [lastPrediction, setLastPrediction] = useState<any>(null);
+  const [modelLoadingError, setModelLoadingError] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const modelRef = useRef<blazeface.BlazeFaceModel | null>(null);
   const animationRef = useRef<number | null>(null);
   
   // Counter for consecutive frames with violations
@@ -33,69 +36,38 @@ export const useProctoring = () => {
   const { assessment, endAssessment } = useAssessment();
   const { toast } = useToast();
   const { user } = useAuth();
-
-  // Initialize TensorFlow and load the BlazeFace model
+  
+  // Load face-api.js models
   useEffect(() => {
-    const loadModel = async () => {
+    const loadModels = async () => {
       try {
-        console.log("Starting TensorFlow initialization and model loading");
+        console.log("Starting face-api.js model loading");
         
-        // Initialize TensorFlow.js
-        await tf.ready();
-        console.log("TensorFlow ready");
+        // Load models from the specified URL
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+        console.log("Tiny face detector model loaded");
         
-        // Specify backends (CPU fallback if WebGL not available)
-        if (tf.getBackend() !== 'webgl') {
-          try {
-            await tf.setBackend('webgl');
-            console.log("Using WebGL backend");
-          } catch (err) {
-            console.warn("WebGL backend not available, falling back to CPU", err);
-            await tf.setBackend('cpu');
-            console.log("Using CPU backend");
-          }
-        }
+        await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+        console.log("Face landmark model loaded");
         
-        console.log("TensorFlow backend:", tf.getBackend());
+        await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+        console.log("Face expression model loaded");
         
-        // Load BlazeFace model with improved configuration for better detection
-        console.log("Loading BlazeFace model...");
-        modelRef.current = await blazeface.load({
-          maxFaces: 3,             // Allow detection of up to 3 faces
-          scoreThreshold: 0.5,     // Lower threshold for better detection (default is 0.75)
-          iouThreshold: 0.3        // Adjust intersection over union threshold
-        });
-        
-        console.log("BlazeFace model loaded successfully");
-        await modelRef.current.estimateFaces(tf.zeros([128, 128, 3]));
-        console.log("Model warmed up");
-
+        console.log("All face-api.js models loaded successfully");
         setIsModelLoaded(true);
+        setModelLoadingError(null);
       } catch (error) {
-        console.error("Error loading TensorFlow model:", error);
+        console.error("Error loading face-api.js models:", error);
+        setModelLoadingError(`Failed to load face detection models: ${error}`);
         toast({
           title: "Error",
-          description: "Failed to load face detection model. Please refresh the page.",
+          description: "Failed to load face detection models. Please refresh the page.",
           variant: "destructive",
         });
-        
-        // Fall back to CPU if WebGL fails
-        try {
-          await tf.setBackend('cpu');
-          modelRef.current = await blazeface.load({
-            maxFaces: 3,
-            scoreThreshold: 0.5,
-            iouThreshold: 0.3
-          });
-          setIsModelLoaded(true);
-          console.log("BlazeFace model loaded on CPU backend as fallback");
-        } catch (fallbackError) {
-          console.error("Failed to load model on CPU as well:", fallbackError);
-        }
       }
     };
     
-    loadModel();
+    loadModels();
     
     // Cleanup
     return () => {
@@ -120,7 +92,6 @@ export const useProctoring = () => {
           width: { ideal: 640 },
           height: { ideal: 480 },
           facingMode: 'user'
-          // Removed advanced property as it was causing type errors
         }
       };
       
@@ -205,130 +176,138 @@ export const useProctoring = () => {
     }
   }, [assessment, user, faceViolations]);
 
-  // Face detection process with improved accuracy
+  // Face detection process using face-api.js
   const detectFace = useCallback(async () => {
-    if (!modelRef.current || !videoRef.current || !canvasRef.current || !detectionActive) {
+    if (!videoRef.current || !canvasRef.current || !detectionActive || !isModelLoaded) {
       return;
     }
     
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const displaySize = { width: video.videoWidth, height: video.videoHeight };
     
-    if (!ctx) return;
-    
-    // Match canvas dimensions to video
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    if (canvas.width !== displaySize.width || canvas.height !== displaySize.height) {
+      faceapi.matchDimensions(canvas, displaySize);
+    }
     
     try {
-      // Draw video frame on canvas first
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Detect faces with options for better accuracy
+      const detectionOptions = new faceapi.TinyFaceDetectorOptions({
+        inputSize: 416,    // Larger input size for better detection (default: 416)
+        scoreThreshold: 0.3 // Lower threshold for better detection sensitivity (default: 0.5)
+      });
       
-      // Convert the video frame to a tensor for the model
-      // Using tensor operations directly instead of tf.browser.fromPixels for better performance
-      const videoTensor = tf.browser.fromPixels(video);
+      // Run detection with landmarks and expressions
+      const detections = await faceapi.detectAllFaces(video, detectionOptions)
+        .withFaceLandmarks()
+        .withFaceExpressions();
       
-      // Get predictions with better error handling
-      const predictions = await modelRef.current.estimateFaces(videoTensor, false);
-      videoTensor.dispose(); // Clean up the tensor to prevent memory leaks
+      console.log("Face detection results:", 
+        detections.length > 0 ? `${detections.length} face(s) detected` : "No face detected");
       
-      console.log("Face detection predictions:", predictions.length > 0 ? "Face detected" : "No face detected");
-      setLastPrediction(predictions.length > 0 ? predictions[0] : null);
+      // Clear previous drawings
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Process detection results
-      const faceCount = predictions.length;
+      // Draw detections onto the canvas
+      const resizedDetections = faceapi.resizeResults(detections, displaySize);
       
       // Update face detection state
+      const faceCount = detections.length;
       setFaceDetected(faceCount > 0);
       setMultipleFaces(faceCount > 1);
+      setLastPrediction(faceCount > 0 ? detections[0] : null);
       
       // Check if face is properly positioned (if any face is detected)
       let isFaceProperlyPositioned = false;
       
       if (faceCount > 0) {
-        // For each detected face
-        for (let i = 0; i < faceCount; i++) {
-          const face = predictions[i];
-          const start = face.topLeft;
-          const end = face.bottomRight;
-          const size = [end[0] - start[0], end[1] - start[1]];
+        // Draw all detections
+        resizedDetections.forEach((detection, i) => {
+          // Get face box dimensions
+          const box = detection.detection.box;
           
           // Calculate face position relative to frame
-          const faceCenterX = start[0] + size[0] / 2;
-          const faceCenterY = start[1] + size[1] / 2;
+          const faceCenterX = box.x + box.width / 2;
+          const faceCenterY = box.y + box.height / 2;
           
           // Check if face is centered enough (within middle 70% of frame - more lenient)
           const isCenteredX = faceCenterX > canvas.width * 0.15 && faceCenterX < canvas.width * 0.85;
           const isCenteredY = faceCenterY > canvas.height * 0.15 && faceCenterY < canvas.height * 0.85;
           
           // Check face size (not too small) - more lenient size requirements
-          const faceAreaRatio = (size[0] * size[1]) / (canvas.width * canvas.height);
+          const faceAreaRatio = (box.width * box.height) / (canvas.width * canvas.height);
           const isFaceLargeEnough = faceAreaRatio > 0.03; // Face should occupy at least 3% of the frame
           
-          isFaceProperlyPositioned = isCenteredX && isCenteredY && isFaceLargeEnough;
+          // Update positioned state for the first face
+          if (i === 0) {
+            isFaceProperlyPositioned = isCenteredX && isCenteredY && isFaceLargeEnough;
+          }
           
-          // Improve visibility of the face detection rectangle
-          const borderColor = isFaceProperlyPositioned ? "rgb(16, 185, 129)" : "rgb(245, 158, 11)"; // Green if properly positioned, amber if not
-          ctx.strokeStyle = borderColor;
-          ctx.lineWidth = 3;
-          ctx.strokeRect(start[0], start[1], size[0], size[1]);
+          // Draw custom rectangle with color based on position
+          const borderColor = i === 0 && isFaceProperlyPositioned 
+            ? "rgb(16, 185, 129)" // green
+            : "rgb(245, 158, 11)"; // amber
           
-          // Add corners to make rectangle more visible
-          const cornerLength = Math.min(25, Math.min(size[0], size[1]) / 4);
+          ctx?.lineWidth = 3;
+          ctx?.strokeStyle = borderColor;
+          ctx?.strokeRect(box.x, box.y, box.width, box.height);
           
-          // Drawing corner marks for better visibility
-          ctx.lineWidth = 4;
+          // Add corner marks for better visibility
+          const cornerLength = Math.min(25, Math.min(box.width, box.height) / 4);
+          ctx?.lineWidth = 4;
           
-          // Top-left corner
-          ctx.beginPath();
-          ctx.moveTo(start[0], start[1] + cornerLength);
-          ctx.lineTo(start[0], start[1]);
-          ctx.lineTo(start[0] + cornerLength, start[1]);
-          ctx.stroke();
+          // Draw corner marks (top-left, top-right, bottom-left, bottom-right)
+          if (ctx) {
+            // Top-left
+            ctx.beginPath();
+            ctx.moveTo(box.x, box.y + cornerLength);
+            ctx.lineTo(box.x, box.y);
+            ctx.lineTo(box.x + cornerLength, box.y);
+            ctx.stroke();
+            
+            // Top-right
+            ctx.beginPath();
+            ctx.moveTo(box.x + box.width - cornerLength, box.y);
+            ctx.lineTo(box.x + box.width, box.y);
+            ctx.lineTo(box.x + box.width, box.y + cornerLength);
+            ctx.stroke();
+            
+            // Bottom-left
+            ctx.beginPath();
+            ctx.moveTo(box.x, box.y + box.height - cornerLength);
+            ctx.lineTo(box.x, box.y + box.height);
+            ctx.lineTo(box.x + cornerLength, box.y + box.height);
+            ctx.stroke();
+            
+            // Bottom-right
+            ctx.beginPath();
+            ctx.moveTo(box.x + box.width - cornerLength, box.y + box.height);
+            ctx.lineTo(box.x + box.width, box.y + box.height);
+            ctx.lineTo(box.x + box.width, box.y + box.height - cornerLength);
+            ctx.stroke();
+          }
           
-          // Top-right corner
-          ctx.beginPath();
-          ctx.moveTo(end[0] - cornerLength, start[1]);
-          ctx.lineTo(end[0], start[1]);
-          ctx.lineTo(end[0], start[1] + cornerLength);
-          ctx.stroke();
-          
-          // Bottom-left corner
-          ctx.beginPath();
-          ctx.moveTo(start[0], end[1] - cornerLength);
-          ctx.lineTo(start[0], end[1]);
-          ctx.lineTo(start[0] + cornerLength, end[1]);
-          ctx.stroke();
-          
-          // Bottom-right corner
-          ctx.beginPath();
-          ctx.moveTo(end[0] - cornerLength, end[1]);
-          ctx.lineTo(end[0], end[1]);
-          ctx.lineTo(end[0], end[1] - cornerLength);
-          ctx.stroke();
-          
-          // Draw landmarks (eyes, ears, nose, mouth) if available
-          if (face.landmarks && Array.isArray(face.landmarks)) {
+          // Draw landmarks
+          if (ctx) {
             ctx.fillStyle = "#ffffff";
-            face.landmarks.forEach((landmark: number[]) => {
+            detection.landmarks.positions.forEach(point => {
               ctx.beginPath();
-              ctx.arc(landmark[0], landmark[1], 3, 0, 2 * Math.PI);
+              ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI);
               ctx.fill();
-              ctx.stroke();
             });
           }
-        }
-        await tf.nextFrame();  // Prevents browser freezing
+        });
       } else {
         // If no face detected, add guiding text
-        ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-        ctx.fillRect(canvas.width/2 - 100, canvas.height/2 - 15, 200, 30);
-        ctx.fillStyle = "#000000";
-        ctx.font = "14px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText("Position your face in the camera", canvas.width/2, canvas.height/2);
+        if (ctx) {
+          ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+          ctx.fillRect(canvas.width/2 - 100, canvas.height/2 - 15, 200, 30);
+          ctx.fillStyle = "#000000";
+          ctx.font = "14px Arial";
+          ctx.textAlign = "center";
+          ctx.fillText("Position your face in the camera", canvas.width/2, canvas.height/2);
+        }
       }
       
       setFaceOutOfFrame(!isFaceProperlyPositioned && faceCount > 0);
@@ -398,7 +377,8 @@ export const useProctoring = () => {
     // Continue detection loop
     animationRef.current = requestAnimationFrame(detectFace);
   }, [
-    detectionActive, 
+    detectionActive,
+    isModelLoaded, 
     faceDetected, 
     faceOutOfFrame, 
     multipleFaces, 
@@ -414,6 +394,8 @@ export const useProctoring = () => {
       setDetectionActive(true);
       console.log("Starting face detection");
       detectFace();
+    } else {
+      console.log("Cannot start detection:", { isModelLoaded, isCameraReady, detectionActive });
     }
   }, [isModelLoaded, isCameraReady, detectionActive, detectFace]);
 
@@ -444,6 +426,7 @@ export const useProctoring = () => {
     faceViolations,
     showFaceWarning,
     lastPrediction,
+    modelLoadingError,
     initCamera,
     startDetection,
     stopDetection,

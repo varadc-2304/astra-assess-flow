@@ -27,6 +27,7 @@ const CameraVerificationPage = () => {
     isCameraReady,
     faceDetected,
     lastPrediction,
+    modelLoadingError,
     initCamera,
     startDetection,
     stopDetection
@@ -43,30 +44,38 @@ const CameraVerificationPage = () => {
       return;
     }
 
-    // Automatically start camera initialization
-    console.log("Starting camera initialization");
-    initCamera();
+    // Wait for component to mount before initializing camera
+    const timer = setTimeout(() => {
+      console.log("Starting camera initialization after mount");
+      initCamera();
+    }, 500); // Small delay to ensure component is fully mounted
     
     return () => {
       // Clean up - stop detection if it was started
       console.log("Cleaning up camera detection");
+      clearTimeout(timer);
       stopDetection();
     };
   }, [assessment, initCamera, navigate, stopDetection, toast]);
 
+  // Monitor camera and model readiness
   useEffect(() => {
-    if (isCameraReady && isModelLoaded && !cameraReady) {
-      console.log("Camera and model are ready, starting detection");
-      startDetection();
+    if (isCameraReady && !cameraReady) {
+      console.log("Camera is ready");
       setCameraReady(true);
     }
-  }, [isCameraReady, isModelLoaded, cameraReady, startDetection]);
+    
+    if (isCameraReady && isModelLoaded && !environmentReady) {
+      console.log("Camera and model are ready, starting detection");
+      startDetection();
+    }
+  }, [isCameraReady, isModelLoaded, cameraReady, environmentReady, startDetection]);
 
   // Face detection monitoring effect
   useEffect(() => {
     let detectionTimer: number;
     
-    if (cameraReady && !environmentReady) {
+    if (cameraReady && isModelLoaded && !environmentReady) {
       // Check for face detection every second
       detectionTimer = window.setInterval(() => {
         if (faceDetected) {
@@ -117,7 +126,7 @@ const CameraVerificationPage = () => {
     return () => {
       if (detectionTimer) clearInterval(detectionTimer);
     };
-  }, [cameraReady, environmentReady, faceDetected, lastPrediction, toast]);
+  }, [cameraReady, environmentReady, faceDetected, lastPrediction, isModelLoaded, toast]);
 
   const handleProceedToAssessment = () => {
     if (!environmentReady || !cameraReady) {
@@ -152,7 +161,7 @@ const CameraVerificationPage = () => {
           description: "Face detection has been restarted. Please position yourself in front of the camera.",
         });
       } else {
-        // If camera isn't ready, reinitialize
+        // If camera or model isn't ready, reinitialize
         initCamera();
       }
     }, 500);
@@ -210,7 +219,17 @@ const CameraVerificationPage = () => {
               </div>
             </div>
             
-            {!cameraReady && (
+            {modelLoadingError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Model Loading Error</AlertTitle>
+                <AlertDescription>
+                  {modelLoadingError}. Please refresh the page and try again.
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {!cameraReady && !modelLoadingError && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Camera Access Required</AlertTitle>

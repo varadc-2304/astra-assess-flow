@@ -27,15 +27,20 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({ active }) =>
   } = useProctoring();
 
   useEffect(() => {
-    if (active && isModelLoaded && !isCameraReady) {
+    // Only initialize camera when component becomes active
+    if (active && !isCameraReady) {
+      console.log("ProctoringCamera: Initializing camera");
       initCamera();
     }
-  }, [active, isModelLoaded, isCameraReady, initCamera]);
+  }, [active, isCameraReady, initCamera]);
 
   useEffect(() => {
+    // Start detection only when both camera and model are ready
     if (active && isModelLoaded && isCameraReady && !detectionActive) {
+      console.log("ProctoringCamera: Camera and model ready, starting detection");
       startDetection();
     } else if (!active && detectionActive) {
+      console.log("ProctoringCamera: No longer active, stopping detection");
       stopDetection();
     }
   }, [active, isModelLoaded, isCameraReady, detectionActive, startDetection, stopDetection]);
@@ -43,15 +48,15 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({ active }) =>
   return (
     <>
       <div className="proctoring-container">
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        playsInline
-        width="640"
-        height="480"
-        style={{ display: "block" }}
-      />
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          width="640"
+          height="480"
+          style={{ display: "none" }} // Hide the raw video element
+        />
 
         <canvas
           ref={canvasRef}
