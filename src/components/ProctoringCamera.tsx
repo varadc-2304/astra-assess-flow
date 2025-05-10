@@ -43,12 +43,16 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({ active }) =>
   return (
     <>
       <div className="proctoring-container">
-        <video
-          ref={videoRef}
-          className="hidden"
-          playsInline
-          muted
-        />
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        width="640"
+        height="480"
+        style={{ display: "block" }}
+      />
+
         <canvas
           ref={canvasRef}
           className={`proctoring-canvas ${active ? 'opacity-100' : 'opacity-0'}`}
