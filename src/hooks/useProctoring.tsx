@@ -249,16 +249,16 @@ export const useProctoring = () => {
             ? "rgb(16, 185, 129)" // green
             : "rgb(245, 158, 11)"; // amber
           
-          ctx?.lineWidth = 3;
-          ctx?.strokeStyle = borderColor;
-          ctx?.strokeRect(box.x, box.y, box.width, box.height);
-          
-          // Add corner marks for better visibility
-          const cornerLength = Math.min(25, Math.min(box.width, box.height) / 4);
-          ctx?.lineWidth = 4;
-          
-          // Draw corner marks (top-left, top-right, bottom-left, bottom-right)
           if (ctx) {
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = borderColor;
+            ctx.strokeRect(box.x, box.y, box.width, box.height);
+            
+            // Add corner marks for better visibility
+            const cornerLength = Math.min(25, Math.min(box.width, box.height) / 4);
+            ctx.lineWidth = 4;
+            
+            // Draw corner marks (top-left, top-right, bottom-left, bottom-right)
             // Top-left
             ctx.beginPath();
             ctx.moveTo(box.x, box.y + cornerLength);
@@ -286,10 +286,8 @@ export const useProctoring = () => {
             ctx.lineTo(box.x + box.width, box.y + box.height);
             ctx.lineTo(box.x + box.width, box.y + box.height - cornerLength);
             ctx.stroke();
-          }
-          
-          // Draw landmarks
-          if (ctx) {
+            
+            // Draw landmarks
             ctx.fillStyle = "#ffffff";
             detection.landmarks.positions.forEach(point => {
               ctx.beginPath();
