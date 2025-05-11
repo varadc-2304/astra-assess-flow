@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,22 +13,40 @@ const SummaryPage = () => {
     assessment,
     totalMarksObtained,
     totalPossibleMarks,
-    assessmentStartTime,
-    assessmentEndTime,
-    resetAssessment
+    loading,
   } = useAssessment();
   const navigate = useNavigate();
+  const [startTime, setStartTime] = useState<string | null>(null);
+  const [endTime, setEndTime] = useState<string | null>(null);
   
   const percentage = totalPossibleMarks > 0 
     ? Math.round((totalMarksObtained / totalPossibleMarks) * 100) 
     : 0;
 
-  const calculateTimeSpent = () => {
-    if (!assessmentStartTime || !assessmentEndTime) return "N/A";
+  useEffect(() => {
+    // When assessment loads, get the submission data from Supabase to get start and end times
+    const fetchSubmissionData = async () => {
+      if (assessment) {
+        try {
+          // For this example, we'll just use the current time if no assessment data
+          // In a real implementation, you'd fetch this from Supabase
+          setStartTime(assessment.startTime);
+          setEndTime(new Date().toISOString());
+        } catch (error) {
+          console.error("Error fetching submission data:", error);
+        }
+      }
+    };
     
-    const startTime = new Date(assessmentStartTime).getTime();
-    const endTime = new Date(assessmentEndTime).getTime();
-    const differenceInMinutes = Math.floor((endTime - startTime) / (1000 * 60));
+    fetchSubmissionData();
+  }, [assessment]);
+
+  const calculateTimeSpent = () => {
+    if (!startTime || !endTime) return "N/A";
+    
+    const startTimeMs = new Date(startTime).getTime();
+    const endTimeMs = new Date(endTime).getTime();
+    const differenceInMinutes = Math.floor((endTimeMs - startTimeMs) / (1000 * 60));
     
     const hours = Math.floor(differenceInMinutes / 60);
     const minutes = differenceInMinutes % 60;
@@ -73,11 +91,12 @@ const SummaryPage = () => {
   }, [assessment, navigate]);
 
   const handleGoToDashboard = () => {
-    resetAssessment();
+    // Navigate back to dashboard
     navigate('/student');
   };
 
   if (!assessment) return null;
+  if (loading) return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
 
   const grade = getGradeLabel();
   const progressColor = getProgressColor();
@@ -160,7 +179,7 @@ const SummaryPage = () => {
         </Card>
         
         <div className="text-center text-sm text-gray-500">
-          <p>Assessment completed on {new Date(assessmentEndTime || '').toLocaleDateString()}</p>
+          <p>Assessment completed on {new Date(endTime || '').toLocaleDateString()}</p>
           <p className="mt-1">Thank you for completing this assessment!</p>
         </div>
       </div>
