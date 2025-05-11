@@ -6,9 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import { CheckCircle, FileCheck, Award, CircleCheck, UserCheck, BookOpen, Clock, User, Contact} from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { CheckCircle, FileCheck, Award, CircleCheck, UserCheck, BookOpen } from 'lucide-react';
 
 const SummaryPage = () => {
   const { 
@@ -17,63 +15,23 @@ const SummaryPage = () => {
     totalPossibleMarks,
     loading,
   } = useAssessment();
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [startTime, setStartTime] = useState<string | null>(null);
   const [endTime, setEndTime] = useState<string | null>(null);
-  const [studentName, setStudentName] = useState<string | null>(null);
-  const [studentPrn, setStudentPrn] = useState<string | null>(null);
-  const [violationSummary, setViolationSummary] = useState<string[]>([]);
-  const [submissionId, setSubmissionId] = useState<string | null>(null);
   
   const percentage = totalPossibleMarks > 0 
     ? Math.round((totalMarksObtained / totalPossibleMarks) * 100) 
     : 0;
 
   useEffect(() => {
-    // When assessment loads, get the submission data from Supabase
+    // When assessment loads, get the submission data from Supabase to get start and end times
     const fetchSubmissionData = async () => {
-      if (assessment && user) {
+      if (assessment) {
         try {
-          // Fetch user details
-          const { data: userData, error: userError } = await supabase
-            .from('auth')
-            .select('name, prn')
-            .eq('id', user.id)
-            .single();
-            
-          if (userData) {
-            setStudentName(userData.name);
-            setStudentPrn(userData.prn);
-          }
-          
-          // Fetch submission data
-          const { data: submission, error: submissionError } = await supabase
-            .from('submissions')
-            .select('*')
-            .eq('assessment_id', assessment.id)
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-            
-          if (submission) {
-            setStartTime(submission.started_at);
-            setEndTime(submission.completed_at || new Date().toISOString());
-            setSubmissionId(submission.id);
-            
-            // Parse face violations if they exist
-            if (submission.face_violations && Array.isArray(submission.face_violations)) {
-              setViolationSummary(submission.face_violations.slice(0, 5)); // Show only first 5 violations
-            } else if (typeof submission.face_violations === 'string') {
-              try {
-                const parsedViolations = JSON.parse(submission.face_violations);
-                setViolationSummary(Array.isArray(parsedViolations) ? parsedViolations.slice(0, 5) : []);
-              } catch (e) {
-                console.error("Error parsing face violations:", e);
-              }
-            }
-          }
+          // For this example, we'll just use the current time if no assessment data
+          // In a real implementation, you'd fetch this from Supabase
+          setStartTime(assessment.startTime);
+          setEndTime(new Date().toISOString());
         } catch (error) {
           console.error("Error fetching submission data:", error);
         }
@@ -81,7 +39,7 @@ const SummaryPage = () => {
     };
     
     fetchSubmissionData();
-  }, [assessment, user]);
+  }, [assessment]);
 
   const calculateTimeSpent = () => {
     if (!startTime || !endTime) return "N/A";
@@ -154,46 +112,12 @@ const SummaryPage = () => {
           <p className="text-gray-600 mt-1">Assessment Complete</p>
         </header>
 
-        {/* Student Info Card */}
-        <Card className="shadow-lg border-0 mb-6">
-          <CardHeader className="text-center pb-2">
-            <div className="mx-auto flex items-center justify-center w-12 h-12 rounded-full bg-blue-100 mb-4">
-              <User className="h-6 w-6 text-blue-600" />
-            </div>
-            <CardTitle className="text-xl">Student Information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                  <User className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">Name</div>
-                  <div className="font-semibold">{studentName || "Not available"}</div>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                  <Id className="h-5 w-5 text-purple-600" />
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">PRN</div>
-                  <div className="font-semibold">{studentPrn || "Not available"}</div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Results Card */}
         <Card className="shadow-lg border-0 mb-6">
           <CardHeader className="text-center pb-2">
             <div className="mx-auto flex items-center justify-center w-12 h-12 rounded-full bg-green-100 mb-4">
               <CheckCircle className="h-6 w-6 text-green-600" />
             </div>
-            <CardTitle className="text-xl">Assessment Results</CardTitle>
+            <CardTitle className="text-xl">Summary Results</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6 pt-4">
             <div className="text-center">
@@ -237,7 +161,7 @@ const SummaryPage = () => {
               
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <Clock className="h-5 w-5 text-emerald-600" />
+                  <UserCheck className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Time Spent</div>
@@ -245,29 +169,6 @@ const SummaryPage = () => {
                 </div>
               </div>
             </div>
-            
-            {/* Violations Summary Card */}
-            {violationSummary.length > 0 && (
-              <>
-                <Separator />
-                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
-                  <h3 className="font-medium text-amber-800 dark:text-amber-400 mb-2">Proctoring Violations:</h3>
-                  <ul className="text-sm space-y-1 text-amber-700 dark:text-amber-300">
-                    {violationSummary.map((violation, index) => (
-                      <li key={index} className="flex gap-2">
-                        <span>•</span>
-                        <span>{violation}</span>
-                      </li>
-                    ))}
-                    {violationSummary.length > 5 && (
-                      <li className="text-xs italic text-amber-600 dark:text-amber-400">
-                        + additional violations not shown
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              </>
-            )}
           </CardContent>
           <CardFooter className="flex justify-center pt-2 pb-6">
             <Button size="lg" onClick={handleGoToDashboard} className="bg-astra-red hover:bg-red-600 text-white">
