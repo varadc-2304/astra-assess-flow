@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { Json } from '@/types/database';
 
 interface ProctoringCameraProps {
   onVerificationComplete?: (success: boolean) => void;
@@ -228,13 +229,19 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       if (submission && submission.face_violations) {
         // Handle both string and JSON array formats
         if (Array.isArray(submission.face_violations)) {
-          currentViolations = submission.face_violations;
+          // Fix the type error here: Convert any non-string items to strings
+          currentViolations = (submission.face_violations as Json[]).map(item => String(item));
         } else {
           try {
             // If it's stored as a JSON string, parse it
-            currentViolations = typeof submission.face_violations === 'string'
+            const parsedViolations = typeof submission.face_violations === 'string'
               ? JSON.parse(submission.face_violations)
               : submission.face_violations;
+            
+            // Convert the parsed violations to strings
+            currentViolations = Array.isArray(parsedViolations)
+              ? parsedViolations.map(item => String(item))
+              : [];
           } catch (e) {
             console.error("Error parsing face_violations:", e);
             currentViolations = [];
