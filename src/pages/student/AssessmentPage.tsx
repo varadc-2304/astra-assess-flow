@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -59,6 +58,8 @@ const AssessmentPage = () => {
   const [isEndingAssessment, setIsEndingAssessment] = useState(false);
   const [testCaseStatus, setTestCaseStatus] = useState<TestCaseStatus>({});
   const [showCamera, setShowCamera] = useState(false);
+  const [cameraActive, setCameraActive] = useState(true);
+  const [violationLogs, setViolationLogs] = useState<string[]>([]);
   const navigate = useNavigate();
   const { 
     enterFullscreen, 
@@ -122,6 +123,7 @@ const AssessmentPage = () => {
             .is('completed_at', null);
             
           if (existingSubmissions && existingSubmissions.length > 0) {
+            setSubmissionId(existingSubmissions[0].id);
             return;
           }
           
@@ -131,11 +133,15 @@ const AssessmentPage = () => {
               assessment_id: assessment.id,
               user_id: user.id,
               started_at: new Date().toISOString(),
-              fullscreen_violations: 0
-            });
+              fullscreen_violations: 0,
+              face_violations: [] // Initialize with empty array
+            })
+            .select();
             
           if (error) {
             console.error('Error creating submission record:', error);
+          } else if (data && data.length > 0) {
+            setSubmissionId(data[0].id);
           }
         } catch (error) {
           console.error('Error creating submission record:', error);
@@ -228,31 +234,47 @@ const AssessmentPage = () => {
     setShowExitDialog(true);
   };
   
+  const handleUpdateMarks = (questionId: string, marks: number) => {
+    updateMarksObtained(questionId, marks);
+  };
+
+  // Anti-cheating warning is active when either fullscreen or tab warnings are shown
+  const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
+  
+  const toggleCamera = () => {
+    setShowCamera(prev => !prev);
+  };
+  
+  const handleViolation = (violationText: string) => {
+    setViolationLogs(prev => {
+      // Only add if it's not a duplicate of the last violation
+      if (prev.length === 0 || prev[prev.length - 1] !== violationText) {
+        return [...prev, violationText];
+      }
+      return prev;
+    });
+  };
+  
   const confirmEndAssessment = async () => {
     setIsEndingAssessment(true);
     
     try {
-      const { data: submissions, error: submissionError } = await supabase
-        .from('submissions')
-        .select('*')
-        .eq('assessment_id', assessment?.id || '')
-        .eq('user_id', user?.id || '')
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      if (submissionError || !submissions || submissions.length === 0) {
-        console.error('Error finding submission to update:', submissionError);
-      } else {
+      // Find the current submission
+      if (submissionId) {
+        // Update the submission with all collected violations
         const { error: updateError } = await supabase
           .from('submissions')
           .update({ 
-            completed_at: new Date().toISOString()
+            completed_at: new Date().toISOString(),
+            face_violations: violationLogs
           })
-          .eq('id', submissions[0].id);
+          .eq('id', submissionId);
         
         if (updateError) {
           console.error('Error updating submission completion status:', updateError);
         }
+      } else {
+        console.error('No submission ID found, cannot update violations');
       }
       
       await endAssessment();
@@ -274,6 +296,9 @@ const AssessmentPage = () => {
         description: "Your answers have been submitted successfully!",
       });
       
+      // Turn off the camera before navigating
+      setCameraActive(false);
+      
       navigate('/summary');
     } catch (error) {
       console.error('Error ending assessment:', error);
@@ -286,17 +311,13 @@ const AssessmentPage = () => {
     }
   };
   
-  const handleUpdateMarks = (questionId: string, marks: number) => {
-    updateMarksObtained(questionId, marks);
-  };
+  // Make sure to turn off camera when component unmounts
+  useEffect(() => {
+    return () => {
+      setCameraActive(false);
+    };
+  }, []);
 
-  // Anti-cheating warning is active when either fullscreen or tab warnings are shown
-  const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
-  
-  const toggleCamera = () => {
-    setShowCamera(prev => !prev);
-  };
-  
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
       <header className={`${isAntiCheatingWarningActive ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'} border-b py-2 px-4 flex items-center justify-between sticky top-0 z-10 transition-colors duration-300`}>
@@ -370,7 +391,7 @@ const AssessmentPage = () => {
                   </Button>
                 </div>
                 
-                {showCamera && (
+                {cameraActive && (
                   <ProctoringCamera 
                     showControls={false}
                     showStatus={true}
@@ -378,6 +399,7 @@ const AssessmentPage = () => {
                     assessmentId={assessment.id}
                     submissionId={submissionId || undefined}
                     autoStart={true}
+                    onViolation={handleViolation}
                     className="mt-2"
                   />
                 )}
@@ -434,7 +456,7 @@ const AssessmentPage = () => {
                   </div>
 
                   {isAntiCheatingWarningActive && (
-                    <div className="mb-3 bg-red-50 dark:bg-red-900/20 p-2 rounded-md flex items-center gap-2">
+                    <div className="mb-3 bg-red-50 dark:bg-red-900 p-2 rounded-md flex items-center gap-2">
                       <AlertTriangle className="h-5 w-5 text-red-500" />
                       <p className="text-sm text-red-700 dark:text-red-400">Anti-cheating warning active</p>
                     </div>

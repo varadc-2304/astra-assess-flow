@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,6 +17,7 @@ interface ProctoringCameraProps {
   assessmentId?: string;
   submissionId?: string;
   autoStart?: boolean;
+  onViolation?: (violationText: string) => void; // Add this new prop
   className?: string;
 }
 
@@ -77,6 +77,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   assessmentId,
   submissionId,
   autoStart = true,
+  onViolation,
   className
 }) => {
   const { toast } = useToast();
@@ -152,6 +153,9 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }
   }, [isInitializing, isCameraReady, isModelLoaded]);
 
+  // Add a reference to track what violations have been reported
+  const reportedViolationsRef = useRef<Set<string>>(new Set());
+  
   useEffect(() => {
     if (trackViolations && violations) {
       // Update violation counts
@@ -166,12 +170,16 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           newViolationsDetected = true;
           const timestamp = new Date().toLocaleTimeString();
           const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
-          setViolationLog(prev => [...prev, violationMessage]);
           
-          if (trackViolations && user && submissionId) {
-            // Only log to the database
-            updateViolationInDatabase(violationMessage);
-            setLastUpdateTime(Date.now());
+          // Only log this violation if we haven't reported it yet
+          if (!reportedViolationsRef.current.has(violationMessage)) {
+            reportedViolationsRef.current.add(violationMessage);
+            setViolationLog(prev => [...prev, violationMessage]);
+            
+            // Report the violation to parent component if callback provided
+            if (onViolation) {
+              onViolation(violationMessage);
+            }
           }
         }
         newViolationCount[violationType] = count;
@@ -189,10 +197,18 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       const totalViolations = Object.values(newViolationCount).reduce((sum, count) => sum + count, 0);
       if (totalViolations >= 3 && trackViolations && user && submissionId) {
         const violationSummary = formatViolationSummary(newViolationCount);
-        updateViolationInDatabase(violationSummary, true);
+        
+        // Also report the violation summary if not already reported
+        if (!reportedViolationsRef.current.has(violationSummary)) {
+          reportedViolationsRef.current.add(violationSummary);
+          
+          if (onViolation) {
+            onViolation(violationSummary);
+          }
+        }
       }
     }
-  }, [violations, trackViolations, user, submissionId, resetViolationFlags]);
+  }, [violations, trackViolations, user, submissionId, resetViolationFlags, onViolation]);
 
   const getViolationMessage = (violationType: ViolationType): string => {
     switch (violationType) {
@@ -225,74 +241,19 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     return `VIOLATION SUMMARY: ${violationEntries.join(', ')}`;
   };
 
+  // We're not updating the database in real-time anymore
+  // Instead, we're just collecting violations and will submit them at the end
+  // So this function is now primarily for logging purposes
   const updateViolationInDatabase = async (violationText: string, isFinal: boolean = false) => {
-    if (!submissionId || !user) return;
+    console.log(`Violation detected: ${violationText}${isFinal ? ' (Final)' : ''}`);
     
-    try {
-      // Get current violations
-      const { data: submission, error: fetchError } = await supabase
-        .from('submissions')
-        .select('face_violations')
-        .eq('id', submissionId)
-        .single();
-      
-      if (fetchError) {
-        console.error("Error fetching submission:", fetchError);
-        return;
-      }
-      
-      // Initialize or update violations array
-      let currentViolations: string[] = [];
-      
-      if (submission && submission.face_violations) {
-        // Handle both string and JSON array formats
-        if (Array.isArray(submission.face_violations)) {
-          // Fix the type error here: Convert any non-string items to strings
-          currentViolations = (submission.face_violations as Json[]).map(item => String(item));
-        } else {
-          try {
-            // If it's stored as a JSON string, parse it
-            const parsedViolations = typeof submission.face_violations === 'string'
-              ? JSON.parse(submission.face_violations)
-              : submission.face_violations;
-            
-            // Convert the parsed violations to strings
-            currentViolations = Array.isArray(parsedViolations)
-              ? parsedViolations.map(item => String(item))
-              : [];
-          } catch (e) {
-            console.error("Error parsing face_violations:", e);
-            currentViolations = [];
-          }
-        }
-      }
-      
-      // Add new violation
-      currentViolations.push(violationText);
-      
-      // Update submission with new violations
-      const { error: updateError } = await supabase
-        .from('submissions')
-        .update({ 
-          face_violations: currentViolations,
-          is_terminated: isFinal ? true : undefined
-        })
-        .eq('id', submissionId);
-      
-      if (updateError) {
-        console.error("Error updating face violations:", updateError);
-      }
-      
-      // If this is the final violation that terminates the session
-      if (isFinal) {
-        toast({
-          title: "Assessment Terminated",
-          description: "Multiple violations detected. Your session has been flagged.",
-          variant: "destructive"
-        });
-      }
-    } catch (err) {
-      console.error("Error updating face violations:", err);
+    // If this is a final violation that terminates the session, still show a toast
+    if (isFinal) {
+      toast({
+        title: "Assessment Terminated",
+        description: "Multiple violations detected. Your session has been flagged.",
+        variant: "destructive"
+      });
     }
   };
 
