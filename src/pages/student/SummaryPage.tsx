@@ -6,7 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import { CheckCircle, FileCheck, Award, CircleCheck, UserCheck, BookOpen, Clock, User } from 'lucide-react';
+import { CheckCircle, FileCheck, Award, CircleCheck, UserCheck, BookOpen, Clock, User, Id} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
