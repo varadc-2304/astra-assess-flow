@@ -162,11 +162,19 @@ export function useProctoring(options: ProctoringOptions = {}) {
         message: 'No face detected. Please position yourself in front of the camera.'
       });
     } else if (detections.length === 1) {
+      // Convert FaceExpressions to Record<string, number>
+      const expressions: Record<string, number> = {};
+      if (detections[0].expressions) {
+        Object.entries(detections[0].expressions).forEach(([key, value]) => {
+          expressions[key] = value;
+        });
+      }
+      
       setStatus('faceDetected');
       setDetectionResult({
         status: 'faceDetected',
         facesCount: 1,
-        expressions: detections[0].expressions,
+        expressions,
         message: 'Face detected successfully.'
       });
     } else {

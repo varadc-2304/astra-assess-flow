@@ -33,5 +33,9 @@ export function useIsMobile() {
     return () => mql.removeEventListener("change", onChange)
   }, [])
 
-  return { isMobile: !!isMobile, screenWidth, hasCamera };
+  return { 
+    isMobile: !!isMobile, 
+    screenWidth, 
+    hasCamera 
+  };
 }

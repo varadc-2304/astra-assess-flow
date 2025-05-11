@@ -20,6 +20,10 @@ interface UserFilters {
   searchQuery: string;
 }
 
+interface AssessmentOption {
+  name: string;
+}
+
 const ResultsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -34,7 +38,7 @@ const ResultsPage = () => {
     searchQuery: ''
   });
   const [isExporting, setIsExporting] = useState(false);
-  const [assessmentOptions, setAssessmentOptions] = useState<{ name: string }[]>([]);
+  const [assessmentOptions, setAssessmentOptions] = useState<AssessmentOption[]>([]);
   const [yearOptions, setYearOptions] = useState<string[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
   const [divisionOptions, setDivisionOptions] = useState<string[]>([]);
@@ -163,7 +167,7 @@ const ResultsPage = () => {
       // Process and apply filters to results
       let filteredResults = resultsData.map(result => {
         const user = userMap[result.user_id] || {};
-        const assessment = result.assessments || {};
+        const assessment = result.assessments || { name: "Unknown Assessment" };
         
         return {
           userId: result.user_id,
@@ -174,7 +178,7 @@ const ResultsPage = () => {
           division: user.division || 'N/A',
           batch: user.batch || 'N/A',
           assessmentId: result.assessment_id,
-          assessmentName: assessment.name || 'Unnamed Assessment', // Fix TypeScript error here
+          assessmentName: assessment.name,
           score: result.total_score,
           totalMarks: result.total_marks,
           percentage: result.percentage,
