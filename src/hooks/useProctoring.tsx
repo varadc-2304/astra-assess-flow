@@ -16,7 +16,6 @@ export type ProctoringStatus =
   'faceCovered' |
   'faceNotCentered' |
   'rapidMovement' |
-  'objectDetected' |
   'error';
 
 export type ViolationType = 
@@ -26,7 +25,6 @@ export type ViolationType =
   'faceCovered' | 
   'rapidMovement' | 
   'frequentDisappearance' |
-  'objectDetected' |
   'identityMismatch';
 
 export interface ProctoringOptions {
@@ -35,7 +33,6 @@ export interface ProctoringOptions {
   drawExpressions?: boolean;
   detectExpressions?: boolean;
   trackViolations?: boolean;
-  autoStart?: boolean;
   detectionOptions?: {
     faceDetectionThreshold?: number;
     faceCenteredTolerance?: number;
@@ -48,7 +45,6 @@ export interface DetectionResult {
   facesCount: number;
   expressions?: Record<string, number>;
   message?: string;
-  detectedObjects?: string[];
 }
 
 export function useProctoring(options: ProctoringOptions = {}) {
@@ -66,21 +62,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     faceCovered: 0,
     rapidMovement: 0,
     frequentDisappearance: 0,
-    identityMismatch: 0,
-    objectDetected: 0
-  });
-  const [detectedObjects, setDetectedObjects] = useState<string[]>([]);
-  
-  // Track which violations have been flagged to prevent duplicates
-  const flaggedViolationsRef = useRef<Record<ViolationType, boolean>>({
-    noFaceDetected: false,
-    multipleFacesDetected: false,
-    faceNotCentered: false,
-    faceCovered: false,
-    rapidMovement: false,
-    frequentDisappearance: false,
-    identityMismatch: false,
-    objectDetected: false
+    identityMismatch: 0
   });
 
   // Set default detection options
@@ -306,24 +288,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
     return detectionScore < detectionOptions.faceDetectionThreshold;
   }, [detectionOptions.faceDetectionThreshold]);
 
-  // Simple object detection using color patterns and shape detection
-  // This is a simplified version - in a real implementation, you'd use a proper object detection model
-  const detectProhibitedObjects = useCallback((imageData: ImageData): string[] => {
-    // This is a placeholder for actual object detection logic
-    const foundObjects: string[] = [];
-    
-    // In a real implementation, you would use a proper ML model like COCO-SSD
-    // For demonstration, we'll use a simplified heuristic approach
-    
-    // Analyze the image data for characteristics of common devices
-    // This is VERY simplified and wouldn't work well in practice
-    // You would need to integrate a proper object detection model
-
-    // For now, just return the previously detected objects
-    // In a real implementation, this would perform actual detection
-    return detectedObjects;
-  }, [detectedObjects]);
-
   // Detect faces from video with optimizations
   const detectFaces = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !isModelLoaded || !isCameraReady) {
@@ -357,24 +321,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Get image data for object detection
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const objects = detectProhibitedObjects(imageData);
-        
-        // Update detected objects state
-        if (objects.length > 0 && !flaggedViolationsRef.current.objectDetected) {
-          setDetectedObjects(objects);
-          
-          // Update violation count only once per session
-          if (options.trackViolations) {
-            setViolations(prev => ({
-              ...prev,
-              objectDetected: prev.objectDetected + 1
-            }));
-            flaggedViolationsRef.current.objectDetected = true;
-          }
-        }
       }
 
       // Track violations if enabled
@@ -386,23 +332,21 @@ export function useProctoring(options: ProctoringOptions = {}) {
           noFaceCounterRef.current += 1;
           
           // Increase violation count if no face for 5 consecutive checks (5 seconds)
-          if (noFaceCounterRef.current >= 5 && !flaggedViolationsRef.current.noFaceDetected) {
+          if (noFaceCounterRef.current >= 5) {
             setViolations(prev => ({
               ...prev,
               noFaceDetected: prev.noFaceDetected + 1
             }));
-            flaggedViolationsRef.current.noFaceDetected = true;
+            noFaceCounterRef.current = 0; // Reset counter after recording violation
           }
           
           // Track frequent disappearance
           if (lastFaceDetectionTimeRef.current > 0 && 
-              now - lastFaceDetectionTimeRef.current < 10000 && 
-              !flaggedViolationsRef.current.frequentDisappearance) {  // Within 10 seconds
+              now - lastFaceDetectionTimeRef.current < 10000) {  // Within 10 seconds
             setViolations(prev => ({
               ...prev,
               frequentDisappearance: prev.frequentDisappearance + 1
             }));
-            flaggedViolationsRef.current.frequentDisappearance = true;
           }
         } else {
           // Reset no-face counter
@@ -410,12 +354,11 @@ export function useProctoring(options: ProctoringOptions = {}) {
           lastFaceDetectionTimeRef.current = now;
           
           // Multiple faces detection
-          if (detections.length > 1 && !flaggedViolationsRef.current.multipleFacesDetected) {
+          if (detections.length > 1) {
             setViolations(prev => ({
               ...prev,
               multipleFacesDetected: prev.multipleFacesDetected + 1
             }));
-            flaggedViolationsRef.current.multipleFacesDetected = true;
           }
           
           // Single face detection - check for other violations
@@ -423,45 +366,34 @@ export function useProctoring(options: ProctoringOptions = {}) {
             const detection = detections[0];
             
             // Check if face is centered
-            if (!isFaceCentered(detection, video.videoWidth, video.videoHeight) && !flaggedViolationsRef.current.faceNotCentered) {
+            if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
               setViolations(prev => ({
                 ...prev,
                 faceNotCentered: prev.faceNotCentered + 1
               }));
-              flaggedViolationsRef.current.faceNotCentered = true;
             }
             
             // Check if face is covered
-            if (isFaceCovered(detection) && !flaggedViolationsRef.current.faceCovered) {
+            if (isFaceCovered(detection)) {
               setViolations(prev => ({
                 ...prev,
                 faceCovered: prev.faceCovered + 1
               }));
-              flaggedViolationsRef.current.faceCovered = true;
             }
             
             // Check for rapid movements
-            if (checkForRapidMovements(detection.detection.box) && !flaggedViolationsRef.current.rapidMovement) {
+            if (checkForRapidMovements(detection.detection.box)) {
               setViolations(prev => ({
                 ...prev,
                 rapidMovement: prev.rapidMovement + 1
               }));
-              flaggedViolationsRef.current.rapidMovement = true;
             }
           }
         }
       }
 
       // Update status based on detection
-      if (detectedObjects.length > 0) {
-        setStatus('objectDetected');
-        setDetectionResult({
-          status: 'objectDetected',
-          facesCount: detections.length,
-          detectedObjects,
-          message: 'Prohibited object detected. Please remove it from view.'
-        });
-      } else if (detections.length === 0) {
+      if (detections.length === 0) {
         setStatus('noFaceDetected');
         setDetectionResult({
           status: 'noFaceDetected',
@@ -643,9 +575,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     isFaceCentered,
     isFaceCovered,
     checkForRapidMovements,
-    violations,
-    detectProhibitedObjects,
-    detectedObjects
+    violations
   ]);
 
   // Start detection loop
@@ -697,21 +627,8 @@ export function useProctoring(options: ProctoringOptions = {}) {
       faceCovered: 0,
       rapidMovement: 0,
       frequentDisappearance: 0,
-      identityMismatch: 0,
-      objectDetected: 0
+      identityMismatch: 0
     });
-    
-    // Reset flagged violations
-    flaggedViolationsRef.current = {
-      noFaceDetected: false,
-      multipleFacesDetected: false,
-      faceNotCentered: false,
-      faceCovered: false,
-      rapidMovement: false,
-      frequentDisappearance: false,
-      identityMismatch: false,
-      objectDetected: false
-    };
     
     // Reset face tracking state
     faceHistoryRef.current = { positions: [], timestamps: [] };
@@ -719,42 +636,23 @@ export function useProctoring(options: ProctoringOptions = {}) {
     lastFaceDetectionTimeRef.current = 0;
   }, []);
 
-  // Reset violation flags to allow them to be detected again
-  const resetViolationFlags = useCallback(() => {
-    flaggedViolationsRef.current = {
-      noFaceDetected: false,
-      multipleFacesDetected: false,
-      faceNotCentered: false,
-      faceCovered: false,
-      rapidMovement: false,
-      frequentDisappearance: false,
-      identityMismatch: false,
-      objectDetected: false
-    };
-  }, []);
-
   // Initialize system
   useEffect(() => {
-    // Only auto-initialize if autoStart is true or undefined
-    if (options.autoStart !== false) {
-      async function initializeProctoring() {
-        setIsInitializing(true);
-        const modelsLoaded = await loadModels();
-        if (modelsLoaded) {
-          await initializeCamera();
-        }
-        setIsInitializing(false);
+    async function initializeProctoring() {
+      setIsInitializing(true);
+      const modelsLoaded = await loadModels();
+      if (modelsLoaded) {
+        await initializeCamera();
       }
-      
-      initializeProctoring();
-    } else {
       setIsInitializing(false);
     }
+    
+    initializeProctoring();
     
     return () => {
       stopDetection();
     };
-  }, [loadModels, initializeCamera, stopDetection, options.autoStart]);
+  }, [loadModels, initializeCamera, stopDetection]);
 
   // Set up detection when camera is ready and models are loaded
   useEffect(() => {
@@ -771,14 +669,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
     }
   }, [facingMode, isCameraPermissionGranted, initializeCamera]);
 
-  // Manually initialize camera if autoStart was false
-  const startCamera = useCallback(async () => {
-    setIsInitializing(true);
-    await loadModels();
-    await initializeCamera();
-    setIsInitializing(false);
-  }, [loadModels, initializeCamera]);
-
   // Return values and functions
   return {
     videoRef,
@@ -790,11 +680,8 @@ export function useProctoring(options: ProctoringOptions = {}) {
     isCameraReady,
     isCameraPermissionGranted,
     isInitializing,
-    detectedObjects,
     switchCamera,
     stopDetection,
-    resetViolationFlags,
-    startCamera,
     reinitialize: initializeCamera
   };
 }

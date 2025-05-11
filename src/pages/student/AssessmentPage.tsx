@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -16,7 +15,7 @@ import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, Camera } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
@@ -58,7 +57,6 @@ const AssessmentPage = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [isEndingAssessment, setIsEndingAssessment] = useState(false);
   const [testCaseStatus, setTestCaseStatus] = useState<TestCaseStatus>({});
-  const [showCamera, setShowCamera] = useState(false);
   const navigate = useNavigate();
   const { 
     enterFullscreen, 
@@ -293,10 +291,6 @@ const AssessmentPage = () => {
   // Anti-cheating warning is active when either fullscreen or tab warnings are shown
   const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
   
-  const toggleCamera = () => {
-    setShowCamera(prev => !prev);
-  };
-  
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
       <header className={`${isAntiCheatingWarningActive ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'} border-b py-2 px-4 flex items-center justify-between sticky top-0 z-10 transition-colors duration-300`}>
@@ -354,33 +348,6 @@ const AssessmentPage = () => {
                     <span className="font-medium">{questionStatus.filter(status => !status).length}</span>
                   </div>
                 </div>
-              </div>
-              
-              {/* Proctoring Camera */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Proctoring Camera</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={toggleCamera} 
-                    className="text-xs"
-                  >
-                    {showCamera ? 'Hide Camera' : 'Show Camera'}
-                  </Button>
-                </div>
-                
-                {showCamera && (
-                  <ProctoringCamera 
-                    showControls={false}
-                    showStatus={true}
-                    trackViolations={true}
-                    assessmentId={assessment.id}
-                    submissionId={submissionId || undefined}
-                    autoStart={true}
-                    className="mt-2"
-                  />
-                )}
               </div>
               
               <Button 
@@ -499,6 +466,19 @@ const AssessmentPage = () => {
               </ResizablePanelGroup>
             </div>
           )}
+        </div>
+        
+        {/* Add proctoring camera overlay */}
+        <div className="fixed bottom-16 right-4 z-20">
+          <Card className="w-[240px] shadow-lg border-0 bg-black/10 backdrop-blur-sm overflow-hidden">
+            <ProctoringCamera 
+              showControls={false}
+              showStatus={false}
+              trackViolations={true}
+              assessmentId={assessment.id}
+              submissionId={submissionId || undefined}
+            />
+          </Card>
         </div>
       </div>
       
