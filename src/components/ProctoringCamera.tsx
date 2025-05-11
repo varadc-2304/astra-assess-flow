@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +17,8 @@ interface ProctoringCameraProps {
   trackViolations?: boolean;
   assessmentId?: string;
   submissionId?: string;
+  autoStart?: boolean;
+  className?: string;
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -55,6 +57,11 @@ const statusMessages: Record<ProctoringStatus, { message: string; icon: React.Re
     icon: <AlertCircle className="mr-2 h-5 w-5" />,
     color: 'text-amber-500'
   },
+  objectDetected: {
+    message: 'Prohibited electronic device detected. Please remove from view.',
+    icon: <Smartphone className="mr-2 h-5 w-5" />,
+    color: 'text-red-500'
+  },
   error: { 
     message: 'Error initializing camera. Please check permissions and try again.', 
     icon: <AlertCircle className="mr-2 h-5 w-5" />,
@@ -68,7 +75,9 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   showStatus = true,
   trackViolations = false,
   assessmentId,
-  submissionId
+  submissionId,
+  autoStart = true,
+  className
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -79,7 +88,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     faceCovered: 0,
     rapidMovement: 0,
     frequentDisappearance: 0,
-    identityMismatch: 0
+    identityMismatch: 0,
+    objectDetected: 0
   });
   const [violationLog, setViolationLog] = useState<string[]>([]);
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
@@ -91,10 +101,13 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     canvasRef,
     status,
     violations,
+    detectedObjects,
     isCameraReady,
     isModelLoaded,
     isInitializing,
     switchCamera,
+    resetViolationFlags,
+    startCamera,
     reinitialize,
     stopDetection
   } = useProctoring({
@@ -103,19 +116,19 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     drawExpressions: false,
     detectExpressions: true,
     trackViolations: trackViolations,
+    autoStart: autoStart,
     // Improved parameters for more accurate face detection
     detectionOptions: {
-      faceDetectionThreshold: 0.5, // Lower threshold for face detection (was 0.65)
-      faceCenteredTolerance: 0.3, // More tolerance for face not being centered (was 0.25)
-      rapidMovementThreshold: 0.3, // Higher threshold for rapid movement detection (was 0.25)
+      faceDetectionThreshold: 0.5, // Lower threshold for face detection
+      faceCenteredTolerance: 0.3, // More tolerance for face not being centered
+      rapidMovementThreshold: 0.3, // Higher threshold for rapid movement detection
     }
   });
 
-  // Initialize the camera when component mounts
+  // Initialize the camera when component mounts, only if autoStart is true
   useEffect(() => {
-    if (!autoInitRef.current) {
-      console.log("Initializing camera...");
-      reinitialize();
+    if (autoStart && !autoInitRef.current) {
+      console.log("Auto-initializing camera...");
       autoInitRef.current = true;
     }
     
@@ -124,7 +137,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       console.log("Stopping camera detection...");
       stopDetection();
     };
-  }, [reinitialize, stopDetection]);
+  }, [autoStart, stopDetection]);
   
   // Update camera loading state
   useEffect(() => {
@@ -156,12 +169,9 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           setViolationLog(prev => [...prev, violationMessage]);
           
           if (trackViolations && user && submissionId) {
-            // Only log if we're past the cooldown period (5 seconds)
-            const now = Date.now();
-            if (now - lastUpdateTime > 5000) {
-              updateViolationInDatabase(violationMessage);
-              setLastUpdateTime(now);
-            }
+            // Only log to the database
+            updateViolationInDatabase(violationMessage);
+            setLastUpdateTime(Date.now());
           }
         }
         newViolationCount[violationType] = count;
@@ -169,6 +179,10 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       
       if (newViolationsDetected) {
         setViolationCount(newViolationCount);
+        // Reset violation flags after some time to allow for future detection of the same type
+        setTimeout(() => {
+          resetViolationFlags();
+        }, 60000); // Reset flags after 1 minute
       }
       
       // Check for total violations exceeding threshold
@@ -178,7 +192,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         updateViolationInDatabase(violationSummary, true);
       }
     }
-  }, [violations, trackViolations, user, submissionId]);
+  }, [violations, trackViolations, user, submissionId, resetViolationFlags]);
 
   const getViolationMessage = (violationType: ViolationType): string => {
     switch (violationType) {
@@ -196,6 +210,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         return 'Face frequently disappearing';
       case 'identityMismatch':
         return 'Face identity mismatch';
+      case 'objectDetected':
+        return 'Prohibited electronic device detected';
       default:
         return 'Unknown violation';
     }
@@ -300,10 +316,15 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }, 100);
   };
 
+  const handleStartCamera = () => {
+    setCameraLoading(true);
+    startCamera();
+  };
+
   const statusConfig = statusMessages[status] || statusMessages.initializing;
 
   return (
-    <div className="proctoring-camera-container">
+    <div className={cn("proctoring-camera-container", className)}>
       <div className="relative w-full max-w-md mx-auto">
         {/* Video feed container */}
         <div className="relative overflow-hidden rounded-lg bg-black mb-4 border-2 border-gray-200 dark:border-gray-700 shadow-lg">
@@ -344,40 +365,56 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         {/* Controls */}
         {showControls && (
           <div className="flex justify-between mt-4">
-            <Button
-              variant="outline"
-              onClick={handleRestartCamera}
-              disabled={isInitializing}
-              type="button"
-              className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Restart Camera
-            </Button>
-            
-            <Button
-              variant="outline"
-              onClick={switchCamera}
-              disabled={isInitializing}
-              type="button"
-              className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <Camera className="h-4 w-4 mr-2" />
-              Switch Camera
-            </Button>
-            
-            <Button
-              onClick={handleVerificationComplete}
-              disabled={status !== 'faceDetected' || isInitializing}
-              className={cn(
-                "transition-colors",
-                status === 'faceDetected' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-400'
-              )}
-              type="button"
-            >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Verify
-            </Button>
+            {!autoStart && !isCameraReady ? (
+              <Button 
+                className="w-full"
+                onClick={handleStartCamera}
+                disabled={isInitializing}
+                type="button"
+              >
+                <Camera className="h-4 w-4 mr-2" />
+                Start Camera
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleRestartCamera}
+                  disabled={isInitializing}
+                  type="button"
+                  className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Restart Camera
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={switchCamera}
+                  disabled={isInitializing}
+                  type="button"
+                  className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  Switch Camera
+                </Button>
+                
+                {onVerificationComplete && (
+                  <Button
+                    onClick={handleVerificationComplete}
+                    disabled={status !== 'faceDetected' || isInitializing}
+                    className={cn(
+                      "transition-colors",
+                      status === 'faceDetected' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-400'
+                    )}
+                    type="button"
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Verify
+                  </Button>
+                )}
+              </>
+            )}
           </div>
         )}
         

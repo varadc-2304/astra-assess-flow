@@ -118,6 +118,7 @@ const InstructionsPage = () => {
             <p>• Your answers are auto-saved as you progress.</p>
             <p>• The assessment will automatically submit when the time expires.</p>
             <p>• Camera proctoring will be active throughout the entire assessment.</p>
+            <p>• Use of mobile phones, tablets or other electronic devices is strictly prohibited.</p>
           </CardContent>
         </Card>
         
