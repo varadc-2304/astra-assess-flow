@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import StudentDashboard from "./pages/student/Dashboard";
 import AdminDashboard from "./pages/admin/Dashboard";
 import InstructionsPage from "./pages/student/InstructionsPage";
+import CameraVerificationPage from "./pages/student/CameraVerificationPage";
 import AssessmentPage from "./pages/student/AssessmentPage";
 import SummaryPage from "./pages/student/SummaryPage";
 import NotFound from "./pages/NotFound";
@@ -102,6 +103,7 @@ const AppRoutes = () => {
       {/* Student Routes - strictly enforce student role */}
       <Route path="/student" element={<ProtectedRoute requiredRole="student"><StudentDashboard /></ProtectedRoute>} />
       <Route path="/instructions" element={<ProtectedRoute requiredRole="student"><InstructionsPage /></ProtectedRoute>} />
+      <Route path="/camera-verification" element={<ProtectedRoute requiredRole="student"><CameraVerificationPage /></ProtectedRoute>} />
       <Route path="/assessment" element={<ProtectedRoute requiredRole="student"><AssessmentPage /></ProtectedRoute>} />
       <Route path="/summary" element={<ProtectedRoute requiredRole="student"><SummaryPage /></ProtectedRoute>} />
       
