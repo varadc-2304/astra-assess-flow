@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
@@ -175,33 +174,46 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     if (!submissionId || !user) return;
     
     try {
-      const { data: currentSubmission, error: fetchError } = await supabase
+      // First check if the face_violations column exists
+      const { data: columnInfo, error: columnCheckError } = await supabase
         .from('submissions')
         .select('face_violations')
         .eq('id', submissionId)
-        .single();
+        .limit(1);
       
-      if (fetchError) {
-        console.error("Error fetching submission:", fetchError);
+      if (columnCheckError) {
+        console.error("Error checking face_violations column:", columnCheckError);
         return;
       }
       
-      // Update with new violation
-      let updatedViolations = currentSubmission?.face_violations || [];
-      if (typeof updatedViolations === 'string') {
-        try {
-          updatedViolations = JSON.parse(updatedViolations);
-        } catch {
-          updatedViolations = [];
+      // Get current violations or initialize to empty array
+      let currentViolations: string[] = [];
+      
+      if (columnInfo && columnInfo[0]) {
+        const faceViolations = columnInfo[0].face_violations;
+        
+        if (faceViolations) {
+          // Handle both string and JSON array formats
+          if (typeof faceViolations === 'string') {
+            try {
+              currentViolations = JSON.parse(faceViolations);
+            } catch {
+              currentViolations = [];
+            }
+          } else if (Array.isArray(faceViolations)) {
+            currentViolations = faceViolations;
+          }
         }
       }
       
-      updatedViolations.push(violationText);
+      // Add new violation
+      currentViolations.push(violationText);
       
+      // Update submission with new violations
       const { error: updateError } = await supabase
         .from('submissions')
         .update({ 
-          face_violations: JSON.stringify(updatedViolations),
+          face_violations: JSON.stringify(currentViolations),
           is_terminated: isFinal ? true : undefined
         })
         .eq('id', submissionId);

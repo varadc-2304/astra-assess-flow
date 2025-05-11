@@ -468,6 +468,7 @@ export type Database = {
           assessment_id: string
           completed_at: string | null
           created_at: string
+          face_violations: string | null
           fullscreen_violations: number | null
           id: string
           is_terminated: boolean | null
@@ -478,6 +479,7 @@ export type Database = {
           assessment_id: string
           completed_at?: string | null
           created_at?: string
+          face_violations?: string | null
           fullscreen_violations?: number | null
           id?: string
           is_terminated?: boolean | null
@@ -488,6 +490,7 @@ export type Database = {
           assessment_id?: string
           completed_at?: string | null
           created_at?: string
+          face_violations?: string | null
           fullscreen_violations?: number | null
           id?: string
           is_terminated?: boolean | null

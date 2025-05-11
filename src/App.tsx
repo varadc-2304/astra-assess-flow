@@ -1,8 +1,11 @@
+
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react"; // Add the missing import
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AssessmentProvider } from "./contexts/AssessmentContext";
+import { runMigrations } from "./migrations/implementMigrations"; // Add the import
 import Login from "./pages/Login";
 import StudentDashboard from "./pages/student/Dashboard";
 import AdminDashboard from "./pages/admin/Dashboard";
