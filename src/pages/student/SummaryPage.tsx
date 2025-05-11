@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -12,6 +12,39 @@ const SummaryPage = () => {
   const { assessment, totalMarksObtained, totalPossibleMarks } = useAssessment();
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  // Effect to clean up camera when results page is shown
+  useEffect(() => {
+    // Find and stop any running camera streams
+    const stopAllCameraStreams = () => {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.enumerateDevices()
+          .then(() => {
+            const videoElements = document.querySelectorAll('video');
+            videoElements.forEach(video => {
+              if (video.srcObject) {
+                const stream = video.srcObject as MediaStream;
+                if (stream) {
+                  const tracks = stream.getTracks();
+                  tracks.forEach(track => {
+                    track.stop();
+                  });
+                }
+                video.srcObject = null;
+              }
+            });
+          })
+          .catch(err => console.error("Error stopping camera streams:", err));
+      }
+    };
+    
+    // Stop all camera streams when this component mounts
+    stopAllCameraStreams();
+    
+    return () => {
+      // Additional cleanup if needed when component unmounts
+    };
+  }, []);
 
   if (!assessment) {
     return null;
@@ -37,8 +70,8 @@ const SummaryPage = () => {
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-3xl mx-auto px-4">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center p-4 bg-green-100 rounded-full mb-4">
-            <CheckCircle className="h-12 w-12 text-green-500" />
+          <div className="mx-auto w-16 h-16 mb-4">
+            <img src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" alt="Yudha Logo" className="w-full h-full" />
           </div>
           <h1 className="text-3xl font-bold mb-2">Assessment Completed</h1>
           <p className="text-gray-600">Your results are summarized below</p>

@@ -41,9 +41,9 @@ const statusMessages: Record<ProctoringStatus, { message: string; icon: React.Re
     color: 'text-red-500'
   },
   faceCovered: {
-    message: 'Face appears to be partially covered. Please improve lighting or reposition.', // Updated message
+    message: 'Face appears to be partially covered. Please improve lighting or reposition.', 
     icon: <EyeOff className="mr-2 h-5 w-5" />,
-    color: 'text-amber-500' // Changed from red to amber to be less alarming
+    color: 'text-amber-500' 
   },
   faceNotCentered: {
     message: 'Face not centered. Please position yourself in the middle of the frame.',
@@ -96,33 +96,35 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     isInitializing,
     switchCamera,
     reinitialize,
+    stopDetection
   } = useProctoring({
     showDebugInfo: false,
     drawLandmarks: false,
     drawExpressions: false,
     detectExpressions: true,
     trackViolations: trackViolations,
-    // Added parameters to reduce sensitivity of face covering detection
+    // Improved parameters for more accurate face detection
     detectionOptions: {
-      faceDetectionThreshold: 0.65, // Lower threshold for face detection (default 0.8)
-      faceCenteredTolerance: 0.25, // More tolerance for face not being centered (default 0.2)
-      rapidMovementThreshold: 0.25, // Higher threshold for rapid movement detection (default 0.2)
+      faceDetectionThreshold: 0.5, // Lower threshold for face detection (was 0.65)
+      faceCenteredTolerance: 0.3, // More tolerance for face not being centered (was 0.25)
+      rapidMovementThreshold: 0.3, // Higher threshold for rapid movement detection (was 0.25)
     }
   });
 
-  // Auto-initialize the camera when component mounts
+  // Initialize the camera when component mounts
   useEffect(() => {
-    // Small delay to ensure component is fully mounted
-    const timer = setTimeout(() => {
-      if (!autoInitRef.current) {
-        console.log("Auto-initializing camera...");
-        reinitialize();
-        autoInitRef.current = true;
-      }
-    }, 500);
+    if (!autoInitRef.current) {
+      console.log("Initializing camera...");
+      reinitialize();
+      autoInitRef.current = true;
+    }
     
-    return () => clearTimeout(timer);
-  }, [reinitialize]);
+    // Cleanup function that will run when component unmounts
+    return () => {
+      console.log("Stopping camera detection...");
+      stopDetection();
+    };
+  }, [reinitialize, stopDetection]);
   
   // Update camera loading state
   useEffect(() => {

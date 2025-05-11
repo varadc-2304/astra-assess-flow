@@ -51,7 +51,9 @@ const InstructionsPage = () => {
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-3xl mx-auto px-4">
         <header className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-astra-red">Yudha</h1>
+          <div className="mx-auto w-16 h-16 mb-2">
+            <img src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" alt="Yudha Logo" className="w-full h-full" />
+          </div>
           <p className="text-gray-600">{assessment?.name}</p>
         </header>
         

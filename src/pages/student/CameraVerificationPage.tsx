@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
@@ -15,6 +16,7 @@ const CameraVerificationPage = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [isCreatingSubmission, setIsCreatingSubmission] = useState(false);
+  const [isCameraActivated, setIsCameraActivated] = useState(false);
   const [systemInfo, setSystemInfo] = useState<{
     browserOk: boolean;
     osOk: boolean;
@@ -115,6 +117,7 @@ const CameraVerificationPage = () => {
       return;
     }
     
+    // Only create submission when needed, don't initialize camera yet
     if (user && assessment && !submissionId && !isCreatingSubmission) {
       console.log("Creating submission for assessment", assessment.id);
       createSubmissionMutation.mutate();
@@ -174,6 +177,10 @@ const CameraVerificationPage = () => {
     systemInfo.osOk && 
     systemInfo.memoryOk && 
     systemInfo.cpuOk;
+
+  const handleActivateCamera = () => {
+    setIsCameraActivated(true);
+  };
   
   const handleVerificationComplete = (success: boolean) => {
     setIsVerifying(true);
@@ -207,7 +214,9 @@ const CameraVerificationPage = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
       <div className="max-w-4xl mx-auto px-4">
         <header className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-astra-red">Yudha</h1>
+          <div className="mx-auto w-16 h-16 mb-2">
+            <img src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" alt="Yudha Logo" className="w-full h-full" />
+          </div>
           <p className="text-gray-600 dark:text-gray-400">{assessment?.name}</p>
         </header>
         
@@ -225,14 +234,29 @@ const CameraVerificationPage = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                <ProctoringCamera 
-                  onVerificationComplete={handleVerificationComplete}
-                  showControls={!isVerified}
-                  showStatus={true}
-                  trackViolations={false}
-                  assessmentId={assessment.id}
-                  submissionId={submissionId || undefined}
-                />
+                {!isCameraActivated ? (
+                  <div className="text-center py-8">
+                    <Camera className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+                    <h3 className="text-lg font-semibold mb-2">Camera Access Required</h3>
+                    <p className="text-gray-500 mb-6">Click the button below to activate your camera for verification</p>
+                    <Button 
+                      onClick={handleActivateCamera}
+                      className="bg-astra-red hover:bg-red-600 text-white"
+                      size="lg"
+                    >
+                      Activate Camera
+                    </Button>
+                  </div>
+                ) : (
+                  <ProctoringCamera 
+                    onVerificationComplete={handleVerificationComplete}
+                    showControls={!isVerified}
+                    showStatus={true}
+                    trackViolations={false}
+                    assessmentId={assessment.id}
+                    submissionId={submissionId || undefined}
+                  />
+                )}
               </CardContent>
               <CardFooter className="flex-col gap-4 p-6 bg-gray-50 dark:bg-gray-800/50">
                 {isVerified ? (
