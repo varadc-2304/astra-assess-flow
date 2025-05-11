@@ -1,4 +1,3 @@
-
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -118,8 +117,19 @@ const AppRoutes = () => {
   );
 };
 
-const App = () => {
+function App() {
   const { isMobile } = useIsMobile();
+  
+  useEffect(() => {
+    // Run database migrations on app load
+    runMigrations().then(success => {
+      if (success) {
+        console.log('Database migrations completed successfully');
+      } else {
+        console.error('Database migrations failed');
+      }
+    });
+  }, []);
   
   return (
     <QueryClientProvider client={queryClient}>
@@ -141,6 +151,6 @@ const App = () => {
       </TooltipProvider>
     </QueryClientProvider>
   );
-};
+}
 
 export default App;

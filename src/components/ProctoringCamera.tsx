@@ -1,15 +1,21 @@
 
-import React from 'react';
-import { useProctoring, ProctoringStatus } from '@/hooks/useProctoring';
+import React, { useEffect, useState } from 'react';
+import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Camera, CheckCircle2, AlertCircle, Users } from 'lucide-react';
+import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ProctoringCameraProps {
   onVerificationComplete?: (success: boolean) => void;
   showControls?: boolean;
   showStatus?: boolean;
+  trackViolations?: boolean;
+  assessmentId?: string;
+  submissionId?: string;
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -33,6 +39,21 @@ const statusMessages: Record<ProctoringStatus, { message: string; icon: React.Re
     icon: <Users className="mr-2 h-5 w-5" />,
     color: 'text-red-500'
   },
+  faceCovered: {
+    message: 'Face appears to be partially covered. Please remove any obstructions.',
+    icon: <EyeOff className="mr-2 h-5 w-5" />,
+    color: 'text-red-500'
+  },
+  faceNotCentered: {
+    message: 'Face not centered. Please position yourself in the middle of the frame.',
+    icon: <X className="mr-2 h-5 w-5" />,
+    color: 'text-amber-500'
+  },
+  rapidMovement: {
+    message: 'Rapid head movement detected. Please stay still.',
+    icon: <AlertCircle className="mr-2 h-5 w-5" />,
+    color: 'text-amber-500'
+  },
   error: { 
     message: 'Error initializing camera. Please check permissions.', 
     icon: <AlertCircle className="mr-2 h-5 w-5" />,
@@ -43,23 +64,164 @@ const statusMessages: Record<ProctoringStatus, { message: string; icon: React.Re
 export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   onVerificationComplete,
   showControls = true,
-  showStatus = true
+  showStatus = true,
+  trackViolations = false,
+  assessmentId,
+  submissionId
 }) => {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [violationCount, setViolationCount] = useState<Record<ViolationType, number>>({
+    noFaceDetected: 0,
+    multipleFacesDetected: 0,
+    faceNotCentered: 0,
+    faceCovered: 0,
+    rapidMovement: 0,
+    frequentDisappearance: 0,
+    identityMismatch: 0
+  });
+  const [violationLog, setViolationLog] = useState<string[]>([]);
+  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
+
   const {
     videoRef,
     canvasRef,
     status,
+    violations,
     isCameraReady,
     isModelLoaded,
     isInitializing,
     switchCamera,
-    reinitialize
+    reinitialize,
   } = useProctoring({
     showDebugInfo: false,
     drawLandmarks: false,
     drawExpressions: false,
-    detectExpressions: true
+    detectExpressions: true,
+    trackViolations: trackViolations
   });
+
+  useEffect(() => {
+    if (trackViolations && violations) {
+      // Update violation counts
+      const newViolationCount = { ...violationCount };
+      let newViolationsDetected = false;
+      
+      // Process new violations
+      Object.entries(violations).forEach(([type, count]) => {
+        const violationType = type as ViolationType;
+        if (count > newViolationCount[violationType]) {
+          // New violation occurred
+          newViolationsDetected = true;
+          const timestamp = new Date().toLocaleTimeString();
+          const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
+          setViolationLog(prev => [...prev, violationMessage]);
+          
+          if (trackViolations && user && submissionId) {
+            // Only log if we're past the cooldown period (5 seconds)
+            const now = Date.now();
+            if (now - lastUpdateTime > 5000) {
+              updateViolationInDatabase(violationMessage);
+              setLastUpdateTime(now);
+            }
+          }
+        }
+        newViolationCount[violationType] = count;
+      });
+      
+      if (newViolationsDetected) {
+        setViolationCount(newViolationCount);
+      }
+      
+      // Check for total violations exceeding threshold
+      const totalViolations = Object.values(newViolationCount).reduce((sum, count) => sum + count, 0);
+      if (totalViolations >= 3 && trackViolations && user && submissionId) {
+        const violationSummary = formatViolationSummary(newViolationCount);
+        updateViolationInDatabase(violationSummary, true);
+      }
+    }
+  }, [violations, trackViolations, user, submissionId]);
+
+  const getViolationMessage = (violationType: ViolationType): string => {
+    switch (violationType) {
+      case 'noFaceDetected':
+        return 'No face detected';
+      case 'multipleFacesDetected':
+        return 'Multiple faces detected';
+      case 'faceNotCentered':
+        return 'Face not centered in frame';
+      case 'faceCovered':
+        return 'Face appears covered or obstructed';
+      case 'rapidMovement':
+        return 'Rapid head movement detected';
+      case 'frequentDisappearance':
+        return 'Face frequently disappearing';
+      case 'identityMismatch':
+        return 'Face identity mismatch';
+      default:
+        return 'Unknown violation';
+    }
+  };
+  
+  const formatViolationSummary = (violations: Record<ViolationType, number>): string => {
+    const violationEntries = Object.entries(violations)
+      .filter(([_, count]) => count > 0)
+      .map(([type, count]) => `${getViolationMessage(type as ViolationType)}: ${count} times`);
+      
+    return `VIOLATION SUMMARY: ${violationEntries.join(', ')}`;
+  };
+
+  const updateViolationInDatabase = async (violationText: string, isFinal: boolean = false) => {
+    if (!submissionId || !user) return;
+    
+    try {
+      const { data: currentSubmission, error: fetchError } = await supabase
+        .from('submissions')
+        .select('face_violations')
+        .eq('id', submissionId)
+        .single();
+      
+      if (fetchError) {
+        console.error("Error fetching submission:", fetchError);
+        return;
+      }
+      
+      // Update with new violation
+      let updatedViolations = currentSubmission?.face_violations || [];
+      if (typeof updatedViolations === 'string') {
+        try {
+          updatedViolations = JSON.parse(updatedViolations);
+        } catch {
+          updatedViolations = [];
+        }
+      }
+      
+      updatedViolations.push(violationText);
+      
+      const { error: updateError } = await supabase
+        .from('submissions')
+        .update({ 
+          face_violations: JSON.stringify(updatedViolations),
+          is_terminated: isFinal ? true : undefined
+        })
+        .eq('id', submissionId);
+      
+      if (updateError) {
+        console.error("Error updating face violations:", updateError);
+      }
+      
+      // If this is the final violation that terminates the session
+      if (isFinal) {
+        toast({
+          title: "Assessment Terminated",
+          description: "Multiple violations detected. Your session has been flagged.",
+          variant: "destructive"
+        });
+      }
+    } catch (err) {
+      console.error("Error updating face violations:", err);
+    }
+  };
 
   const handleVerificationComplete = () => {
     // Only allow completion if face is detected
@@ -68,13 +230,13 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }
   };
 
-  const statusConfig = statusMessages[status];
+  const statusConfig = statusMessages[status] || statusMessages.initializing;
 
   return (
     <div className="proctoring-camera-container">
       <div className="relative w-full max-w-md mx-auto">
         {/* Video feed container */}
-        <div className="relative overflow-hidden rounded-lg bg-black mb-4">
+        <div className="relative overflow-hidden rounded-lg bg-black mb-4 border-2 border-gray-200 dark:border-gray-700 shadow-lg">
           <video
             ref={videoRef}
             className="w-full h-full object-cover"
@@ -116,6 +278,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
               onClick={reinitialize}
               disabled={isInitializing}
               type="button"
+              className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               <Camera className="h-4 w-4 mr-2" />
               Restart Camera
@@ -126,6 +289,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
               onClick={switchCamera}
               disabled={isInitializing}
               type="button"
+              className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M17 16L21 12M21 12L17 8M21 12H7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -138,7 +302,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
               onClick={handleVerificationComplete}
               disabled={status !== 'faceDetected' || isInitializing}
               className={cn(
-                status === 'faceDetected' ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-400',
+                "transition-colors",
+                status === 'faceDetected' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-400'
               )}
               type="button"
             >
@@ -146,6 +311,25 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
               Verify
             </Button>
           </div>
+        )}
+        
+        {/* Violation counts (only in tracking mode) */}
+        {trackViolations && Object.values(violationCount).some(count => count > 0) && (
+          <Card className="mt-4 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+            <CardContent className="p-4">
+              <h3 className="text-sm font-medium text-amber-800 dark:text-amber-400 mb-2">Proctoring Violations:</h3>
+              <ul className="text-xs space-y-1 text-amber-700 dark:text-amber-300">
+                {Object.entries(violationCount).map(([type, count]) => (
+                  count > 0 && (
+                    <li key={type} className="flex items-center justify-between">
+                      <span>{getViolationMessage(type as ViolationType)}</span>
+                      <span className="font-medium">{count}</span>
+                    </li>
+                  )
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

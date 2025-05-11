@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -22,6 +21,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card } from '@/components/ui/card';
+import ProctoringCamera from '@/components/ProctoringCamera';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -68,6 +69,7 @@ const AssessmentPage = () => {
   } = useFullscreen();
   const { toast } = useToast();
   const { user } = useAuth();
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
   
   useEffect(() => {
     if (!assessment || !assessmentStarted) {
@@ -81,6 +83,30 @@ const AssessmentPage = () => {
       enterFullscreen();
     }
   }, [assessmentStarted, isFullscreen, enterFullscreen]);
+
+  useEffect(() => {
+    const fetchSubmissionRecord = async () => {
+      if (assessment && assessmentStarted && user) {
+        try {
+          const { data: submissions } = await supabase
+            .from('submissions')
+            .select('*')
+            .eq('assessment_id', assessment.id)
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+            
+          if (submissions && submissions.length > 0) {
+            setSubmissionId(submissions[0].id);
+          }
+        } catch (error) {
+          console.error('Error fetching submission record:', error);
+        }
+      }
+    };
+    
+    fetchSubmissionRecord();
+  }, [assessment, assessmentStarted, user]);
 
   useEffect(() => {
     const createSubmissionRecord = async () => {
@@ -440,6 +466,19 @@ const AssessmentPage = () => {
               </ResizablePanelGroup>
             </div>
           )}
+        </div>
+        
+        {/* Add proctoring camera overlay */}
+        <div className="fixed bottom-16 right-4 z-20">
+          <Card className="w-[240px] shadow-lg border-0 bg-black/10 backdrop-blur-sm overflow-hidden">
+            <ProctoringCamera 
+              showControls={false}
+              showStatus={false}
+              trackViolations={true}
+              assessmentId={assessment.id}
+              submissionId={submissionId || undefined}
+            />
+          </Card>
         </div>
       </div>
       
