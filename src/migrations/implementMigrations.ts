@@ -9,20 +9,25 @@ ALTER TABLE submissions ADD COLUMN IF NOT EXISTS face_violations JSONB DEFAULT '
 
 export const runMigrations = async () => {
   try {
-    // Use rpc method to execute raw SQL instead of query method
-    const { error } = await supabase.rpc('exec_sql', {
-      sql_query: faceViolationsMigration
-    });
+    // Since we can't directly execute raw SQL without appropriate RPC methods,
+    // we'll log that we need to run this migration manually
+    console.log('Face violations migration needs to be run manually through the Supabase dashboard');
     
-    if (error) {
-      console.error('Error running face violations migration:', error);
+    // Check if the column already exists by attempting to query it
+    const { error } = await supabase
+      .from('submissions')
+      .select('face_violations')
+      .limit(1);
+    
+    if (error && error.message.includes('column "face_violations" does not exist')) {
+      console.error('The face_violations column does not exist yet. Migration required.');
       return false;
+    } else {
+      console.log('Face violations column appears to exist already');
+      return true;
     }
-    
-    console.log('Face violations column migration completed successfully');
-    return true;
   } catch (error) {
-    console.error('Error running migrations:', error);
+    console.error('Error checking migrations:', error);
     return false;
   }
 };
