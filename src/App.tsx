@@ -2,10 +2,10 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useEffect } from "react"; // Add the missing import
+import { useEffect } from "react"; 
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AssessmentProvider } from "./contexts/AssessmentContext";
-import { runMigrations } from "./migrations/implementMigrations"; // Add the import
+import { runMigrations } from "./migrations/implementMigrations"; 
 import Login from "./pages/Login";
 import StudentDashboard from "./pages/student/Dashboard";
 import AdminDashboard from "./pages/admin/Dashboard";
@@ -21,8 +21,19 @@ import QuestionForm from "@/components/admin/QuestionForm";
 import { Toaster } from "@/components/ui/toaster";
 import { useIsMobile } from "./hooks/use-mobile";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
+import { useToast } from "./hooks/use-toast";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+      staleTime: 10 * 1000, // 10 seconds
+    },
+    mutations: {
+      retry: 1,
+    }
+  }
+});
 
 // Enhanced protected route component with strict role checking
 const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode; requiredRole?: 'student' | 'admin' }) => {
@@ -122,6 +133,7 @@ const AppRoutes = () => {
 
 function App() {
   const { isMobile } = useIsMobile();
+  const { toast } = useToast();
   
   useEffect(() => {
     // Run database migrations on app load
@@ -129,8 +141,12 @@ function App() {
       if (success) {
         console.log('Database migrations completed successfully');
       } else {
-        console.error('Database migrations failed');
+        console.error('Database migrations failed - face_violations column may not be properly set up');
+        // Don't show this error toast to users as it might be confusing and isn't critical
+        // for them to know about database migrations
       }
+    }).catch(error => {
+      console.error('Error running migrations:', error);
     });
   }, []);
   

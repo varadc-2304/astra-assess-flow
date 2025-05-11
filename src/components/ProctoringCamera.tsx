@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+
+import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,9 +40,9 @@ const statusMessages: Record<ProctoringStatus, { message: string; icon: React.Re
     color: 'text-red-500'
   },
   faceCovered: {
-    message: 'Face appears to be partially covered. Please remove any obstructions.',
+    message: 'Face appears to be partially covered. Please improve lighting or reposition.', // Updated message
     icon: <EyeOff className="mr-2 h-5 w-5" />,
-    color: 'text-red-500'
+    color: 'text-amber-500' // Changed from red to amber to be less alarming
   },
   faceNotCentered: {
     message: 'Face not centered. Please position yourself in the middle of the frame.',
@@ -54,7 +55,7 @@ const statusMessages: Record<ProctoringStatus, { message: string; icon: React.Re
     color: 'text-amber-500'
   },
   error: { 
-    message: 'Error initializing camera. Please check permissions.', 
+    message: 'Error initializing camera. Please check permissions and try again.', 
     icon: <AlertCircle className="mr-2 h-5 w-5" />,
     color: 'text-red-500'
   }
@@ -81,7 +82,9 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   });
   const [violationLog, setViolationLog] = useState<string[]>([]);
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
-
+  const [cameraLoading, setCameraLoading] = useState(true);
+  const autoInitRef = useRef(false);
+  
   const {
     videoRef,
     canvasRef,
@@ -97,8 +100,41 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     drawLandmarks: false,
     drawExpressions: false,
     detectExpressions: true,
-    trackViolations: trackViolations
+    trackViolations: trackViolations,
+    // Added parameters to reduce sensitivity of face covering detection
+    detectionOptions: {
+      faceDetectionThreshold: 0.65, // Lower threshold for face detection (default 0.8)
+      faceCenteredTolerance: 0.25, // More tolerance for face not being centered (default 0.2)
+      rapidMovementThreshold: 0.25, // Higher threshold for rapid movement detection (default 0.2)
+    }
   });
+
+  // Auto-initialize the camera when component mounts
+  useEffect(() => {
+    // Small delay to ensure component is fully mounted
+    const timer = setTimeout(() => {
+      if (!autoInitRef.current) {
+        console.log("Auto-initializing camera...");
+        reinitialize();
+        autoInitRef.current = true;
+      }
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [reinitialize]);
+  
+  // Update camera loading state
+  useEffect(() => {
+    if (isInitializing) {
+      setCameraLoading(true);
+    } else if (isCameraReady && isModelLoaded) {
+      // Add a small delay to ensure the UI updates smoothly
+      const timer = setTimeout(() => {
+        setCameraLoading(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isInitializing, isCameraReady, isModelLoaded]);
 
   useEffect(() => {
     if (trackViolations && violations) {
@@ -150,7 +186,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       case 'faceNotCentered':
         return 'Face not centered in frame';
       case 'faceCovered':
-        return 'Face appears covered or obstructed';
+        return 'Face may be partially obstructed';
       case 'rapidMovement':
         return 'Rapid head movement detected';
       case 'frequentDisappearance':
@@ -174,34 +210,34 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     if (!submissionId || !user) return;
     
     try {
-      // First check if the face_violations column exists
-      const { data: columnInfo, error: columnCheckError } = await supabase
+      // Get current violations
+      const { data: submission, error: fetchError } = await supabase
         .from('submissions')
         .select('face_violations')
         .eq('id', submissionId)
-        .limit(1);
+        .single();
       
-      if (columnCheckError) {
-        console.error("Error checking face_violations column:", columnCheckError);
+      if (fetchError) {
+        console.error("Error fetching submission:", fetchError);
         return;
       }
       
-      // Get current violations or initialize to empty array
+      // Initialize or update violations array
       let currentViolations: string[] = [];
       
-      if (columnInfo && columnInfo[0]) {
-        const faceViolations = columnInfo[0].face_violations;
-        
-        if (faceViolations) {
-          // Handle both string and JSON array formats
-          if (typeof faceViolations === 'string') {
-            try {
-              currentViolations = JSON.parse(faceViolations);
-            } catch {
-              currentViolations = [];
-            }
-          } else if (Array.isArray(faceViolations)) {
-            currentViolations = faceViolations;
+      if (submission && submission.face_violations) {
+        // Handle both string and JSON array formats
+        if (Array.isArray(submission.face_violations)) {
+          currentViolations = submission.face_violations;
+        } else {
+          try {
+            // If it's stored as a JSON string, parse it
+            currentViolations = typeof submission.face_violations === 'string'
+              ? JSON.parse(submission.face_violations)
+              : submission.face_violations;
+          } catch (e) {
+            console.error("Error parsing face_violations:", e);
+            currentViolations = [];
           }
         }
       }
@@ -213,7 +249,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       const { error: updateError } = await supabase
         .from('submissions')
         .update({ 
-          face_violations: JSON.stringify(currentViolations),
+          face_violations: currentViolations,
           is_terminated: isFinal ? true : undefined
         })
         .eq('id', submissionId);
@@ -239,7 +275,20 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     // Only allow completion if face is detected
     if (status === 'faceDetected' && onVerificationComplete) {
       onVerificationComplete(true);
+    } else if (status !== 'faceDetected' && onVerificationComplete) {
+      toast({
+        title: "Verification Failed",
+        description: "Please ensure your face is clearly visible and centered before verifying.",
+        variant: "destructive",
+      });
     }
+  };
+
+  const handleRestartCamera = () => {
+    setCameraLoading(true);
+    setTimeout(() => {
+      reinitialize();
+    }, 100);
   };
 
   const statusConfig = statusMessages[status] || statusMessages.initializing;
@@ -262,11 +311,12 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           />
           
           {/* Loading overlay */}
-          {isInitializing && (
-            <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center">
+          {cameraLoading && (
+            <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-10">
               <div className="text-center text-white">
                 <Loader2 className="animate-spin h-8 w-8 mx-auto mb-2" />
-                <p className="text-sm">Loading camera...</p>
+                <p className="text-sm">Initializing camera...</p>
+                <p className="text-xs text-gray-300 mt-2">Please allow camera access if prompted</p>
               </div>
             </div>
           )}
@@ -287,12 +337,12 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           <div className="flex justify-between mt-4">
             <Button
               variant="outline"
-              onClick={reinitialize}
+              onClick={handleRestartCamera}
               disabled={isInitializing}
               type="button"
               className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
-              <Camera className="h-4 w-4 mr-2" />
+              <RefreshCw className="h-4 w-4 mr-2" />
               Restart Camera
             </Button>
             
@@ -303,10 +353,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
               type="button"
               className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
-              <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M17 16L21 12M21 12L17 8M21 12H7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M11 6.5C13.5 6.5 15 8 15 12C15 16 13.5 17.5 11 17.5C8.5 17.5 7 16 7 12C7 8 8.5 6.5 11 6.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <Camera className="h-4 w-4 mr-2" />
               Switch Camera
             </Button>
             

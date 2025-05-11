@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import { useToast } from '@/hooks/use-toast';
@@ -5,10 +6,6 @@ import { useToast } from '@/hooks/use-toast';
 // Define constants
 const DETECTION_INTERVAL = 1000; // 1 second interval between detections
 const MODEL_URL = '/models';
-const FACE_DETECTION_OPTIONS = new faceapi.TinyFaceDetectorOptions({ 
-  inputSize: 224, 
-  scoreThreshold: 0.5 
-});
 
 // Types
 export type ProctoringStatus = 
@@ -36,6 +33,11 @@ export interface ProctoringOptions {
   drawExpressions?: boolean;
   detectExpressions?: boolean;
   trackViolations?: boolean;
+  detectionOptions?: {
+    faceDetectionThreshold?: number;
+    faceCenteredTolerance?: number;
+    rapidMovementThreshold?: number;
+  };
 }
 
 export interface DetectionResult {
@@ -63,6 +65,19 @@ export function useProctoring(options: ProctoringOptions = {}) {
     identityMismatch: 0
   });
 
+  // Set default detection options
+  const detectionOptions = {
+    faceDetectionThreshold: options.detectionOptions?.faceDetectionThreshold || 0.8,
+    faceCenteredTolerance: options.detectionOptions?.faceCenteredTolerance || 0.2,
+    rapidMovementThreshold: options.detectionOptions?.rapidMovementThreshold || 0.2
+  };
+
+  // Configure face detector with options
+  const FACE_DETECTION_OPTIONS = new faceapi.TinyFaceDetectorOptions({ 
+    inputSize: 224, 
+    scoreThreshold: 0.5 
+  });
+
   // Face tracking state
   const faceHistoryRef = useRef<{positions: Array<{x: number, y: number, width: number, height: number}>, timestamps: number[]}>(
     {positions: [], timestamps: []}
@@ -76,12 +91,24 @@ export function useProctoring(options: ProctoringOptions = {}) {
   const detectionIntervalRef = useRef<number | null>(null);
   const { toast } = useToast();
 
-  // Load models
+  // Load models with performance optimizations
   const loadModels = useCallback(async () => {
     try {
-      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-      await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
+      // Check if models are already loaded to avoid reloading
+      if (faceapi.nets.tinyFaceDetector.isLoaded && 
+          faceapi.nets.faceLandmark68Net.isLoaded && 
+          faceapi.nets.faceExpressionNet.isLoaded) {
+        console.log('Face-API models already loaded');
+        setIsModelLoaded(true);
+        return true;
+      }
+
+      // Load models in parallel for better performance
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+      ]);
       
       console.log('Face-API models loaded successfully');
       setIsModelLoaded(true);
@@ -98,7 +125,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     }
   }, [toast]);
 
-  // Initialize camera
+  // Initialize camera with improved error handling
   const initializeCamera = useCallback(async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       toast({
@@ -117,18 +144,23 @@ export function useProctoring(options: ProctoringOptions = {}) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
 
-      // Request camera access
+      // Request camera access with optimized settings for performance
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode,
-          width: { ideal: 640 },
-          height: { ideal: 480 }
+          width: { ideal: 640 }, // Lower resolution for better performance
+          height: { ideal: 480 },
+          frameRate: { ideal: 15 } // Lower framerate to reduce CPU usage
         }
       });
 
       // Set the stream to the video element
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        // Add event listener for when video is ready to play
+        videoRef.current.onloadedmetadata = () => {
+          if (videoRef.current) videoRef.current.play();
+        };
       }
 
       streamRef.current = stream;
@@ -154,7 +186,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
   }, []);
 
-  // Check for rapid head movements
+  // Check for rapid head movements with improved threshold
   const checkForRapidMovements = useCallback((currentBox: faceapi.Box) => {
     const { positions, timestamps } = faceHistoryRef.current;
     
@@ -203,16 +235,16 @@ export function useProctoring(options: ProctoringOptions = {}) {
       const timeSpan = timestamps[timestamps.length - 1] - timestamps[0];
       const averageMovement = totalMovement / (recentPositions.length - 1);
       
-      // Threshold for rapid movement (empirical value, may need adjustment)
-      if (averageMovement > 0.2 && timeSpan < 1500) {
+      // Use configurable threshold for rapid movement detection
+      if (averageMovement > detectionOptions.rapidMovementThreshold && timeSpan < 1500) {
         return true;
       }
     }
     
     return false;
-  }, []);
+  }, [detectionOptions.rapidMovementThreshold]);
 
-  // Check if face is centered
+  // Check if face is centered with configurable tolerance
   const isFaceCentered = useCallback((detection: faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>, videoWidth: number, videoHeight: number) => {
     const box = detection.detection.box;
     const centerX = box.x + box.width / 2;
@@ -224,11 +256,11 @@ export function useProctoring(options: ProctoringOptions = {}) {
     const offsetX = Math.abs(centerX - videoCenter.x) / videoWidth;
     const offsetY = Math.abs(centerY - videoCenter.y) / videoHeight;
     
-    // Face should be within 20% of center in both directions
-    return offsetX < 0.2 && offsetY < 0.2;
-  }, []);
+    // Face should be within configurable % of center in both directions
+    return offsetX < detectionOptions.faceCenteredTolerance && offsetY < detectionOptions.faceCenteredTolerance;
+  }, [detectionOptions.faceCenteredTolerance]);
 
-  // Check if face is partially covered/occluded
+  // Check if face is partially covered/occluded with improved detection
   const isFaceCovered = useCallback((detection: faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>) => {
     // Use low landmark detection confidence as a proxy for occlusion
     const landmarks = detection.landmarks;
@@ -236,7 +268,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     
     // Check if landmarks have unusually low confidence score
     // or if certain key landmarks are missing/have low confidence
-    const landmarks_positions = landmarks.positions;
+    const landmarksPositions = landmarks.positions;
     
     // A heuristic approach: if key facial landmarks deviate too much from expected positions
     const nose = landmarks.getNose();
@@ -245,18 +277,18 @@ export function useProctoring(options: ProctoringOptions = {}) {
     const mouth = landmarks.getMouth();
     
     // Check if important facial features are detected
-    if (nose.length < 5 || leftEye.length < 5 || rightEye.length < 5 || mouth.length < 10) {
+    if (nose.length < 3 || leftEye.length < 3 || rightEye.length < 3 || mouth.length < 5) {
       return true;
     }
     
-    // Use detection score as an indicator of face quality
+    // Use detection score as an indicator of face quality with configurable threshold
     const detectionScore = detection.detection.score;
     
-    // Threshold is empirical and may need adjustment
-    return detectionScore < 0.8;
-  }, []);
+    // Use configurable threshold
+    return detectionScore < detectionOptions.faceDetectionThreshold;
+  }, [detectionOptions.faceDetectionThreshold]);
 
-  // Detect faces from video
+  // Detect faces from video with optimizations
   const detectFaces = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !isModelLoaded || !isCameraReady) {
       return;
@@ -274,134 +306,146 @@ export function useProctoring(options: ProctoringOptions = {}) {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    // Detect faces
-    const detections = await faceapi
-      .detectAllFaces(video, FACE_DETECTION_OPTIONS)
-      .withFaceLandmarks()
-      .withFaceExpressions();
-
-    // Draw results
-    const ctx = canvas.getContext('2d');
-    
-    // Clear previous drawings
-    if (ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-
-    // Track violations if enabled
-    if (options.trackViolations) {
-      const now = Date.now();
+    try {
+      // Performance optimization - use a smaller size for detection
+      const detectionsPromise = faceapi
+        .detectAllFaces(video, FACE_DETECTION_OPTIONS)
+        .withFaceLandmarks();
       
-      if (detections.length === 0) {
-        // No face detected
-        noFaceCounterRef.current += 1;
-        
-        // Increase violation count if no face for 5 consecutive checks (5 seconds)
-        if (noFaceCounterRef.current >= 5) {
-          setViolations(prev => ({
-            ...prev,
-            noFaceDetected: prev.noFaceDetected + 1
-          }));
-          noFaceCounterRef.current = 0; // Reset counter after recording violation
-        }
-        
-        // Track frequent disappearance
-        if (lastFaceDetectionTimeRef.current > 0 && 
-            now - lastFaceDetectionTimeRef.current < 10000) {  // Within 10 seconds
-          setViolations(prev => ({
-            ...prev,
-            frequentDisappearance: prev.frequentDisappearance + 1
-          }));
-        }
-      } else {
-        // Reset no-face counter
-        noFaceCounterRef.current = 0;
-        lastFaceDetectionTimeRef.current = now;
-        
-        // Multiple faces detection
-        if (detections.length > 1) {
-          setViolations(prev => ({
-            ...prev,
-            multipleFacesDetected: prev.multipleFacesDetected + 1
-          }));
-        }
-        
-        // Single face detection - check for other violations
-        if (detections.length === 1) {
-          const detection = detections[0];
-          
-          // Check if face is centered
-          if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
-            setViolations(prev => ({
-              ...prev,
-              faceNotCentered: prev.faceNotCentered + 1
-            }));
-          }
-          
-          // Check if face is covered
-          if (isFaceCovered(detection)) {
-            setViolations(prev => ({
-              ...prev,
-              faceCovered: prev.faceCovered + 1
-            }));
-          }
-          
-          // Check for rapid movements
-          if (checkForRapidMovements(detection.detection.box)) {
-            setViolations(prev => ({
-              ...prev,
-              rapidMovement: prev.rapidMovement + 1
-            }));
-          }
-        }
+      // Only add expressions if needed
+      const detections = options.detectExpressions 
+        ? await detectionsPromise.withFaceExpressions()
+        : await detectionsPromise;
+
+      // Clear previous drawings
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
-    }
 
-    // Update status based on detection
-    if (detections.length === 0) {
-      setStatus('noFaceDetected');
-      setDetectionResult({
-        status: 'noFaceDetected',
-        facesCount: 0,
-        message: 'No face detected. Please position yourself in front of the camera.'
-      });
-    } else if (detections.length === 1) {
-      const detection = detections[0];
-      
-      // Convert FaceExpressions to Record<string, number>
-      const expressions: Record<string, number> = {};
-      if (detection.expressions) {
-        Object.entries(detection.expressions).forEach(([key, value]) => {
-          expressions[key] = value;
-        });
-      }
-      
-      // Check for specific violations to update status
+      // Track violations if enabled
       if (options.trackViolations) {
-        if (isFaceCovered(detection)) {
-          setStatus('faceCovered');
-          setDetectionResult({
-            status: 'faceCovered',
-            facesCount: 1,
-            expressions,
-            message: 'Face appears to be covered. Please remove any obstructions.'
+        const now = Date.now();
+        
+        if (detections.length === 0) {
+          // No face detected
+          noFaceCounterRef.current += 1;
+          
+          // Increase violation count if no face for 5 consecutive checks (5 seconds)
+          if (noFaceCounterRef.current >= 5) {
+            setViolations(prev => ({
+              ...prev,
+              noFaceDetected: prev.noFaceDetected + 1
+            }));
+            noFaceCounterRef.current = 0; // Reset counter after recording violation
+          }
+          
+          // Track frequent disappearance
+          if (lastFaceDetectionTimeRef.current > 0 && 
+              now - lastFaceDetectionTimeRef.current < 10000) {  // Within 10 seconds
+            setViolations(prev => ({
+              ...prev,
+              frequentDisappearance: prev.frequentDisappearance + 1
+            }));
+          }
+        } else {
+          // Reset no-face counter
+          noFaceCounterRef.current = 0;
+          lastFaceDetectionTimeRef.current = now;
+          
+          // Multiple faces detection
+          if (detections.length > 1) {
+            setViolations(prev => ({
+              ...prev,
+              multipleFacesDetected: prev.multipleFacesDetected + 1
+            }));
+          }
+          
+          // Single face detection - check for other violations
+          if (detections.length === 1) {
+            const detection = detections[0];
+            
+            // Check if face is centered
+            if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
+              setViolations(prev => ({
+                ...prev,
+                faceNotCentered: prev.faceNotCentered + 1
+              }));
+            }
+            
+            // Check if face is covered
+            if (isFaceCovered(detection)) {
+              setViolations(prev => ({
+                ...prev,
+                faceCovered: prev.faceCovered + 1
+              }));
+            }
+            
+            // Check for rapid movements
+            if (checkForRapidMovements(detection.detection.box)) {
+              setViolations(prev => ({
+                ...prev,
+                rapidMovement: prev.rapidMovement + 1
+              }));
+            }
+          }
+        }
+      }
+
+      // Update status based on detection
+      if (detections.length === 0) {
+        setStatus('noFaceDetected');
+        setDetectionResult({
+          status: 'noFaceDetected',
+          facesCount: 0,
+          message: 'No face detected. Please position yourself in front of the camera.'
+        });
+      } else if (detections.length === 1) {
+        const detection = detections[0];
+        
+        // Convert FaceExpressions to Record<string, number>
+        const expressions: Record<string, number> = {};
+        if (options.detectExpressions && 'expressions' in detection) {
+          Object.entries(detection.expressions || {}).forEach(([key, value]) => {
+            expressions[key] = value;
           });
-        } else if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
-          setStatus('faceNotCentered');
-          setDetectionResult({
-            status: 'faceNotCentered',
-            facesCount: 1,
-            expressions,
-            message: 'Face not centered. Please position yourself in the middle of the frame.'
-          });
-        } else if (checkForRapidMovements(detection.detection.box)) {
-          setStatus('rapidMovement');
-          setDetectionResult({
-            status: 'rapidMovement',
-            facesCount: 1,
-            expressions,
-            message: 'Rapid movement detected. Please keep your head still.'
-          });
+        }
+        
+        // Check for specific violations to update status
+        if (options.trackViolations) {
+          if (isFaceCovered(detection)) {
+            setStatus('faceCovered');
+            setDetectionResult({
+              status: 'faceCovered',
+              facesCount: 1,
+              expressions,
+              message: 'Face appears to be covered. Please remove any obstructions.'
+            });
+          } else if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
+            setStatus('faceNotCentered');
+            setDetectionResult({
+              status: 'faceNotCentered',
+              facesCount: 1,
+              expressions,
+              message: 'Face not centered. Please position yourself in the middle of the frame.'
+            });
+          } else if (checkForRapidMovements(detection.detection.box)) {
+            setStatus('rapidMovement');
+            setDetectionResult({
+              status: 'rapidMovement',
+              facesCount: 1,
+              expressions,
+              message: 'Rapid movement detected. Please keep your head still.'
+            });
+          } else {
+            setStatus('faceDetected');
+            setDetectionResult({
+              status: 'faceDetected',
+              facesCount: 1,
+              expressions,
+              message: 'Face detected successfully.'
+            });
+          }
         } else {
           setStatus('faceDetected');
           setDetectionResult({
@@ -412,116 +456,112 @@ export function useProctoring(options: ProctoringOptions = {}) {
           });
         }
       } else {
-        setStatus('faceDetected');
+        setStatus('multipleFacesDetected');
         setDetectionResult({
-          status: 'faceDetected',
-          facesCount: 1,
-          expressions,
-          message: 'Face detected successfully.'
+          status: 'multipleFacesDetected',
+          facesCount: detections.length,
+          message: 'Multiple faces detected. Please ensure only you are visible.'
         });
       }
-    } else {
-      setStatus('multipleFacesDetected');
-      setDetectionResult({
-        status: 'multipleFacesDetected',
-        facesCount: detections.length,
-        message: 'Multiple faces detected. Please ensure only you are visible.'
-      });
-    }
-    
-    // Draw the detections
-    if (ctx && detections.length > 0) {
-      // Draw each detected face
-      detections.forEach((detection, index) => {
-        const box = detection.detection.box;
-        const drawBox = index === 0; // Only draw box for the first face by default
-        
-        // Define a border color based on status
-        const borderColor = 
-          detections.length > 1 
-            ? "rgb(239, 68, 68)" // red
-            : "rgb(245, 158, 11)"; // amber
-        
-        if (ctx) {
-          ctx.lineWidth = 3;
-          ctx.strokeStyle = borderColor;
-          ctx.strokeRect(box.x, box.y, box.width, box.height);
-        }
-        
-        // Add corner marks for better visibility
-        const cornerLength = Math.min(25, Math.min(box.width, box.height) / 4);
-        if (ctx) {
-          ctx.lineWidth = 4;
+      
+      // Draw the detections
+      if (ctx && detections.length > 0) {
+        // Draw each detected face
+        detections.forEach((detection, index) => {
+          const box = detection.detection.box;
           
-          // Draw corner marks (top-left, top-right, bottom-left, bottom-right)
-          // Top-left
-          ctx.beginPath();
-          ctx.moveTo(box.x, box.y + cornerLength);
-          ctx.lineTo(box.x, box.y);
-          ctx.lineTo(box.x + cornerLength, box.y);
-          ctx.stroke();
+          // Define a border color based on status
+          const borderColor = 
+            detections.length > 1 
+              ? "rgb(239, 68, 68)" // red
+              : "rgb(245, 158, 11)"; // amber
           
-          // Top-right
-          ctx.beginPath();
-          ctx.moveTo(box.x + box.width - cornerLength, box.y);
-          ctx.lineTo(box.x + box.width, box.y);
-          ctx.lineTo(box.x + box.width, box.y + cornerLength);
-          ctx.stroke();
+          if (ctx) {
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = borderColor;
+            ctx.strokeRect(box.x, box.y, box.width, box.height);
+          }
           
-          // Bottom-left
-          ctx.beginPath();
-          ctx.moveTo(box.x, box.y + box.height - cornerLength);
-          ctx.lineTo(box.x, box.y + box.height);
-          ctx.lineTo(box.x + cornerLength, box.y + box.height);
-          ctx.stroke();
-          
-          // Bottom-right
-          ctx.beginPath();
-          ctx.moveTo(box.x + box.width - cornerLength, box.y + box.height);
-          ctx.lineTo(box.x + box.width, box.y + box.height);
-          ctx.lineTo(box.x + box.width, box.y + box.height - cornerLength);
-          ctx.stroke();
-        }
+          // Add corner marks for better visibility
+          const cornerLength = Math.min(25, Math.min(box.width, box.height) / 4);
+          if (ctx) {
+            ctx.lineWidth = 4;
+            
+            // Draw corner marks (top-left, top-right, bottom-left, bottom-right)
+            // Top-left
+            ctx.beginPath();
+            ctx.moveTo(box.x, box.y + cornerLength);
+            ctx.lineTo(box.x, box.y);
+            ctx.lineTo(box.x + cornerLength, box.y);
+            ctx.stroke();
+            
+            // Top-right
+            ctx.beginPath();
+            ctx.moveTo(box.x + box.width - cornerLength, box.y);
+            ctx.lineTo(box.x + box.width, box.y);
+            ctx.lineTo(box.x + box.width, box.y + cornerLength);
+            ctx.stroke();
+            
+            // Bottom-left
+            ctx.beginPath();
+            ctx.moveTo(box.x, box.y + box.height - cornerLength);
+            ctx.lineTo(box.x, box.y + box.height);
+            ctx.lineTo(box.x + cornerLength, box.y + box.height);
+            ctx.stroke();
+            
+            // Bottom-right
+            ctx.beginPath();
+            ctx.moveTo(box.x + box.width - cornerLength, box.y + box.height);
+            ctx.lineTo(box.x + box.width, box.y + box.height);
+            ctx.lineTo(box.x + box.width, box.y + box.height - cornerLength);
+            ctx.stroke();
+          }
 
-        // Optionally draw landmarks
-        if (options.drawLandmarks && ctx) {
-          faceapi.draw.drawFaceLandmarks(canvas, detection);
-        }
+          // Optionally draw landmarks
+          if (options.drawLandmarks && ctx) {
+            faceapi.draw.drawFaceLandmarks(canvas, detection);
+          }
+          
+          // Optionally draw expressions
+          if (options.drawExpressions && ctx && 'expressions' in detection) {
+            const expressions = detection.expressions;
+            if (expressions) {
+              const sorted = Object.entries(expressions)
+                .sort((a, b) => b[1] - a[1]);
+                
+              if (sorted.length > 0) {
+                const [emotion, confidence] = sorted[0];
+                const text = `${emotion}: ${Math.round(confidence * 100)}%`;
+                
+                ctx.font = '16px Arial';
+                ctx.fillStyle = '#fff';
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.strokeText(text, box.x, box.y - 5);
+                ctx.fillText(text, box.x, box.y - 5);
+              }
+            }
+          }
+        });
         
-        // Optionally draw expressions
-        if (options.drawExpressions && ctx && detection.expressions) {
-          const expressions = detection.expressions;
-          const sorted = Object.entries(expressions)
-            .sort((a, b) => b[1] - a[1]);
-            
-          if (sorted.length > 0) {
-            const [emotion, confidence] = sorted[0];
-            const text = `${emotion}: ${Math.round(confidence * 100)}%`;
-            
-            ctx.font = '16px Arial';
-            ctx.fillStyle = '#fff';
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2;
-            ctx.strokeText(text, box.x, box.y - 5);
-            ctx.fillText(text, box.x, box.y - 5);
+        // Show debug info if enabled
+        if (options.showDebugInfo && ctx) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+          ctx.fillRect(0, 0, 180, 80);
+          ctx.font = '14px Arial';
+          ctx.fillStyle = '#fff';
+          ctx.fillText(`Faces: ${detections.length}`, 10, 20);
+          ctx.fillText(`Status: ${status}`, 10, 40);
+          
+          if (options.trackViolations) {
+            const totalViolations = Object.values(violations).reduce((sum, val) => sum + val, 0);
+            ctx.fillText(`Violations: ${totalViolations}`, 10, 60);
           }
         }
-      });
-      
-      // Show debug info if enabled
-      if (options.showDebugInfo && ctx) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(0, 0, 180, 80);
-        ctx.font = '14px Arial';
-        ctx.fillStyle = '#fff';
-        ctx.fillText(`Faces: ${detections.length}`, 10, 20);
-        ctx.fillText(`Status: ${status}`, 10, 40);
-        
-        if (options.trackViolations) {
-          const totalViolations = Object.values(violations).reduce((sum, val) => sum + val, 0);
-          ctx.fillText(`Violations: ${totalViolations}`, 10, 60);
-        }
       }
+    } catch (error) {
+      console.error('Error in face detection:', error);
+      // Don't update status on transient errors to avoid flickering
     }
 
   }, [
@@ -531,6 +571,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     options.showDebugInfo, 
     options.drawLandmarks, 
     options.drawExpressions,
+    options.detectExpressions,
     isFaceCentered,
     isFaceCovered,
     checkForRapidMovements,

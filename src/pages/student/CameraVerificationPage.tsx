@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
@@ -15,6 +14,7 @@ const CameraVerificationPage = () => {
   const [isVerified, setIsVerified] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [isCreatingSubmission, setIsCreatingSubmission] = useState(false);
   const [systemInfo, setSystemInfo] = useState<{
     browserOk: boolean;
     osOk: boolean;
@@ -32,36 +32,72 @@ const CameraVerificationPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   
-  // Create submission record for tracking
+  // Create submission record for tracking with retry logic
   const createSubmissionMutation = useMutation({
     mutationFn: async () => {
       if (!user || !assessment) return null;
       
-      const { data, error } = await supabase
-        .from('submissions')
-        .insert({
-          assessment_id: assessment.id,
-          user_id: user.id,
-          started_at: new Date().toISOString(),
-          fullscreen_violations: 0,
-          face_violations: JSON.stringify([]) // Initialize empty array
-        })
-        .select('id')
-        .single();
+      setIsCreatingSubmission(true);
+      
+      try {
+        // First check if there's already an active submission
+        const { data: existingSubmissions, error: fetchError } = await supabase
+          .from('submissions')
+          .select('id')
+          .eq('assessment_id', assessment.id)
+          .eq('user_id', user.id)
+          .is('completed_at', null)
+          .order('created_at', { ascending: false })
+          .limit(1);
         
-      if (error) throw error;
-      return data;
+        if (fetchError) {
+          console.error('Error checking existing submissions:', fetchError);
+          throw fetchError;
+        }
+        
+        // If there's an active submission, use that
+        if (existingSubmissions && existingSubmissions.length > 0) {
+          console.log('Using existing submission:', existingSubmissions[0]);
+          return existingSubmissions[0];
+        }
+        
+        // Otherwise, create a new submission
+        const { data, error } = await supabase
+          .from('submissions')
+          .insert({
+            assessment_id: assessment.id,
+            user_id: user.id,
+            started_at: new Date().toISOString(),
+            fullscreen_violations: 0,
+            face_violations: []
+          })
+          .select('id')
+          .single();
+          
+        if (error) {
+          console.error('Error creating new submission:', error);
+          throw error;
+        }
+        
+        console.log('Created new submission:', data);
+        return data;
+      } finally {
+        setIsCreatingSubmission(false);
+      }
     },
+    retry: 3, // Retry up to 3 times
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000), // Exponential backoff
     onSuccess: (data) => {
       if (data) {
+        console.log('Submission created/found successfully:', data.id);
         setSubmissionId(data.id);
       }
     },
     onError: (error) => {
-      console.error('Error creating submission:', error);
+      console.error('Error creating submission after retries:', error);
       toast({
         title: "Error",
-        description: "Failed to create submission record",
+        description: "Failed to create submission record. Please try refreshing the page.",
         variant: "destructive",
       });
     }
@@ -79,7 +115,8 @@ const CameraVerificationPage = () => {
       return;
     }
     
-    if (user && assessment) {
+    if (user && assessment && !submissionId && !isCreatingSubmission) {
+      console.log("Creating submission for assessment", assessment.id);
       createSubmissionMutation.mutate();
     }
     
@@ -115,7 +152,7 @@ const CameraVerificationPage = () => {
     };
     
     checkSystemRequirements();
-  }, [assessment, assessmentCode, loading, navigate, toast, user, createSubmissionMutation]);
+  }, [assessment, assessmentCode, loading, navigate, toast, user, createSubmissionMutation, submissionId, isCreatingSubmission]);
   
   if (loading) {
     return (
@@ -158,7 +195,7 @@ const CameraVerificationPage = () => {
           variant: "destructive",
         });
       }
-    }, 1500);
+    }, 1000); // Reduced delay for better UX
   };
   
   const handleStartAssessment = () => {

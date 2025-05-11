@@ -468,7 +468,7 @@ export type Database = {
           assessment_id: string
           completed_at: string | null
           created_at: string
-          face_violations: string | null
+          face_violations: Json | null
           fullscreen_violations: number | null
           id: string
           is_terminated: boolean | null
@@ -479,7 +479,7 @@ export type Database = {
           assessment_id: string
           completed_at?: string | null
           created_at?: string
-          face_violations?: string | null
+          face_violations?: Json | null
           fullscreen_violations?: number | null
           id?: string
           is_terminated?: boolean | null
@@ -490,7 +490,7 @@ export type Database = {
           assessment_id?: string
           completed_at?: string | null
           created_at?: string
-          face_violations?: string | null
+          face_violations?: Json | null
           fullscreen_violations?: number | null
           id?: string
           is_terminated?: boolean | null
@@ -625,6 +625,10 @@ export type Database = {
       calculate_mcq_question_marks: {
         Args: { question_id: string }
         Returns: number
+      }
+      exec_sql: {
+        Args: { sql_query: string }
+        Returns: undefined
       }
       insert_coding_assessment_question: {
         Args: {
