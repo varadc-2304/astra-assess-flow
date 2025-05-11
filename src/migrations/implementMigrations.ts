@@ -9,8 +9,10 @@ ALTER TABLE submissions ADD COLUMN IF NOT EXISTS face_violations JSONB DEFAULT '
 
 export const runMigrations = async () => {
   try {
-    // Execute the SQL directly using query method instead of RPC
-    const { error } = await supabase.query(faceViolationsMigration);
+    // Use rpc method to execute raw SQL instead of query method
+    const { error } = await supabase.rpc('exec_sql', {
+      sql_query: faceViolationsMigration
+    });
     
     if (error) {
       console.error('Error running face violations migration:', error);
