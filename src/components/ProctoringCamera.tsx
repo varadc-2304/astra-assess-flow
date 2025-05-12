@@ -375,10 +375,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           </div>
         )}
         
-        {/* Violation counts (only in tracking mode) */}
-        {trackViolations && Object.values(violationCount).some(count => count > 0) && (
-          
-        )}
+
       </div>
     </div>
   );
