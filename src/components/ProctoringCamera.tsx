@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Json } from '@/types/database';
 
@@ -17,6 +16,8 @@ interface ProctoringCameraProps {
   trackViolations?: boolean;
   assessmentId?: string;
   submissionId?: string;
+  onViolationsUpdate?: (violations: Record<ViolationType, number>, violationLog: string[]) => void;
+  initialCameraEnabled?: boolean;
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -68,7 +69,9 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   showStatus = true,
   trackViolations = false,
   assessmentId,
-  submissionId
+  submissionId,
+  onViolationsUpdate,
+  initialCameraEnabled = false
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -84,8 +87,15 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   const [violationLog, setViolationLog] = useState<string[]>([]);
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
   const [cameraLoading, setCameraLoading] = useState(true);
+  const [cameraEnabled, setCameraEnabled] = useState(initialCameraEnabled);
   const autoInitRef = useRef(false);
   
+  // Draggable camera state
+  const [isDragging, setIsDragging] = useState(false);
+  const [position, setPosition] = useState({ x: 16, y: 16 }); // Default position (bottom right)
+  const dragRef = useRef<HTMLDivElement>(null);
+  const initialPositionRef = useRef({ x: 0, y: 0 });
+
   const {
     videoRef,
     canvasRef,
@@ -102,18 +112,18 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     drawLandmarks: false,
     drawExpressions: false,
     detectExpressions: true,
-    trackViolations: trackViolations,
+    trackViolations: trackViolations && cameraEnabled,
     // Improved parameters for more accurate face detection
     detectionOptions: {
-      faceDetectionThreshold: 0.5, // Lower threshold for face detection (was 0.65)
-      faceCenteredTolerance: 0.3, // More tolerance for face not being centered (was 0.25)
-      rapidMovementThreshold: 0.3, // Higher threshold for rapid movement detection (was 0.25)
+      faceDetectionThreshold: 0.5, 
+      faceCenteredTolerance: 0.3, 
+      rapidMovementThreshold: 0.3, 
     }
   });
 
-  // Initialize the camera when component mounts
+  // Initialize the camera only if initialCameraEnabled is true or when user enables it
   useEffect(() => {
-    if (!autoInitRef.current) {
+    if (cameraEnabled && !autoInitRef.current) {
       console.log("Initializing camera...");
       reinitialize();
       autoInitRef.current = true;
@@ -124,7 +134,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       console.log("Stopping camera detection...");
       stopDetection();
     };
-  }, [reinitialize, stopDetection]);
+  }, [cameraEnabled, reinitialize, stopDetection]);
   
   // Update camera loading state
   useEffect(() => {
@@ -139,8 +149,9 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }
   }, [isInitializing, isCameraReady, isModelLoaded]);
 
+  // Handle violation tracking
   useEffect(() => {
-    if (trackViolations && violations) {
+    if (trackViolations && cameraEnabled && violations) {
       // Update violation counts
       const newViolationCount = { ...violationCount };
       let newViolationsDetected = false;
@@ -149,36 +160,65 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       Object.entries(violations).forEach(([type, count]) => {
         const violationType = type as ViolationType;
         if (count > newViolationCount[violationType]) {
-          // New violation occurred
+          // New violation occurred - only log it once per type
           newViolationsDetected = true;
           const timestamp = new Date().toLocaleTimeString();
           const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
           setViolationLog(prev => [...prev, violationMessage]);
           
-          if (trackViolations && user && submissionId) {
-            // Only log if we're past the cooldown period (5 seconds)
-            const now = Date.now();
-            if (now - lastUpdateTime > 5000) {
-              updateViolationInDatabase(violationMessage);
-              setLastUpdateTime(now);
-            }
-          }
+          // Only increment the violation count once per type
+          newViolationCount[violationType] += 1;
         }
-        newViolationCount[violationType] = count;
       });
       
       if (newViolationsDetected) {
         setViolationCount(newViolationCount);
-      }
-      
-      // Check for total violations exceeding threshold
-      const totalViolations = Object.values(newViolationCount).reduce((sum, count) => sum + count, 0);
-      if (totalViolations >= 3 && trackViolations && user && submissionId) {
-        const violationSummary = formatViolationSummary(newViolationCount);
-        updateViolationInDatabase(violationSummary, true);
+        
+        // Call the parent component's onViolationsUpdate if provided
+        if (onViolationsUpdate) {
+          onViolationsUpdate(newViolationCount, [...violationLog]);
+        }
       }
     }
-  }, [violations, trackViolations, user, submissionId]);
+  }, [violations, trackViolations, user, submissionId, violationLog, onViolationsUpdate]);
+
+  // Set up mouse event handlers for draggable camera
+  useEffect(() => {
+    if (!dragRef.current) return;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      
+      const dx = e.clientX - initialPositionRef.current.x;
+      const dy = e.clientY - initialPositionRef.current.y;
+      
+      setPosition({
+        x: Math.max(0, Math.min(window.innerWidth - 240, position.x + dx)),
+        y: Math.max(0, Math.min(window.innerHeight - 180, position.y + dy))
+      });
+      
+      initialPositionRef.current = { x: e.clientX, y: e.clientY };
+    };
+    
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+    
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, position]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    initialPositionRef.current = { x: e.clientX, y: e.clientY };
+  };
 
   const getViolationMessage = (violationType: ViolationType): string => {
     switch (violationType) {
@@ -209,77 +249,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     return `VIOLATION SUMMARY: ${violationEntries.join(', ')}`;
   };
 
-  const updateViolationInDatabase = async (violationText: string, isFinal: boolean = false) => {
-    if (!submissionId || !user) return;
-    
-    try {
-      // Get current violations
-      const { data: submission, error: fetchError } = await supabase
-        .from('submissions')
-        .select('face_violations')
-        .eq('id', submissionId)
-        .single();
-      
-      if (fetchError) {
-        console.error("Error fetching submission:", fetchError);
-        return;
-      }
-      
-      // Initialize or update violations array
-      let currentViolations: string[] = [];
-      
-      if (submission && submission.face_violations) {
-        // Handle both string and JSON array formats
-        if (Array.isArray(submission.face_violations)) {
-          // Fix the type error here: Convert any non-string items to strings
-          currentViolations = (submission.face_violations as Json[]).map(item => String(item));
-        } else {
-          try {
-            // If it's stored as a JSON string, parse it
-            const parsedViolations = typeof submission.face_violations === 'string'
-              ? JSON.parse(submission.face_violations)
-              : submission.face_violations;
-            
-            // Convert the parsed violations to strings
-            currentViolations = Array.isArray(parsedViolations)
-              ? parsedViolations.map(item => String(item))
-              : [];
-          } catch (e) {
-            console.error("Error parsing face_violations:", e);
-            currentViolations = [];
-          }
-        }
-      }
-      
-      // Add new violation
-      currentViolations.push(violationText);
-      
-      // Update submission with new violations
-      const { error: updateError } = await supabase
-        .from('submissions')
-        .update({ 
-          face_violations: currentViolations,
-          is_terminated: isFinal ? true : undefined
-        })
-        .eq('id', submissionId);
-      
-      if (updateError) {
-        console.error("Error updating face violations:", updateError);
-      }
-      
-      // If this is the final violation that terminates the session
-      if (isFinal) {
-        toast({
-          title: "Assessment Terminated",
-          description: "Multiple violations detected. Your session has been flagged.",
-          variant: "destructive"
-        });
-      }
-    } catch (err) {
-      console.error("Error updating face violations:", err);
-    }
-  };
-
   const handleVerificationComplete = () => {
     // Only allow completion if face is detected
     if (status === 'faceDetected' && onVerificationComplete) {
@@ -300,104 +269,143 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }, 100);
   };
 
+  const handleEnableCamera = () => {
+    setCameraEnabled(true);
+  };
+
   const statusConfig = statusMessages[status] || statusMessages.initializing;
 
   return (
     <div className="proctoring-camera-container">
-      <div className="relative w-full max-w-md mx-auto">
-        {/* Video feed container */}
-        <div className="relative overflow-hidden rounded-lg bg-black mb-4 border-2 border-gray-200 dark:border-gray-700 shadow-lg">
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover"
-            autoPlay
-            playsInline
-            muted
-          />
-          <canvas 
-            ref={canvasRef} 
-            className="absolute top-0 left-0 w-full h-full pointer-events-none" 
-          />
-          
-          {/* Loading overlay */}
-          {cameraLoading && (
-            <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-10">
-              <div className="text-center text-white">
-                <Loader2 className="animate-spin h-8 w-8 mx-auto mb-2" />
-                <p className="text-sm">Initializing camera...</p>
-                <p className="text-xs text-gray-300 mt-2">Please allow camera access if prompted</p>
-              </div>
-            </div>
-          )}
-
-          {/* Status indicator */}
-          {showStatus && isCameraReady && isModelLoaded && (
-            <div className="absolute bottom-0 left-0 right-0 p-3 bg-gray-900/80">
-              <div className={`flex items-center ${statusConfig.color}`}>
-                {statusConfig.icon}
-                <span className="text-white text-sm">{statusConfig.message}</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Controls */}
-        {showControls && (
-          <div className="flex justify-between mt-4">
-            <Button
-              variant="outline"
-              onClick={handleRestartCamera}
-              disabled={isInitializing}
-              type="button"
-              className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Restart Camera
-            </Button>
-            
-            <Button
-              variant="outline"
-              onClick={switchCamera}
-              disabled={isInitializing}
-              type="button"
-              className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <Camera className="h-4 w-4 mr-2" />
-              Switch Camera
-            </Button>
-            
-            <Button
-              onClick={handleVerificationComplete}
-              disabled={status !== 'faceDetected' || isInitializing}
-              className={cn(
-                "transition-colors",
-                status === 'faceDetected' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-400'
-              )}
-              type="button"
-            >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Verify
-            </Button>
-          </div>
-        )}
-        
-        {/* Violation counts (only in tracking mode) */}
-        {trackViolations && Object.values(violationCount).some(count => count > 0) && (
-          <Card className="mt-4 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
-            <CardContent className="p-4">
-              <h3 className="text-sm font-medium text-amber-800 dark:text-amber-400 mb-2">Proctoring Violations:</h3>
-              <ul className="text-xs space-y-1 text-amber-700 dark:text-amber-300">
-                {Object.entries(violationCount).map(([type, count]) => (
-                  count > 0 && (
-                    <li key={type} className="flex items-center justify-between">
-                      <span>{getViolationMessage(type as ViolationType)}</span>
-                      <span className="font-medium">{count}</span>
-                    </li>
-                  )
-                ))}
-              </ul>
+      <div 
+        ref={dragRef}
+        className={`relative ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        style={position ? { 
+          position: 'fixed', 
+          top: `${position.y}px`, 
+          left: `${position.x}px`, 
+          zIndex: 50
+        } : undefined}
+      >
+        {!cameraEnabled && !initialCameraEnabled ? (
+          <Card className="w-[240px] shadow-lg border-0">
+            <CardContent className="p-4 flex flex-col items-center justify-center">
+              <Camera className="h-12 w-12 text-gray-400 mb-2" />
+              <p className="text-sm text-center mb-2">Camera access required for proctoring</p>
+              <Button
+                onClick={handleEnableCamera}
+                size="sm"
+                className="mt-2"
+              >
+                Enable Camera
+              </Button>
             </CardContent>
           </Card>
+        ) : (
+          <div className="relative w-full max-w-[240px] mx-auto">
+            {/* Draggable handle */}
+            <div 
+              className="absolute top-0 left-0 right-0 h-6 bg-gray-800/50 z-20 flex justify-center items-center"
+              onMouseDown={handleMouseDown}
+            >
+              <div className="w-8 h-1 bg-gray-400 rounded-full" />
+            </div>
+            
+            {/* Video feed container */}
+            <div className="relative overflow-hidden rounded-lg bg-black mb-4 border-2 border-gray-200 dark:border-gray-700 shadow-lg">
+              <video
+                ref={videoRef}
+                className="w-full h-full object-cover"
+                autoPlay
+                playsInline
+                muted
+              />
+              <canvas 
+                ref={canvasRef} 
+                className="absolute top-0 left-0 w-full h-full pointer-events-none" 
+              />
+              
+              {/* Loading overlay */}
+              {cameraLoading && (
+                <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-10">
+                  <div className="text-center text-white">
+                    <Loader2 className="animate-spin h-8 w-8 mx-auto mb-2" />
+                    <p className="text-sm">Initializing camera...</p>
+                    <p className="text-xs text-gray-300 mt-2">Please allow camera access if prompted</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Status indicator */}
+              {showStatus && isCameraReady && isModelLoaded && (
+                <div className="absolute bottom-0 left-0 right-0 p-3 bg-gray-900/80">
+                  <div className={`flex items-center ${statusConfig.color}`}>
+                    {statusConfig.icon}
+                    <span className="text-white text-sm">{statusConfig.message}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Controls */}
+            {showControls && (
+              <div className="flex justify-between mt-4">
+                <Button
+                  variant="outline"
+                  onClick={handleRestartCamera}
+                  disabled={isInitializing}
+                  type="button"
+                  className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Restart Camera
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={switchCamera}
+                  disabled={isInitializing}
+                  type="button"
+                  className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  Switch Camera
+                </Button>
+                
+                <Button
+                  onClick={handleVerificationComplete}
+                  disabled={status !== 'faceDetected' || isInitializing}
+                  className={cn(
+                    "transition-colors",
+                    status === 'faceDetected' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-400'
+                  )}
+                  type="button"
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Verify
+                </Button>
+              </div>
+            )}
+            
+            {/* Violation counts (only in tracking mode) */}
+            {trackViolations && Object.values(violationCount).some(count => count > 0) && (
+              <Card className="mt-4 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+                <CardContent className="p-4">
+                  <h3 className="text-sm font-medium text-amber-800 dark:text-amber-400 mb-2">Proctoring Violations:</h3>
+                  <ul className="text-xs space-y-1 text-amber-700 dark:text-amber-300">
+                    {Object.entries(violationCount).map(([type, count]) => (
+                      count > 0 && (
+                        <li key={type} className="flex items-center justify-between">
+                          <span>{getViolationMessage(type as ViolationType)}</span>
+                          <span className="font-medium">{count}</span>
+                        </li>
+                      )
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         )}
       </div>
     </div>
