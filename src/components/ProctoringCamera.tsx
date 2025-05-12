@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
@@ -86,6 +85,9 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   const [cameraLoading, setCameraLoading] = useState(true);
   const autoInitRef = useRef(false);
   
+  // Track which violations have already been flagged
+  const flaggedViolationsRef = useRef<Set<ViolationType>>(new Set());
+  
   const {
     videoRef,
     canvasRef,
@@ -156,11 +158,11 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           setViolationLog(prev => [...prev, violationMessage]);
           
           if (trackViolations && user && submissionId) {
-            // Only log if we're past the cooldown period (5 seconds)
-            const now = Date.now();
-            if (now - lastUpdateTime > 5000) {
+            // Only log if violation hasn't been flagged yet
+            if (!flaggedViolationsRef.current.has(violationType)) {
               updateViolationInDatabase(violationMessage);
-              setLastUpdateTime(now);
+              // Mark this violation as flagged
+              flaggedViolationsRef.current.add(violationType);
             }
           }
         }
