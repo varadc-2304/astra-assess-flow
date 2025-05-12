@@ -271,11 +271,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       
       // If this is the final violation that terminates the session
       if (isFinal) {
-        toast({
-          title: "Assessment Terminated",
-          description: "Multiple violations detected. Your session has been flagged.",
-          variant: "destructive"
-        });
+
       }
     } catch (err) {
       console.error("Error updating face violations:", err);
