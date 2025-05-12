@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -23,7 +22,8 @@ import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/Assessm
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
-import ProctoringCamera, { ViolationType } from '@/components/ProctoringCamera';
+import ProctoringCamera from '@/components/ProctoringCamera';
+import { ViolationType } from '@/hooks/useProctoring'; // Fixed import to get ViolationType from the correct location
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
