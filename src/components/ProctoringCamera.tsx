@@ -154,6 +154,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           // New violation occurred
           newViolationsDetected = true;
           const timestamp = new Date().toLocaleTimeString();
+          const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
           setViolationLog(prev => [...prev, violationMessage]);
           
           if (trackViolations && user && submissionId) {
