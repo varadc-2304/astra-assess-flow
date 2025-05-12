@@ -381,21 +381,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         
         {/* Violation counts (only in tracking mode) */}
         {trackViolations && Object.values(violationCount).some(count => count > 0) && (
-          <Card className="mt-4 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
-            <CardContent className="p-4">
-              <h3 className="text-sm font-medium text-amber-800 dark:text-amber-400 mb-2">Proctoring Violations:</h3>
-              <ul className="text-xs space-y-1 text-amber-700 dark:text-amber-300">
-                {Object.entries(violationCount).map(([type, count]) => (
-                  count > 0 && (
-                    <li key={type} className="flex items-center justify-between">
-                      <span>{getViolationMessage(type as ViolationType)}</span>
-                      <span className="font-medium">{count}</span>
-                    </li>
-                  )
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          
         )}
       </div>
     </div>
