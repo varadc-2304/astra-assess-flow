@@ -118,8 +118,6 @@ const InstructionsPage = () => {
             <p>• Your answers are auto-saved as you progress.</p>
             <p>• The assessment will automatically submit when the time expires.</p>
             <p>• Camera proctoring will be active throughout the entire assessment.</p>
-            <p>• The camera box can be moved around the screen by dragging it.</p>
-            <p>• Unauthorized objects like mobile phones and tablets will be detected and flagged.</p>
           </CardContent>
         </Card>
         
@@ -150,28 +148,6 @@ const InstructionsPage = () => {
           </CardFooter>
         </Card>
       </div>
-      
-      {/* Fix the style component by removing jsx and global properties */}
-      <style>{`
-        .floating-camera {
-          position: fixed;
-          bottom: 80px;
-          right: 20px;
-          z-index: 1000;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-          border-radius: 8px;
-          overflow: hidden;
-          width: 240px;
-        }
-        
-        @media (max-width: 640px) {
-          .floating-camera {
-            width: 180px;
-            bottom: 60px;
-            right: 10px;
-          }
-        }
-      `}</style>
     </div>
   );
 };

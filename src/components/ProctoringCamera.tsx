@@ -3,10 +3,12 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw, Move } from 'lucide-react';
+import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { Json } from '@/types/database';
 
 interface ProctoringCameraProps {
   onVerificationComplete?: (success: boolean) => void;
@@ -15,10 +17,6 @@ interface ProctoringCameraProps {
   trackViolations?: boolean;
   assessmentId?: string;
   submissionId?: string;
-  enableOnMount?: boolean;
-  className?: string;
-  isDraggable?: boolean;
-  onViolationDetected?: (violationType: string) => void;
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -61,11 +59,6 @@ const statusMessages: Record<ProctoringStatus, { message: string; icon: React.Re
     message: 'Error initializing camera. Please check permissions and try again.', 
     icon: <AlertCircle className="mr-2 h-5 w-5" />,
     color: 'text-red-500'
-  },
-  objectDetected: {
-    message: 'Unauthorized object detected. Please remove it from view.',
-    icon: <AlertCircle className="mr-2 h-5 w-5" />,
-    color: 'text-red-500'
   }
 };
 
@@ -75,35 +68,23 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   showStatus = true,
   trackViolations = false,
   assessmentId,
-  submissionId,
-  enableOnMount = false,
-  className = '',
-  isDraggable = false,
-  onViolationDetected
+  submissionId
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
-  // Track violations without duplicates
-  const [violationMap, setViolationMap] = useState<Record<ViolationType, boolean>>({
-    noFaceDetected: false,
-    multipleFacesDetected: false,
-    faceNotCentered: false,
-    faceCovered: false,
-    rapidMovement: false,
-    frequentDisappearance: false,
-    identityMismatch: false,
-    objectDetected: false
+  const [violationCount, setViolationCount] = useState<Record<ViolationType, number>>({
+    noFaceDetected: 0,
+    multipleFacesDetected: 0,
+    faceNotCentered: 0,
+    faceCovered: 0,
+    rapidMovement: 0,
+    frequentDisappearance: 0,
+    identityMismatch: 0
   });
   const [violationLog, setViolationLog] = useState<string[]>([]);
+  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
   const [cameraLoading, setCameraLoading] = useState(true);
   const autoInitRef = useRef(false);
-  const [cameraEnabled, setCameraEnabled] = useState(enableOnMount);
-  
-  // Dragging state
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartPos = useRef({ x: 0, y: 0 });
-  const containerRef = useRef<HTMLDivElement>(null);
   
   const {
     videoRef,
@@ -121,20 +102,18 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     drawLandmarks: false,
     drawExpressions: false,
     detectExpressions: true,
-    trackViolations: trackViolations && cameraEnabled,
-    detectObjects: true,
-    enabled: cameraEnabled,
+    trackViolations: trackViolations,
     // Improved parameters for more accurate face detection
     detectionOptions: {
-      faceDetectionThreshold: 0.5, // Lower threshold for face detection
-      faceCenteredTolerance: 0.3, // More tolerance for face not being centered
-      rapidMovementThreshold: 0.3, // Higher threshold for rapid movement detection
+      faceDetectionThreshold: 0.5, // Lower threshold for face detection (was 0.65)
+      faceCenteredTolerance: 0.3, // More tolerance for face not being centered (was 0.25)
+      rapidMovementThreshold: 0.3, // Higher threshold for rapid movement detection (was 0.25)
     }
   });
 
-  // Initialize the camera when component mounts and enabled
+  // Initialize the camera when component mounts
   useEffect(() => {
-    if (cameraEnabled && !autoInitRef.current) {
+    if (!autoInitRef.current) {
       console.log("Initializing camera...");
       reinitialize();
       autoInitRef.current = true;
@@ -142,12 +121,10 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     
     // Cleanup function that will run when component unmounts
     return () => {
-      if (cameraEnabled) {
-        console.log("Stopping camera detection...");
-        stopDetection();
-      }
+      console.log("Stopping camera detection...");
+      stopDetection();
     };
-  }, [cameraEnabled, reinitialize, stopDetection]);
+  }, [reinitialize, stopDetection]);
   
   // Update camera loading state
   useEffect(() => {
@@ -162,39 +139,46 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }
   }, [isInitializing, isCameraReady, isModelLoaded]);
 
-  // Process violations without duplicates
   useEffect(() => {
-    if (trackViolations && violations && cameraEnabled) {
-      // Check for new violations
+    if (trackViolations && violations) {
+      // Update violation counts
+      const newViolationCount = { ...violationCount };
       let newViolationsDetected = false;
-      let newViolationLog: string[] = [...violationLog];
-      const newViolationMap = { ...violationMap };
       
       // Process new violations
       Object.entries(violations).forEach(([type, count]) => {
         const violationType = type as ViolationType;
-        if (count > 0 && !newViolationMap[violationType]) {
-          // Only log each violation type once
-          newViolationMap[violationType] = true;
+        if (count > newViolationCount[violationType]) {
+          // New violation occurred
           newViolationsDetected = true;
-          
           const timestamp = new Date().toLocaleTimeString();
           const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
-          newViolationLog.push(violationMessage);
+          setViolationLog(prev => [...prev, violationMessage]);
           
-          // Call the callback if provided
-          if (onViolationDetected) {
-            onViolationDetected(getViolationMessage(violationType));
+          if (trackViolations && user && submissionId) {
+            // Only log if we're past the cooldown period (5 seconds)
+            const now = Date.now();
+            if (now - lastUpdateTime > 5000) {
+              updateViolationInDatabase(violationMessage);
+              setLastUpdateTime(now);
+            }
           }
         }
+        newViolationCount[violationType] = count;
       });
       
       if (newViolationsDetected) {
-        setViolationMap(newViolationMap);
-        setViolationLog(newViolationLog);
+        setViolationCount(newViolationCount);
+      }
+      
+      // Check for total violations exceeding threshold
+      const totalViolations = Object.values(newViolationCount).reduce((sum, count) => sum + count, 0);
+      if (totalViolations >= 3 && trackViolations && user && submissionId) {
+        const violationSummary = formatViolationSummary(newViolationCount);
+        updateViolationInDatabase(violationSummary, true);
       }
     }
-  }, [violations, trackViolations, cameraEnabled, onViolationDetected]);
+  }, [violations, trackViolations, user, submissionId]);
 
   const getViolationMessage = (violationType: ViolationType): string => {
     switch (violationType) {
@@ -212,16 +196,88 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         return 'Face frequently disappearing';
       case 'identityMismatch':
         return 'Face identity mismatch';
-      case 'objectDetected':
-        return 'Unauthorized object detected (phone/tablet)';
       default:
         return 'Unknown violation';
     }
   };
   
-  // Log violations without duplicate entries
-  const getViolationData = (): string[] => {
-    return violationLog;
+  const formatViolationSummary = (violations: Record<ViolationType, number>): string => {
+    const violationEntries = Object.entries(violations)
+      .filter(([_, count]) => count > 0)
+      .map(([type, count]) => `${getViolationMessage(type as ViolationType)}: ${count} times`);
+      
+    return `VIOLATION SUMMARY: ${violationEntries.join(', ')}`;
+  };
+
+  const updateViolationInDatabase = async (violationText: string, isFinal: boolean = false) => {
+    if (!submissionId || !user) return;
+    
+    try {
+      // Get current violations
+      const { data: submission, error: fetchError } = await supabase
+        .from('submissions')
+        .select('face_violations')
+        .eq('id', submissionId)
+        .single();
+      
+      if (fetchError) {
+        console.error("Error fetching submission:", fetchError);
+        return;
+      }
+      
+      // Initialize or update violations array
+      let currentViolations: string[] = [];
+      
+      if (submission && submission.face_violations) {
+        // Handle both string and JSON array formats
+        if (Array.isArray(submission.face_violations)) {
+          // Fix the type error here: Convert any non-string items to strings
+          currentViolations = (submission.face_violations as Json[]).map(item => String(item));
+        } else {
+          try {
+            // If it's stored as a JSON string, parse it
+            const parsedViolations = typeof submission.face_violations === 'string'
+              ? JSON.parse(submission.face_violations)
+              : submission.face_violations;
+            
+            // Convert the parsed violations to strings
+            currentViolations = Array.isArray(parsedViolations)
+              ? parsedViolations.map(item => String(item))
+              : [];
+          } catch (e) {
+            console.error("Error parsing face_violations:", e);
+            currentViolations = [];
+          }
+        }
+      }
+      
+      // Add new violation
+      currentViolations.push(violationText);
+      
+      // Update submission with new violations
+      const { error: updateError } = await supabase
+        .from('submissions')
+        .update({ 
+          face_violations: currentViolations,
+          is_terminated: isFinal ? true : undefined
+        })
+        .eq('id', submissionId);
+      
+      if (updateError) {
+        console.error("Error updating face violations:", updateError);
+      }
+      
+      // If this is the final violation that terminates the session
+      if (isFinal) {
+        toast({
+          title: "Assessment Terminated",
+          description: "Multiple violations detected. Your session has been flagged.",
+          variant: "destructive"
+        });
+      }
+    } catch (err) {
+      console.error("Error updating face violations:", err);
+    }
   };
 
   const handleVerificationComplete = () => {
@@ -243,123 +299,12 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       reinitialize();
     }, 100);
   };
-  
-  const handleEnableCamera = () => {
-    setCameraEnabled(true);
-  };
 
   const statusConfig = statusMessages[status] || statusMessages.initializing;
-  
-  // Drag functionality
-  const handleDragStart = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-    if (!isDraggable) return;
-    
-    setIsDragging(true);
-    
-    if ('touches' in e) {
-      // Touch event
-      dragStartPos.current = {
-        x: e.touches[0].clientX - position.x,
-        y: e.touches[0].clientY - position.y
-      };
-    } else {
-      // Mouse event
-      dragStartPos.current = {
-        x: e.clientX - position.x,
-        y: e.clientY - position.y
-      };
-      
-      e.preventDefault();
-    }
-  };
-  
-  const handleDragMove = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement> | MouseEvent | TouchEvent) => {
-    if (!isDragging || !isDraggable) return;
-    
-    let clientX: number, clientY: number;
-    
-    if ('touches' in e) {
-      // Touch event
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      // Mouse event
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-    
-    setPosition({
-      x: clientX - dragStartPos.current.x,
-      y: clientY - dragStartPos.current.y
-    });
-  };
-  
-  const handleDragEnd = () => {
-    setIsDragging(false);
-  };
-  
-  // Add event listeners for drag
-  useEffect(() => {
-    if (isDraggable) {
-      const handleMouseMove = (e: MouseEvent) => handleDragMove(e);
-      const handleTouchMove = (e: TouchEvent) => handleDragMove(e);
-      const handleUp = () => handleDragEnd();
-      
-      if (isDragging) {
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('touchmove', handleTouchMove);
-        document.addEventListener('mouseup', handleUp);
-        document.addEventListener('touchend', handleUp);
-      }
-      
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('touchmove', handleTouchMove);
-        document.removeEventListener('mouseup', handleUp);
-        document.removeEventListener('touchend', handleUp);
-      };
-    }
-  }, [isDragging, isDraggable]);
-
-  // Only show one of these based on conditions
-  if (!cameraEnabled && !enableOnMount) {
-    return (
-      <div className="flex justify-center">
-        <Button
-          onClick={handleEnableCamera}
-          className="bg-astra-red hover:bg-red-600 text-white"
-        >
-          <Camera className="h-4 w-4 mr-2" />
-          Enable Camera
-        </Button>
-      </div>
-    );
-  }
 
   return (
-    <div 
-      ref={containerRef}
-      className={`proctoring-camera-container ${className}`}
-      style={isDraggable ? {
-        position: 'absolute',
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        zIndex: 1000,
-        cursor: isDragging ? 'grabbing' : 'grab'
-      } : {}}
-    >
-      <div 
-        className={`relative w-full ${isDraggable ? 'max-w-[240px]' : 'max-w-md'} mx-auto`}
-        onMouseDown={handleDragStart}
-        onTouchStart={handleDragStart}
-      >
-        {/* Move handle for draggable mode */}
-        {isDraggable && (
-          <div className="absolute top-0 left-0 right-0 p-2 bg-black/50 flex justify-center z-20 cursor-move">
-            <Move className="h-4 w-4 text-white/80" />
-          </div>
-        )}
-        
+    <div className="proctoring-camera-container">
+      <div className="relative w-full max-w-md mx-auto">
         {/* Video feed container */}
         <div className="relative overflow-hidden rounded-lg bg-black mb-4 border-2 border-gray-200 dark:border-gray-700 shadow-lg">
           <video
@@ -397,7 +342,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         </div>
 
         {/* Controls */}
-        {showControls && !isDraggable && (
+        {showControls && (
           <div className="flex justify-between mt-4">
             <Button
               variant="outline"
@@ -436,17 +381,17 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           </div>
         )}
         
-        {/* Violation counts (only in tracking mode and not draggable) */}
-        {trackViolations && !isDraggable && Object.values(violationMap).some(Boolean) && (
+        {/* Violation counts (only in tracking mode) */}
+        {trackViolations && Object.values(violationCount).some(count => count > 0) && (
           <Card className="mt-4 border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
             <CardContent className="p-4">
               <h3 className="text-sm font-medium text-amber-800 dark:text-amber-400 mb-2">Proctoring Violations:</h3>
               <ul className="text-xs space-y-1 text-amber-700 dark:text-amber-300">
-                {Object.entries(violationMap).map(([type, hasViolation]) => (
-                  hasViolation && (
+                {Object.entries(violationCount).map(([type, count]) => (
+                  count > 0 && (
                     <li key={type} className="flex items-center justify-between">
                       <span>{getViolationMessage(type as ViolationType)}</span>
-                      <span className="font-medium">Detected</span>
+                      <span className="font-medium">{count}</span>
                     </li>
                   )
                 ))}
