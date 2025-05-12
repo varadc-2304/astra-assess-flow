@@ -111,11 +111,11 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }
   });
 
-  // Initialize the camera when component mounts
+  // Only initialize the camera when the component mounts if not on verification page
   useEffect(() => {
     if (!autoInitRef.current) {
-      console.log("Initializing camera...");
-      reinitialize();
+      console.log("Camera initialization prepared but waiting for explicit activation");
+      // Don't automatically reinitialize - will be done on button click
       autoInitRef.current = true;
     }
     
@@ -139,6 +139,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }
   }, [isInitializing, isCameraReady, isModelLoaded]);
 
+  // Track violations but don't use toasts and ensure each type is counted only once
   useEffect(() => {
     if (trackViolations && violations) {
       // Update violation counts
@@ -155,11 +156,13 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
           setViolationLog(prev => [...prev, violationMessage]);
           
+          // Record the violation to be saved at submission time
           if (trackViolations && user && submissionId) {
             // Only log if we're past the cooldown period (5 seconds)
             const now = Date.now();
             if (now - lastUpdateTime > 5000) {
-              updateViolationInDatabase(violationMessage);
+              // Instead of calling updateViolationInDatabase, we'll just log it
+              console.log("Violation detected:", violationMessage);
               setLastUpdateTime(now);
             }
           }
@@ -171,14 +174,15 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         setViolationCount(newViolationCount);
       }
       
-      // Check for total violations exceeding threshold
+      // Check for total violations exceeding threshold (but don't terminate)
       const totalViolations = Object.values(newViolationCount).reduce((sum, count) => sum + count, 0);
       if (totalViolations >= 3 && trackViolations && user && submissionId) {
         const violationSummary = formatViolationSummary(newViolationCount);
-        updateViolationInDatabase(violationSummary, true);
+        console.log("Violation summary:", violationSummary);
+        // Note: We won't update the database here as per requirement to only update at submission time
       }
     }
-  }, [violations, trackViolations, user, submissionId]);
+  }, [violations, trackViolations, user, submissionId, violationCount, lastUpdateTime]);
 
   const getViolationMessage = (violationType: ViolationType): string => {
     switch (violationType) {
@@ -209,75 +213,11 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     return `VIOLATION SUMMARY: ${violationEntries.join(', ')}`;
   };
 
-  const updateViolationInDatabase = async (violationText: string, isFinal: boolean = false) => {
+  // This function won't immediately update the database
+  const collectViolationForSubmission = (violationText: string) => {
     if (!submissionId || !user) return;
-    
-    try {
-      // Get current violations
-      const { data: submission, error: fetchError } = await supabase
-        .from('submissions')
-        .select('face_violations')
-        .eq('id', submissionId)
-        .single();
-      
-      if (fetchError) {
-        console.error("Error fetching submission:", fetchError);
-        return;
-      }
-      
-      // Initialize or update violations array
-      let currentViolations: string[] = [];
-      
-      if (submission && submission.face_violations) {
-        // Handle both string and JSON array formats
-        if (Array.isArray(submission.face_violations)) {
-          // Fix the type error here: Convert any non-string items to strings
-          currentViolations = (submission.face_violations as Json[]).map(item => String(item));
-        } else {
-          try {
-            // If it's stored as a JSON string, parse it
-            const parsedViolations = typeof submission.face_violations === 'string'
-              ? JSON.parse(submission.face_violations)
-              : submission.face_violations;
-            
-            // Convert the parsed violations to strings
-            currentViolations = Array.isArray(parsedViolations)
-              ? parsedViolations.map(item => String(item))
-              : [];
-          } catch (e) {
-            console.error("Error parsing face_violations:", e);
-            currentViolations = [];
-          }
-        }
-      }
-      
-      // Add new violation
-      currentViolations.push(violationText);
-      
-      // Update submission with new violations
-      const { error: updateError } = await supabase
-        .from('submissions')
-        .update({ 
-          face_violations: currentViolations,
-          is_terminated: isFinal ? true : undefined
-        })
-        .eq('id', submissionId);
-      
-      if (updateError) {
-        console.error("Error updating face violations:", updateError);
-      }
-      
-      // If this is the final violation that terminates the session
-      if (isFinal) {
-        toast({
-          title: "Assessment Terminated",
-          description: "Multiple violations detected. Your session has been flagged.",
-          variant: "destructive"
-        });
-      }
-    } catch (err) {
-      console.error("Error updating face violations:", err);
-    }
+    // Just add to the log - we'll save all at once when assessment is submitted
+    setViolationLog(prev => [...prev, violationText]);
   };
 
   const handleVerificationComplete = () => {
@@ -301,6 +241,22 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   };
 
   const statusConfig = statusMessages[status] || statusMessages.initializing;
+
+  // Get the current violations for external access
+  const getCurrentViolations = () => {
+    return violationLog;
+  };
+
+  // Expose this function to parent components
+  React.useEffect(() => {
+    if (videoRef.current) {
+      // @ts-ignore - Adding a custom property to the element
+      videoRef.current.__proctoring_violations = violationLog;
+      
+      // @ts-ignore - Adding a getter function to the element
+      videoRef.current.getCurrentViolations = getCurrentViolations;
+    }
+  }, [violationLog]);
 
   return (
     <div className="proctoring-camera-container">

@@ -65,6 +65,9 @@ export function useProctoring(options: ProctoringOptions = {}) {
     identityMismatch: 0
   });
 
+  // Track which violations have already been counted
+  const violationsTrackedRef = useRef<Set<ViolationType>>(new Set());
+
   // Set default detection options
   const detectionOptions = {
     faceDetectionThreshold: options.detectionOptions?.faceDetectionThreshold || 0.8,
@@ -323,7 +326,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
 
-      // Track violations if enabled
+      // Track violations if enabled - now with single counting for each type
       if (options.trackViolations) {
         const now = Date.now();
         
@@ -333,20 +336,27 @@ export function useProctoring(options: ProctoringOptions = {}) {
           
           // Increase violation count if no face for 5 consecutive checks (5 seconds)
           if (noFaceCounterRef.current >= 5) {
-            setViolations(prev => ({
-              ...prev,
-              noFaceDetected: prev.noFaceDetected + 1
-            }));
+            // Only count 'noFaceDetected' once
+            if (!violationsTrackedRef.current.has('noFaceDetected')) {
+              setViolations(prev => ({
+                ...prev,
+                noFaceDetected: 1 // Count as 1 violation only
+              }));
+              violationsTrackedRef.current.add('noFaceDetected');
+            }
             noFaceCounterRef.current = 0; // Reset counter after recording violation
           }
           
           // Track frequent disappearance
           if (lastFaceDetectionTimeRef.current > 0 && 
               now - lastFaceDetectionTimeRef.current < 10000) {  // Within 10 seconds
-            setViolations(prev => ({
-              ...prev,
-              frequentDisappearance: prev.frequentDisappearance + 1
-            }));
+            if (!violationsTrackedRef.current.has('frequentDisappearance')) {
+              setViolations(prev => ({
+                ...prev,
+                frequentDisappearance: 1 // Count as 1 violation only
+              }));
+              violationsTrackedRef.current.add('frequentDisappearance');
+            }
           }
         } else {
           // Reset no-face counter
@@ -355,10 +365,13 @@ export function useProctoring(options: ProctoringOptions = {}) {
           
           // Multiple faces detection
           if (detections.length > 1) {
-            setViolations(prev => ({
-              ...prev,
-              multipleFacesDetected: prev.multipleFacesDetected + 1
-            }));
+            if (!violationsTrackedRef.current.has('multipleFacesDetected')) {
+              setViolations(prev => ({
+                ...prev,
+                multipleFacesDetected: 1 // Count as 1 violation only
+              }));
+              violationsTrackedRef.current.add('multipleFacesDetected');
+            }
           }
           
           // Single face detection - check for other violations
@@ -367,26 +380,35 @@ export function useProctoring(options: ProctoringOptions = {}) {
             
             // Check if face is centered
             if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
-              setViolations(prev => ({
-                ...prev,
-                faceNotCentered: prev.faceNotCentered + 1
-              }));
+              if (!violationsTrackedRef.current.has('faceNotCentered')) {
+                setViolations(prev => ({
+                  ...prev,
+                  faceNotCentered: 1 // Count as 1 violation only
+                }));
+                violationsTrackedRef.current.add('faceNotCentered');
+              }
             }
             
             // Check if face is covered
             if (isFaceCovered(detection)) {
-              setViolations(prev => ({
-                ...prev,
-                faceCovered: prev.faceCovered + 1
-              }));
+              if (!violationsTrackedRef.current.has('faceCovered')) {
+                setViolations(prev => ({
+                  ...prev,
+                  faceCovered: 1 // Count as 1 violation only
+                }));
+                violationsTrackedRef.current.add('faceCovered');
+              }
             }
             
             // Check for rapid movements
             if (checkForRapidMovements(detection.detection.box)) {
-              setViolations(prev => ({
-                ...prev,
-                rapidMovement: prev.rapidMovement + 1
-              }));
+              if (!violationsTrackedRef.current.has('rapidMovement')) {
+                setViolations(prev => ({
+                  ...prev,
+                  rapidMovement: 1 // Count as 1 violation only
+                }));
+                violationsTrackedRef.current.add('rapidMovement');
+              }
             }
           }
         }
@@ -629,6 +651,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
       frequentDisappearance: 0,
       identityMismatch: 0
     });
+    violationsTrackedRef.current.clear();
     
     // Reset face tracking state
     faceHistoryRef.current = { positions: [], timestamps: [] };
@@ -641,9 +664,8 @@ export function useProctoring(options: ProctoringOptions = {}) {
     async function initializeProctoring() {
       setIsInitializing(true);
       const modelsLoaded = await loadModels();
-      if (modelsLoaded) {
-        await initializeCamera();
-      }
+      // Don't automatically initialize the camera
+      // This will be done when the user clicks the "Activate Camera" button
       setIsInitializing(false);
     }
     
@@ -652,7 +674,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     return () => {
       stopDetection();
     };
-  }, [loadModels, initializeCamera, stopDetection]);
+  }, [loadModels, stopDetection]);
 
   // Set up detection when camera is ready and models are loaded
   useEffect(() => {
