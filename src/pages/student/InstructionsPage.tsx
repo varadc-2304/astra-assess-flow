@@ -148,23 +148,6 @@ const InstructionsPage = () => {
           </CardFooter>
         </Card>
       </div>
-      
-      {/* Fix global styles by using proper style attribute without jsx and global */}
-      <style>
-        {`
-          .animate-pulse {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-          }
-          @keyframes pulse {
-            0%, 100% {
-              opacity: 1;
-            }
-            50% {
-              opacity: .7;
-            }
-          }
-        `}
-      </style>
     </div>
   );
 };
