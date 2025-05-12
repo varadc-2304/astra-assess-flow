@@ -267,6 +267,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       if (updateError) {
         console.error("Error updating face violations:", updateError);
       }
+      
       // If this is the final violation that terminates the session
       if (isFinal) {
         toast({
