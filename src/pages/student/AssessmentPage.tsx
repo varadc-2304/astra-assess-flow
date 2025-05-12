@@ -23,7 +23,6 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import ProctoringCamera from '@/components/ProctoringCamera';
-import { ViolationType } from '@/hooks/useProctoring'; // Fixed import to get ViolationType from the correct location
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -71,19 +70,6 @@ const AssessmentPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [submissionId, setSubmissionId] = useState<string | null>(null);
-  
-  // Store proctoring violations locally
-  const [proctoringViolations, setProctoringViolations] = useState<Record<ViolationType, number>>({
-    noFaceDetected: 0,
-    multipleFacesDetected: 0,
-    faceNotCentered: 0,
-    faceCovered: 0,
-    rapidMovement: 0,
-    frequentDisappearance: 0,
-    identityMismatch: 0
-  });
-  
-  const [violationLogs, setViolationLogs] = useState<string[]>([]);
   
   useEffect(() => {
     if (!assessment || !assessmentStarted) {
@@ -166,15 +152,6 @@ const AssessmentPage = () => {
         passedTests
       }
     }));
-  };
-  
-  // Handle updating violations from camera component
-  const handleViolationsUpdate = (
-    violations: Record<ViolationType, number>,
-    logs: string[]
-  ) => {
-    setProctoringViolations(violations);
-    setViolationLogs(logs);
   };
   
   if (!assessment) {
@@ -264,25 +241,10 @@ const AssessmentPage = () => {
       if (submissionError || !submissions || submissions.length === 0) {
         console.error('Error finding submission to update:', submissionError);
       } else {
-        // Format violation logs for storage
-        const formattedViolationLogs = violationLogs.length > 0 ? violationLogs : [];
-        
-        // Add a summary of violations
-        if (Object.values(proctoringViolations).some(v => v > 0)) {
-          const summary = `VIOLATION SUMMARY: ${Object.entries(proctoringViolations)
-            .filter(([_, count]) => count > 0)
-            .map(([type, count]) => `${type}: ${count}`)
-            .join(', ')}`;
-          
-          formattedViolationLogs.push(summary);
-        }
-        
-        // Update the submission with all violations
         const { error: updateError } = await supabase
           .from('submissions')
           .update({ 
-            completed_at: new Date().toISOString(),
-            face_violations: formattedViolationLogs
+            completed_at: new Date().toISOString()
           })
           .eq('id', submissions[0].id);
         
@@ -506,16 +468,18 @@ const AssessmentPage = () => {
           )}
         </div>
         
-        {/* Draggable camera box - will be positioned by its own internal state */}
-        <ProctoringCamera 
-          showControls={false}
-          showStatus={false}
-          trackViolations={true}
-          assessmentId={assessment.id}
-          submissionId={submissionId || undefined}
-          onViolationsUpdate={handleViolationsUpdate}
-          initialCameraEnabled={true}
-        />
+        {/* Add proctoring camera overlay */}
+        <div className="fixed bottom-16 right-4 z-20">
+          <Card className="w-[240px] shadow-lg border-0 bg-black/10 backdrop-blur-sm overflow-hidden">
+            <ProctoringCamera 
+              showControls={false}
+              showStatus={false}
+              trackViolations={true}
+              assessmentId={assessment.id}
+              submissionId={submissionId || undefined}
+            />
+          </Card>
+        </div>
       </div>
       
       <div className={`${isAntiCheatingWarningActive ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'} border-t py-3 px-6 flex items-center justify-between sticky bottom-0 z-10 transition-colors duration-300`}>

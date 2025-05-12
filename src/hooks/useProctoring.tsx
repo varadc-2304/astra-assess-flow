@@ -1,5 +1,7 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
+import { useToast } from '@/hooks/use-toast';
 
 // Define constants
 const DETECTION_INTERVAL = 1000; // 1 second interval between detections
@@ -52,7 +54,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
   const [isCameraPermissionGranted, setIsCameraPermissionGranted] = useState<boolean | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
-  const [isInitializing, setIsInitializing] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [violations, setViolations] = useState<Record<ViolationType, number>>({
     noFaceDetected: 0,
     multipleFacesDetected: 0,
@@ -87,17 +89,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectionIntervalRef = useRef<number | null>(null);
-
-  // Track violation types to ensure each type is only counted once
-  const violationTypesDetected = useRef<Record<ViolationType, boolean>>({
-    noFaceDetected: false,
-    multipleFacesDetected: false,
-    faceNotCentered: false,
-    faceCovered: false,
-    rapidMovement: false,
-    frequentDisappearance: false,
-    identityMismatch: false
-  });
+  const { toast } = useToast();
 
   // Load models with performance optimizations
   const loadModels = useCallback(async () => {
@@ -123,32 +115,30 @@ export function useProctoring(options: ProctoringOptions = {}) {
       return true;
     } catch (error) {
       console.error('Error loading face-api.js models:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load face detection models. Please refresh and try again.',
+        variant: 'destructive',
+      });
       setStatus('error');
       return false;
     }
-  }, []);
+  }, [toast]);
 
   // Initialize camera with improved error handling
   const initializeCamera = useCallback(async () => {
-    setIsInitializing(true);
-    
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast({
+        title: 'Camera Error',
+        description: 'Your browser does not support camera access.',
+        variant: 'destructive',
+      });
+      setStatus('error');
+      setIsCameraPermissionGranted(false);
+      return false;
+    }
+
     try {
-      // First load the models
-      const modelsLoaded = await loadModels();
-      if (!modelsLoaded) {
-        setIsInitializing(false);
-        setStatus('error');
-        return false;
-      }
-
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('Browser does not support camera access');
-        setStatus('error');
-        setIsCameraPermissionGranted(false);
-        setIsInitializing(false);
-        return false;
-      }
-
       // Stop any existing stream
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
@@ -177,19 +167,19 @@ export function useProctoring(options: ProctoringOptions = {}) {
       setIsCameraPermissionGranted(true);
       setIsCameraReady(true);
       
-      // Start detection once camera is ready
-      startDetection();
-      
-      setIsInitializing(false);
       return true;
     } catch (error) {
       console.error('Error accessing camera:', error);
+      toast({
+        title: 'Camera Permission Denied',
+        description: 'Please allow camera access for proctoring.',
+        variant: 'destructive',
+      });
       setStatus('error');
       setIsCameraPermissionGranted(false);
-      setIsInitializing(false);
       return false;
     }
-  }, [facingMode, loadModels]);
+  }, [facingMode, toast]);
 
   // Switch camera (for mobile devices with multiple cameras)
   const switchCamera = useCallback(() => {
@@ -333,7 +323,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
 
-      // Track violations if enabled - we track each violation type only once
+      // Track violations if enabled
       if (options.trackViolations) {
         const now = Date.now();
         
@@ -342,70 +332,61 @@ export function useProctoring(options: ProctoringOptions = {}) {
           noFaceCounterRef.current += 1;
           
           // Increase violation count if no face for 5 consecutive checks (5 seconds)
-          if (noFaceCounterRef.current >= 5 && !violationTypesDetected.current.noFaceDetected) {
+          if (noFaceCounterRef.current >= 5) {
             setViolations(prev => ({
               ...prev,
               noFaceDetected: prev.noFaceDetected + 1
             }));
-            violationTypesDetected.current.noFaceDetected = true;
             noFaceCounterRef.current = 0; // Reset counter after recording violation
           }
           
           // Track frequent disappearance
           if (lastFaceDetectionTimeRef.current > 0 && 
-              now - lastFaceDetectionTimeRef.current < 10000 &&  // Within 10 seconds
-              !violationTypesDetected.current.frequentDisappearance) {
+              now - lastFaceDetectionTimeRef.current < 10000) {  // Within 10 seconds
             setViolations(prev => ({
               ...prev,
               frequentDisappearance: prev.frequentDisappearance + 1
             }));
-            violationTypesDetected.current.frequentDisappearance = true;
           }
         } else {
           // Reset no-face counter
           noFaceCounterRef.current = 0;
           lastFaceDetectionTimeRef.current = now;
           
-          // Multiple faces detection - only count once
-          if (detections.length > 1 && !violationTypesDetected.current.multipleFacesDetected) {
+          // Multiple faces detection
+          if (detections.length > 1) {
             setViolations(prev => ({
               ...prev,
               multipleFacesDetected: prev.multipleFacesDetected + 1
             }));
-            violationTypesDetected.current.multipleFacesDetected = true;
           }
           
           // Single face detection - check for other violations
           if (detections.length === 1) {
             const detection = detections[0];
             
-            // Check if face is centered - only count once
-            if (!isFaceCentered(detection, video.videoWidth, video.videoHeight) && 
-                !violationTypesDetected.current.faceNotCentered) {
+            // Check if face is centered
+            if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
               setViolations(prev => ({
                 ...prev,
                 faceNotCentered: prev.faceNotCentered + 1
               }));
-              violationTypesDetected.current.faceNotCentered = true;
             }
             
-            // Check if face is covered - only count once
-            if (isFaceCovered(detection) && !violationTypesDetected.current.faceCovered) {
+            // Check if face is covered
+            if (isFaceCovered(detection)) {
               setViolations(prev => ({
                 ...prev,
                 faceCovered: prev.faceCovered + 1
               }));
-              violationTypesDetected.current.faceCovered = true;
             }
             
-            // Check for rapid movements - only count once
-            if (checkForRapidMovements(detection.detection.box) && 
-                !violationTypesDetected.current.rapidMovement) {
+            // Check for rapid movements
+            if (checkForRapidMovements(detection.detection.box)) {
               setViolations(prev => ({
                 ...prev,
                 rapidMovement: prev.rapidMovement + 1
               }));
-              violationTypesDetected.current.rapidMovement = true;
             }
           }
         }
@@ -628,7 +609,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
     }
 
     setIsCameraReady(false);
-    setStatus('initializing');
     
     // Clear canvas
     const canvas = canvasRef.current;
@@ -650,22 +630,37 @@ export function useProctoring(options: ProctoringOptions = {}) {
       identityMismatch: 0
     });
     
-    // Reset violation flags
-    violationTypesDetected.current = {
-      noFaceDetected: false,
-      multipleFacesDetected: false,
-      faceNotCentered: false,
-      faceCovered: false,
-      rapidMovement: false,
-      frequentDisappearance: false,
-      identityMismatch: false
-    };
-    
     // Reset face tracking state
     faceHistoryRef.current = { positions: [], timestamps: [] };
     noFaceCounterRef.current = 0;
     lastFaceDetectionTimeRef.current = 0;
   }, []);
+
+  // Initialize system
+  useEffect(() => {
+    async function initializeProctoring() {
+      setIsInitializing(true);
+      const modelsLoaded = await loadModels();
+      if (modelsLoaded) {
+        await initializeCamera();
+      }
+      setIsInitializing(false);
+    }
+    
+    initializeProctoring();
+    
+    return () => {
+      stopDetection();
+    };
+  }, [loadModels, initializeCamera, stopDetection]);
+
+  // Set up detection when camera is ready and models are loaded
+  useEffect(() => {
+    if (isModelLoaded && isCameraReady && !isInitializing) {
+      const cleanup = startDetection();
+      return cleanup;
+    }
+  }, [isModelLoaded, isCameraReady, isInitializing, startDetection]);
 
   // Handle facingMode changes
   useEffect(() => {
