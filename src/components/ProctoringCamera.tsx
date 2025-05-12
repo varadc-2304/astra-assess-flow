@@ -18,6 +18,7 @@ interface ProctoringCameraProps {
   enableOnMount?: boolean;
   className?: string;
   isDraggable?: boolean;
+  onViolationDetected?: (violationType: string) => void;
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -77,7 +78,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   submissionId,
   enableOnMount = false,
   className = '',
-  isDraggable = false
+  isDraggable = false,
+  onViolationDetected
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -179,6 +181,11 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           const timestamp = new Date().toLocaleTimeString();
           const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
           newViolationLog.push(violationMessage);
+          
+          // Call the callback if provided
+          if (onViolationDetected) {
+            onViolationDetected(getViolationMessage(violationType));
+          }
         }
       });
       
@@ -187,7 +194,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         setViolationLog(newViolationLog);
       }
     }
-  }, [violations, trackViolations, cameraEnabled]);
+  }, [violations, trackViolations, cameraEnabled, onViolationDetected]);
 
   const getViolationMessage = (violationType: ViolationType): string => {
     switch (violationType) {

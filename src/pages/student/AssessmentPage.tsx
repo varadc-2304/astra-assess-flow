@@ -73,6 +73,11 @@ const AssessmentPage = () => {
   const [violationLog, setViolationLog] = useState<string[]>([]);
   const [isProctoringVisible, setIsProctoringVisible] = useState(true);
   
+  // Add missing toggleProctoringVisibility function
+  const toggleProctoringVisibility = () => {
+    setIsProctoringVisible(prev => !prev);
+  };
+  
   useEffect(() => {
     if (!assessment || !assessmentStarted) {
       navigate('/student');
@@ -234,13 +239,11 @@ const AssessmentPage = () => {
     try {
       // Get all violations collected during the assessment
       // Find the camera component and get the violations
-      const cameraElement = document.querySelector('.proctoring-camera-container') as HTMLElement;
+      const cameraComponent = document.querySelector('.proctoring-camera-container') as HTMLElement;
       let faceViolations: string[] = [];
       
-      // Try to access component data
-      if (cameraElement && cameraElement.__proctoring_violations) {
-        faceViolations = cameraElement.__proctoring_violations || [];
-      }
+      // Use the violationLog state instead of trying to access a non-existent property
+      faceViolations = violationLog;
       
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
@@ -507,6 +510,17 @@ const AssessmentPage = () => {
             enableOnMount={true}
             className="floating-camera"
             isDraggable={true}
+            onViolationDetected={(violationType) => {
+              // Track violations for later submission
+              setViolationLog(prev => {
+                // Only add if not already logged
+                if (!prev.some(log => log.includes(violationType))) {
+                  const timestamp = new Date().toLocaleTimeString();
+                  return [...prev, `[${timestamp}] ${violationType}`];
+                }
+                return prev;
+              });
+            }}
           />
         )}
         

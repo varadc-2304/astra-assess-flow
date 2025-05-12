@@ -151,8 +151,8 @@ const InstructionsPage = () => {
         </Card>
       </div>
       
-      {/* Add CSS for draggable camera */}
-      <style jsx global>{`
+      {/* Fix the style component by removing jsx and global properties */}
+      <style>{`
         .floating-camera {
           position: fixed;
           bottom: 80px;
