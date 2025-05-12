@@ -331,10 +331,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           {/* Status indicator */}
           {showStatus && isCameraReady && isModelLoaded && (
             <div className="absolute bottom-0 left-0 right-0 p-3 bg-gray-900/80">
-              <div className={`flex items-center ${statusConfig.color}`}>
-                {statusConfig.icon}
-                <span className="text-white text-sm">{statusConfig.message}</span>
-              </div>
             </div>
           )}
         </div>
