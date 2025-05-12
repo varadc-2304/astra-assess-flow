@@ -71,7 +71,7 @@ const CameraVerificationPage = () => {
             user_id: user.id,
             started_at: new Date().toISOString(),
             fullscreen_violations: 0,
-            face_violations: []
+            face_violations: [] // Initialize empty violations array
           })
           .select('id')
           .single();
@@ -255,6 +255,7 @@ const CameraVerificationPage = () => {
                     trackViolations={false}
                     assessmentId={assessment.id}
                     submissionId={submissionId || undefined}
+                    enableOnMount={true} // Start the camera immediately when component mounts
                   />
                 )}
               </CardContent>

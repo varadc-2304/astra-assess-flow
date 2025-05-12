@@ -15,7 +15,7 @@ import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, Camera } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
@@ -70,6 +70,8 @@ const AssessmentPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [violationLog, setViolationLog] = useState<string[]>([]);
+  const [isProctoringVisible, setIsProctoringVisible] = useState(true);
   
   useEffect(() => {
     if (!assessment || !assessmentStarted) {
@@ -230,6 +232,16 @@ const AssessmentPage = () => {
     setIsEndingAssessment(true);
     
     try {
+      // Get all violations collected during the assessment
+      // Find the camera component and get the violations
+      const cameraElement = document.querySelector('.proctoring-camera-container') as HTMLElement;
+      let faceViolations: string[] = [];
+      
+      // Try to access component data
+      if (cameraElement && cameraElement.__proctoring_violations) {
+        faceViolations = cameraElement.__proctoring_violations || [];
+      }
+      
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
@@ -241,10 +253,12 @@ const AssessmentPage = () => {
       if (submissionError || !submissions || submissions.length === 0) {
         console.error('Error finding submission to update:', submissionError);
       } else {
+        // Update submission with final violation log and mark as completed
         const { error: updateError } = await supabase
           .from('submissions')
           .update({ 
-            completed_at: new Date().toISOString()
+            completed_at: new Date().toISOString(),
+            face_violations: violationLog.length > 0 ? violationLog : [] 
           })
           .eq('id', submissions[0].id);
         
@@ -307,6 +321,20 @@ const AssessmentPage = () => {
                 Questions
               </SheetTitle>
             </SheetHeader>
+            
+            {/* Add proctoring camera to sidebar */}
+            <div className="mb-5 bg-black rounded-md overflow-hidden">
+              <ProctoringCamera 
+                showControls={false}
+                showStatus={true}
+                trackViolations={true}
+                assessmentId={assessment?.id}
+                submissionId={submissionId || undefined}
+                enableOnMount={true}
+                isDraggable={false}
+              />
+            </div>
+            
             <div className="py-4 space-y-6">
               <div className="grid grid-cols-5 gap-2">
                 {assessment.questions.map((q, index) => {
@@ -468,17 +496,40 @@ const AssessmentPage = () => {
           )}
         </div>
         
-        {/* Add proctoring camera overlay */}
-        <div className="fixed bottom-16 right-4 z-20">
-          <Card className="w-[240px] shadow-lg border-0 bg-black/10 backdrop-blur-sm overflow-hidden">
-            <ProctoringCamera 
-              showControls={false}
-              showStatus={false}
-              trackViolations={true}
-              assessmentId={assessment.id}
-              submissionId={submissionId || undefined}
-            />
-          </Card>
+        {/* Floating movable camera for proctoring */}
+        {isProctoringVisible && (
+          <ProctoringCamera 
+            showControls={false}
+            showStatus={false}
+            trackViolations={true}
+            assessmentId={assessment.id}
+            submissionId={submissionId || undefined}
+            enableOnMount={true}
+            className="floating-camera"
+            isDraggable={true}
+          />
+        )}
+        
+        {/* Button to toggle camera visibility */}
+        <div className="fixed bottom-20 right-4 z-20">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleProctoringVisibility}
+            className="bg-black/50 backdrop-blur-sm text-white border-white/20 hover:bg-black/70"
+          >
+            {isProctoringVisible ? (
+              <>
+                <Camera className="h-4 w-4 mr-1" />
+                Hide Camera
+              </>
+            ) : (
+              <>
+                <Camera className="h-4 w-4 mr-1" />
+                Show Camera
+              </>
+            )}
+          </Button>
         </div>
       </div>
       

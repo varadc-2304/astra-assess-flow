@@ -16,6 +16,7 @@ export type ProctoringStatus =
   'faceCovered' |
   'faceNotCentered' |
   'rapidMovement' |
+  'objectDetected' |
   'error';
 
 export type ViolationType = 
@@ -25,7 +26,8 @@ export type ViolationType =
   'faceCovered' | 
   'rapidMovement' | 
   'frequentDisappearance' |
-  'identityMismatch';
+  'identityMismatch' |
+  'objectDetected';
 
 export interface ProctoringOptions {
   showDebugInfo?: boolean;
@@ -33,6 +35,8 @@ export interface ProctoringOptions {
   drawExpressions?: boolean;
   detectExpressions?: boolean;
   trackViolations?: boolean;
+  detectObjects?: boolean;
+  enabled?: boolean;
   detectionOptions?: {
     faceDetectionThreshold?: number;
     faceCenteredTolerance?: number;
@@ -46,6 +50,18 @@ export interface DetectionResult {
   expressions?: Record<string, number>;
   message?: string;
 }
+
+// Object detection classes (subset of COCO dataset that are relevant for proctoring)
+const OBJECT_CLASSES = [
+  'cell phone',
+  'laptop',
+  'book',
+  'tv',
+  'remote',
+  'keyboard',
+  'tablet',
+  'smartphone'
+];
 
 export function useProctoring(options: ProctoringOptions = {}) {
   const [isModelLoaded, setIsModelLoaded] = useState(false);
@@ -62,7 +78,8 @@ export function useProctoring(options: ProctoringOptions = {}) {
     faceCovered: 0,
     rapidMovement: 0,
     frequentDisappearance: 0,
-    identityMismatch: 0
+    identityMismatch: 0,
+    objectDetected: 0
   });
 
   // Set default detection options
@@ -91,8 +108,16 @@ export function useProctoring(options: ProctoringOptions = {}) {
   const detectionIntervalRef = useRef<number | null>(null);
   const { toast } = useToast();
 
+  // Enable/disable flag
+  const enabled = options.enabled !== undefined ? options.enabled : true;
+
   // Load models with performance optimizations
   const loadModels = useCallback(async () => {
+    if (!enabled) {
+      console.log('Face detection disabled, skipping model load');
+      return false;
+    }
+    
     try {
       // Check if models are already loaded to avoid reloading
       if (faceapi.nets.tinyFaceDetector.isLoaded && 
@@ -110,23 +135,30 @@ export function useProctoring(options: ProctoringOptions = {}) {
         faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
       ]);
       
+      // Load SSD model for object detection if needed
+      if (options.detectObjects) {
+        if (!faceapi.nets.ssdMobilenetv1.isLoaded) {
+          await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+        }
+      }
+      
       console.log('Face-API models loaded successfully');
       setIsModelLoaded(true);
       return true;
     } catch (error) {
       console.error('Error loading face-api.js models:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load face detection models. Please refresh and try again.',
-        variant: 'destructive',
-      });
       setStatus('error');
       return false;
     }
-  }, [toast]);
+  }, [enabled, options.detectObjects, toast]);
 
   // Initialize camera with improved error handling
   const initializeCamera = useCallback(async () => {
+    if (!enabled) {
+      console.log('Camera initialization skipped - feature disabled');
+      return false;
+    }
+    
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       toast({
         title: 'Camera Error',
@@ -179,7 +211,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
       setIsCameraPermissionGranted(false);
       return false;
     }
-  }, [facingMode, toast]);
+  }, [facingMode, toast, enabled]);
 
   // Switch camera (for mobile devices with multiple cameras)
   const switchCamera = useCallback(() => {
@@ -288,9 +320,34 @@ export function useProctoring(options: ProctoringOptions = {}) {
     return detectionScore < detectionOptions.faceDetectionThreshold;
   }, [detectionOptions.faceDetectionThreshold]);
 
+  // Detect prohibited objects
+  const detectObjects = useCallback(async (video: HTMLVideoElement) => {
+    if (!options.detectObjects || !faceapi.nets.ssdMobilenetv1.isLoaded) {
+      return false;
+    }
+    
+    try {
+      // Run object detection
+      const detections = await faceapi.detectAllFaces(
+        video, 
+        new faceapi.SsdMobilenetv1Options()
+      ).withFaceLandmarks();
+      
+      // Filter for objects of interest
+      const prohibitedObjects = detections.filter(detection => 
+        OBJECT_CLASSES.includes(detection.toString().toLowerCase())
+      );
+      
+      return prohibitedObjects.length > 0;
+    } catch (error) {
+      console.error("Error in object detection:", error);
+      return false;
+    }
+  }, [options.detectObjects]);
+
   // Detect faces from video with optimizations
   const detectFaces = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || !isModelLoaded || !isCameraReady) {
+    if (!enabled || !videoRef.current || !canvasRef.current || !isModelLoaded || !isCameraReady) {
       return;
     }
 
@@ -323,15 +380,39 @@ export function useProctoring(options: ProctoringOptions = {}) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
 
+      // Check for prohibited objects if enabled
+      let objectDetected = false;
+      if (options.detectObjects) {
+        objectDetected = await detectObjects(video);
+      }
+
       // Track violations if enabled
       if (options.trackViolations) {
         const now = Date.now();
+        
+        // Object detection takes precedence
+        if (objectDetected) {
+          setViolations(prev => ({
+            ...prev,
+            objectDetected: prev.objectDetected + 1
+          }));
+          
+          setStatus('objectDetected');
+          setDetectionResult({
+            status: 'objectDetected',
+            facesCount: detections.length,
+            message: 'Unauthorized object detected. Please remove it from view.'
+          });
+          
+          // Skip other checks if object is detected
+          return;
+        }
         
         if (detections.length === 0) {
           // No face detected
           noFaceCounterRef.current += 1;
           
-          // Increase violation count if no face for 5 consecutive checks (5 seconds)
+          // Only flag as violation if consistently not detected
           if (noFaceCounterRef.current >= 5) {
             setViolations(prev => ({
               ...prev,
@@ -393,7 +474,14 @@ export function useProctoring(options: ProctoringOptions = {}) {
       }
 
       // Update status based on detection
-      if (detections.length === 0) {
+      if (objectDetected) {
+        setStatus('objectDetected');
+        setDetectionResult({
+          status: 'objectDetected',
+          facesCount: detections.length,
+          message: 'Unauthorized object detected. Please remove it from view.'
+        });
+      } else if (detections.length === 0) {
         setStatus('noFaceDetected');
         setDetectionResult({
           status: 'noFaceDetected',
@@ -565,6 +653,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     }
 
   }, [
+    enabled,
     isModelLoaded, 
     isCameraReady, 
     options.trackViolations, 
@@ -572,14 +661,18 @@ export function useProctoring(options: ProctoringOptions = {}) {
     options.drawLandmarks, 
     options.drawExpressions,
     options.detectExpressions,
+    options.detectObjects,
     isFaceCentered,
     isFaceCovered,
     checkForRapidMovements,
+    detectObjects,
     violations
   ]);
 
   // Start detection loop
   const startDetection = useCallback(() => {
+    if (!enabled) return () => {};
+    
     if (detectionIntervalRef.current) {
       clearInterval(detectionIntervalRef.current);
     }
@@ -594,7 +687,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
         clearInterval(detectionIntervalRef.current);
       }
     };
-  }, [detectFaces]);
+  }, [detectFaces, enabled]);
 
   // Stop detection and release camera
   const stopDetection = useCallback(() => {
@@ -627,17 +720,20 @@ export function useProctoring(options: ProctoringOptions = {}) {
       faceCovered: 0,
       rapidMovement: 0,
       frequentDisappearance: 0,
-      identityMismatch: 0
+      identityMismatch: 0,
+      objectDetected: 0
     });
     
     // Reset face tracking state
     faceHistoryRef.current = { positions: [], timestamps: [] };
     noFaceCounterRef.current = 0;
     lastFaceDetectionTimeRef.current = 0;
-  }, []);
+  }, [enabled]);
 
-  // Initialize system
+  // Initialize system only if enabled
   useEffect(() => {
+    if (!enabled) return;
+    
     async function initializeProctoring() {
       setIsInitializing(true);
       const modelsLoaded = await loadModels();
@@ -652,22 +748,22 @@ export function useProctoring(options: ProctoringOptions = {}) {
     return () => {
       stopDetection();
     };
-  }, [loadModels, initializeCamera, stopDetection]);
+  }, [loadModels, initializeCamera, stopDetection, enabled]);
 
   // Set up detection when camera is ready and models are loaded
   useEffect(() => {
-    if (isModelLoaded && isCameraReady && !isInitializing) {
+    if (enabled && isModelLoaded && isCameraReady && !isInitializing) {
       const cleanup = startDetection();
       return cleanup;
     }
-  }, [isModelLoaded, isCameraReady, isInitializing, startDetection]);
+  }, [enabled, isModelLoaded, isCameraReady, isInitializing, startDetection]);
 
   // Handle facingMode changes
   useEffect(() => {
-    if (isCameraPermissionGranted) {
+    if (enabled && isCameraPermissionGranted) {
       initializeCamera();
     }
-  }, [facingMode, isCameraPermissionGranted, initializeCamera]);
+  }, [enabled, facingMode, isCameraPermissionGranted, initializeCamera]);
 
   // Return values and functions
   return {
@@ -685,3 +781,4 @@ export function useProctoring(options: ProctoringOptions = {}) {
     reinitialize: initializeCamera
   };
 }
+
