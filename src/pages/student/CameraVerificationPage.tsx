@@ -131,6 +131,7 @@ const CameraVerificationPage = () => {
                     onVerificationComplete={handleVerificationComplete}
                     showControls={true}
                     showStatus={true}
+                    initialCameraEnabled={true}
                   />
                 </div>
               </div>
