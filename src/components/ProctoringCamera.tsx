@@ -1,6 +1,5 @@
-
 import React, { useEffect, useState, useRef } from 'react';
-import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/proctoring';
+import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw } from 'lucide-react';
@@ -62,9 +61,6 @@ const statusMessages: Record<ProctoringStatus, { message: string; icon: React.Re
   }
 };
 
-// Set cooldown time for violation flagging (60 seconds)
-const VIOLATION_COOLDOWN = 60000;
-
 export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   onVerificationComplete,
   showControls = true,
@@ -85,22 +81,12 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     identityMismatch: 0
   });
   const [violationLog, setViolationLog] = useState<string[]>([]);
+  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
   const [cameraLoading, setCameraLoading] = useState(true);
   const autoInitRef = useRef(false);
   
   // Track which violations have already been flagged
   const flaggedViolationsRef = useRef<Set<ViolationType>>(new Set());
-  
-  // Track cooldown timers for each violation type
-  const violationCooldownsRef = useRef<Record<ViolationType, number>>({
-    noFaceDetected: 0,
-    multipleFacesDetected: 0,
-    faceNotCentered: 0,
-    faceCovered: 0,
-    rapidMovement: 0,
-    frequentDisappearance: 0,
-    identityMismatch: 0
-  });
   
   const {
     videoRef,
@@ -155,17 +141,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }
   }, [isInitializing, isCameraReady, isModelLoaded]);
 
-  // Check if a violation type is currently in cooldown
-  const isViolationInCooldown = (violationType: ViolationType): boolean => {
-    const now = Date.now();
-    return now < violationCooldownsRef.current[violationType];
-  };
-
-  // Set cooldown for a violation type
-  const setViolationCooldown = (violationType: ViolationType) => {
-    violationCooldownsRef.current[violationType] = Date.now() + VIOLATION_COOLDOWN;
-  };
-
   useEffect(() => {
     if (trackViolations && violations) {
       // Update violation counts
@@ -183,11 +158,11 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           setViolationLog(prev => [...prev, violationMessage]);
           
           if (trackViolations && user && submissionId) {
-            // Only log if violation isn't in cooldown
-            if (!isViolationInCooldown(violationType)) {
+            // Only log if violation hasn't been flagged yet
+            if (!flaggedViolationsRef.current.has(violationType)) {
               updateViolationInDatabase(violationMessage);
-              // Set cooldown for this violation type
-              setViolationCooldown(violationType);
+              // Mark this violation as flagged
+              flaggedViolationsRef.current.add(violationType);
             }
           }
         }
@@ -205,7 +180,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         updateViolationInDatabase(violationSummary, true);
       }
     }
-  }, [violations, trackViolations, user, submissionId, violationCount]);
+  }, [violations, trackViolations, user, submissionId]);
 
   const getViolationMessage = (violationType: ViolationType): string => {
     switch (violationType) {
@@ -292,6 +267,11 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       
       if (updateError) {
         console.error("Error updating face violations:", updateError);
+      }
+      
+      // If this is the final violation that terminates the session
+      if (isFinal) {
+
       }
     } catch (err) {
       console.error("Error updating face violations:", err);
@@ -394,6 +374,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
             </Button>
           </div>
         )}
+        
+
       </div>
     </div>
   );
