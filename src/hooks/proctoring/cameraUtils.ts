@@ -1,66 +1,73 @@
 
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from "@/hooks/use-toast";
 
-// Initialize camera with improved error handling
+// Define constants
+const CAMERA_CONSTRAINTS = {
+  video: { 
+    width: { ideal: 640 },
+    height: { ideal: 480 },
+    facingMode: { ideal: 'user' }
+  }
+};
+
+// Initialize camera with better error handling
 export const initializeCamera = async (
   videoRef: React.RefObject<HTMLVideoElement>,
-  toast: ReturnType<typeof useToast>,
+  toastUtils: ReturnType<typeof useToast>, // Changed parameter type
   facingMode: 'user' | 'environment' = 'user'
 ): Promise<MediaStream | null> => {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    toast({
-      title: 'Camera Error',
-      description: 'Your browser does not support camera access.',
-      variant: 'destructive',
-    });
-    return null;
-  }
-
   try {
-    // Request camera access with optimized settings for performance
-    const stream = await navigator.mediaDevices.getUserMedia({
+    if (!videoRef.current) {
+      return null;
+    }
+    
+    // Update constraints based on facing mode
+    const constraints = {
       video: {
-        facingMode,
-        width: { ideal: 640 }, // Lower resolution for better performance
-        height: { ideal: 480 },
-        frameRate: { ideal: 15 } // Lower framerate to reduce CPU usage
+        ...CAMERA_CONSTRAINTS.video,
+        facingMode: { ideal: facingMode }
+      }
+    };
+    
+    // Request camera access
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    
+    // Set video source
+    videoRef.current.srcObject = stream;
+    
+    // Wait for video to be ready
+    await new Promise<void>((resolve) => {
+      if (videoRef.current) {
+        videoRef.current.onloadedmetadata = () => resolve();
+      } else {
+        resolve(); // Resolve anyway if video ref is gone
       }
     });
-
-    // Set the stream to the video element
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-      // Add event listener for when video is ready to play
-      videoRef.current.onloadedmetadata = () => {
-        if (videoRef.current) videoRef.current.play();
-      };
-    }
     
     return stream;
   } catch (error) {
     console.error('Error accessing camera:', error);
-    toast({
-      title: 'Camera Permission Denied',
-      description: 'Please allow camera access for proctoring.',
+    
+    // Show appropriate error message
+    toastUtils.toast({  // Fixed toast call
+      title: 'Camera Access Error',
+      description: 'Please ensure you have granted camera permission in browser settings.',
       variant: 'destructive',
     });
+    
     return null;
   }
 };
 
-// Stop the camera stream
-export const stopCameraStream = (stream: MediaStream | null): void => {
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-  }
+// Stop camera stream
+export const stopCameraStream = (stream: MediaStream): void => {
+  stream.getTracks().forEach(track => track.stop());
 };
 
 // Clear canvas
-export const clearCanvas = (canvas: HTMLCanvasElement | null): void => {
-  if (canvas) {
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
+export const clearCanvas = (canvas: HTMLCanvasElement): void => {
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 };

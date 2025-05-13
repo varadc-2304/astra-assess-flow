@@ -12,7 +12,7 @@ import {
 } from './types';
 import { loadModels } from './modelUtils';
 import { initializeCamera, stopCameraStream, clearCanvas } from './cameraUtils';
-import { createFaceDetectionOptions, drawFaceDetectionResults } from './faceDetectionUtils';
+import { createFaceDetectionOptions, drawFaceDetectionResults, isFaceCovered, isFaceCentered, checkForRapidMovements } from './faceDetectionUtils';
 import { trackViolations, updateFaceHistory } from './violationUtils';
 
 // Define constants
@@ -55,7 +55,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectionIntervalRef = useRef<number | null>(null);
-  const { toast } = useToast();
+  const toastUtils = useToast();
 
   // Initialize camera
   const initializeCameraStream = useCallback(async () => {
@@ -64,7 +64,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
       stopCameraStream(streamRef.current);
     }
 
-    const stream = await initializeCamera(videoRef, toast, facingMode);
+    const stream = await initializeCamera(videoRef, toastUtils, facingMode);
     
     if (stream) {
       streamRef.current = stream;
@@ -76,7 +76,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
       setIsCameraPermissionGranted(false);
       return false;
     }
-  }, [facingMode, toast]);
+  }, [facingMode, toastUtils]);
 
   // Switch camera (for mobile devices with multiple cameras)
   const switchCamera = useCallback(() => {
@@ -309,7 +309,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
   useEffect(() => {
     async function initializeProctoring() {
       setIsInitializing(true);
-      const modelsLoaded = await loadModels(toast);
+      const modelsLoaded = await loadModels(toastUtils);
       if (modelsLoaded) {
         setIsModelLoaded(true);
         await initializeCameraStream();
@@ -322,7 +322,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     return () => {
       stopDetection();
     };
-  }, [loadModels, initializeCameraStream, stopDetection, toast]);
+  }, [initializeCameraStream, stopDetection, toastUtils]);
 
   // Set up detection when camera is ready and models are loaded
   useEffect(() => {

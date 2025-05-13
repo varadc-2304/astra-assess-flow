@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 const MODEL_URL = '/models';
 
 // Load models with performance optimizations
-export const loadModels = async (toast: ReturnType<typeof useToast>): Promise<boolean> => {
+export const loadModels = async (toastUtils: ReturnType<typeof useToast>): Promise<boolean> => {
   try {
     // Check if models are already loaded to avoid reloading
     if (faceapi.nets.tinyFaceDetector.isLoaded && 
@@ -27,7 +27,7 @@ export const loadModels = async (toast: ReturnType<typeof useToast>): Promise<bo
     return true;
   } catch (error) {
     console.error('Error loading face-api.js models:', error);
-    toast({
+    toastUtils.toast({  // Fixed toast call
       title: 'Error',
       description: 'Failed to load face detection models. Please refresh and try again.',
       variant: 'destructive',

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { 
@@ -15,7 +15,7 @@ import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, GripVertical } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
@@ -40,6 +40,11 @@ interface TestCaseStatus {
   }  
 }
 
+interface DraggablePosition {
+  x: number;
+  y: number;
+}
+
 const AssessmentPage = () => {
   const { 
     assessment, 
@@ -58,6 +63,11 @@ const AssessmentPage = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [isEndingAssessment, setIsEndingAssessment] = useState(false);
   const [testCaseStatus, setTestCaseStatus] = useState<TestCaseStatus>({});
+  const [cameraPosition, setCameraPosition] = useState<DraggablePosition>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartPos = useRef<{ x: number, y: number } | null>(null);
+  const cameraRef = useRef<HTMLDivElement>(null);
+  
   const navigate = useNavigate();
   const { 
     enterFullscreen, 
@@ -153,6 +163,97 @@ const AssessmentPage = () => {
         passedTests
       }
     }));
+  };
+  
+  // Handle mouse events for dragging the camera
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDragging(true);
+    dragStartPos.current = { 
+      x: e.clientX - cameraPosition.x, 
+      y: e.clientY - cameraPosition.y 
+    };
+    
+    // Add global mousemove and mouseup listeners
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    
+    // Prevent text selection while dragging
+    e.preventDefault();
+  };
+  
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging || !dragStartPos.current) return;
+    
+    const newPos = {
+      x: e.clientX - dragStartPos.current.x,
+      y: e.clientY - dragStartPos.current.y,
+    };
+
+    // Optional: Add bounds checking to keep the camera on screen
+    if (cameraRef.current) {
+      const rect = cameraRef.current.getBoundingClientRect();
+      const parentRect = cameraRef.current.parentElement?.getBoundingClientRect();
+      
+      if (parentRect) {
+        // Keep camera within window bounds
+        const maxX = window.innerWidth - rect.width;
+        const maxY = window.innerHeight - rect.height;
+        
+        newPos.x = Math.max(0, Math.min(newPos.x, maxX));
+        newPos.y = Math.max(0, Math.min(newPos.y, maxY));
+      }
+    }
+    
+    setCameraPosition(newPos);
+  };
+  
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    dragStartPos.current = null;
+    
+    // Remove global event listeners
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+  };
+  
+  // Touch events for mobile dragging
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 1) {
+      setIsDragging(true);
+      const touch = e.touches[0];
+      dragStartPos.current = { 
+        x: touch.clientX - cameraPosition.x, 
+        y: touch.clientY - cameraPosition.y 
+      };
+    }
+  };
+  
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging || !dragStartPos.current || e.touches.length !== 1) return;
+    
+    const touch = e.touches[0];
+    const newPos = {
+      x: touch.clientX - dragStartPos.current.x,
+      y: touch.clientY - dragStartPos.current.y,
+    };
+    
+    // Add bounds checking
+    if (cameraRef.current) {
+      const rect = cameraRef.current.getBoundingClientRect();
+      const maxX = window.innerWidth - rect.width;
+      const maxY = window.innerHeight - rect.height;
+      
+      newPos.x = Math.max(0, Math.min(newPos.x, maxX));
+      newPos.y = Math.max(0, Math.min(newPos.y, maxY));
+    }
+    
+    setCameraPosition(newPos);
+    e.preventDefault(); // Prevent page scrolling
+  };
+  
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    dragStartPos.current = null;
   };
   
   if (!assessment) {
@@ -402,7 +503,7 @@ const AssessmentPage = () => {
                   </div>
 
                   {isAntiCheatingWarningActive && (
-                    <div className="mb-3 bg-red-50 dark:bg-red-900/20 p-2 rounded-md flex items-center gap-2">
+                    <div className="mb-3 bg-red-50 dark:bg-red-900 p-2 rounded-md flex items-center gap-2">
                       <AlertTriangle className="h-5 w-5 text-red-500" />
                       <p className="text-sm text-red-700 dark:text-red-400">Anti-cheating warning active</p>
                     </div>
@@ -469,9 +570,26 @@ const AssessmentPage = () => {
           )}
         </div>
         
-        {/* Add proctoring camera overlay */}
-        <div className="fixed bottom-16 right-4 z-20">
+        {/* Draggable camera overlay */}
+        <div 
+          ref={cameraRef}
+          className="fixed z-20 cursor-move"
+          style={{
+            bottom: cameraPosition.y === 0 ? '16px' : 'auto',
+            right: cameraPosition.x === 0 ? '16px' : 'auto',
+            transform: `translate(${cameraPosition.x}px, ${cameraPosition.y}px)`,
+            touchAction: 'none',
+            userSelect: 'none'
+          }}
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
           <Card className="w-[240px] shadow-lg border-0 bg-black/10 backdrop-blur-sm overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-6 bg-gray-800/50 flex items-center justify-center z-10">
+              <GripVertical className="h-4 w-4 text-white/70" />
+            </div>
             <ProctoringCamera 
               showControls={false}
               showStatus={false}
