@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -73,7 +72,7 @@ const AssessmentPage = () => {
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   
   // New states for draggable camera
-  const [cameraPosition, setCameraPosition] = useState({ x: 0, y: 0 });
+  const [cameraPosition, setCameraPosition] = useState('bottom-right');
   const [isDragging, setIsDragging] = useState(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const cameraRef = useRef<HTMLDivElement>(null);
@@ -156,18 +155,36 @@ const AssessmentPage = () => {
     if (cameraRef.current) {
       setIsDragging(true);
       dragStartPos.current = {
-        x: e.clientX - cameraPosition.x,
-        y: e.clientY - cameraPosition.y
+        x: e.clientX,
+        y: e.clientY
       };
+      e.preventDefault();
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDragging && cameraRef.current) {
-      setCameraPosition({
-        x: e.clientX - dragStartPos.current.x,
-        y: e.clientY - dragStartPos.current.y
-      });
+    if (!isDragging) return;
+    
+    const windowHeight = window.innerHeight;
+    const windowWidth = window.innerWidth;
+    const x = e.clientX;
+    const y = e.clientY;
+    
+    // Determine which corner is closest
+    if (y < windowHeight / 2) {
+      // Top half
+      if (x < windowWidth / 2) {
+        setCameraPosition('top-left');
+      } else {
+        setCameraPosition('top-right');
+      }
+    } else {
+      // Bottom half
+      if (x < windowWidth / 2) {
+        setCameraPosition('bottom-left');
+      } else {
+        setCameraPosition('bottom-right');
+      }
     }
   };
 
@@ -181,21 +198,38 @@ const AssessmentPage = () => {
       setIsDragging(true);
       const touch = e.touches[0];
       dragStartPos.current = {
-        x: touch.clientX - cameraPosition.x,
-        y: touch.clientY - cameraPosition.y
+        x: touch.clientX,
+        y: touch.clientY
       };
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (isDragging && cameraRef.current && e.touches.length === 1) {
-      const touch = e.touches[0];
-      setCameraPosition({
-        x: touch.clientX - dragStartPos.current.x,
-        y: touch.clientY - dragStartPos.current.y
-      });
-      e.preventDefault(); // Prevent scrolling while dragging
+    if (!isDragging || !e.touches[0]) return;
+    
+    const windowHeight = window.innerHeight;
+    const windowWidth = window.innerWidth;
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+    
+    // Determine which corner is closest
+    if (y < windowHeight / 2) {
+      // Top half
+      if (x < windowWidth / 2) {
+        setCameraPosition('top-left');
+      } else {
+        setCameraPosition('top-right');
+      }
+    } else {
+      // Bottom half
+      if (x < windowWidth / 2) {
+        setCameraPosition('bottom-left');
+      } else {
+        setCameraPosition('bottom-right');
+      }
     }
+    
+    e.preventDefault(); // Prevent scrolling while dragging
   };
 
   const handleTouchEnd = () => {
@@ -367,6 +401,21 @@ const AssessmentPage = () => {
 
   // Anti-cheating warning is active when either fullscreen or tab warnings are shown
   const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
+  
+  // Function to get camera position styles based on current position
+  const getCameraPositionStyles = () => {
+    switch (cameraPosition) {
+      case 'top-left':
+        return { top: '1rem', left: '1rem', bottom: 'auto', right: 'auto' };
+      case 'top-right':
+        return { top: '1rem', right: '1rem', bottom: 'auto', left: 'auto' };
+      case 'bottom-left':
+        return { bottom: '4rem', left: '1rem', top: 'auto', right: 'auto' };
+      case 'bottom-right':
+      default:
+        return { bottom: '4rem', right: '1rem', top: 'auto', left: 'auto' };
+    }
+  };
   
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
@@ -548,18 +597,20 @@ const AssessmentPage = () => {
         {/* Add draggable proctoring camera overlay */}
         <div 
           ref={cameraRef}
-          className="fixed z-20 cursor-move"
+          className={`fixed z-20 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} transition-all duration-300 ease-in-out`}
           style={{
-            bottom: isDragging ? 'auto' : '4rem',
-            right: isDragging ? 'auto' : '1rem',
-            transform: `translate(${cameraPosition.x}px, ${cameraPosition.y}px)`,
-            transition: isDragging ? 'none' : 'transform 0.1s ease'
+            ...getCameraPositionStyles(),
+            transition: isDragging ? 'none' : 'all 0.3s ease'
           }}
           onMouseDown={handleMouseDown}
           onTouchStart={handleTouchStart}
         >
           <Card className="w-[240px] shadow-lg border-0 bg-black/10 backdrop-blur-sm overflow-hidden">
-            <div className="flex items-center justify-center px-2 py-1 bg-black/30 cursor-move">
+            <div 
+              className={`flex items-center justify-center px-2 py-1 bg-black/30 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+              onMouseDown={handleMouseDown}
+              onTouchStart={handleTouchStart}
+            >
               <GripVertical className="h-4 w-4 text-white opacity-70" />
               <span className="text-xs text-white ml-1 opacity-70">Drag to move</span>
             </div>
