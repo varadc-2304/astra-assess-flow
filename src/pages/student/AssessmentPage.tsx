@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { 
@@ -15,7 +16,7 @@ import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, GripVertical } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
@@ -70,6 +71,12 @@ const AssessmentPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  
+  // New states for draggable camera
+  const [cameraPosition, setCameraPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  const cameraRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
     if (!assessment || !assessmentStarted) {
@@ -143,6 +150,76 @@ const AssessmentPage = () => {
     
     createSubmissionRecord();
   }, [assessment, assessmentStarted, user]);
+
+  // Mouse event handlers for drag functionality
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (cameraRef.current) {
+      setIsDragging(true);
+      dragStartPos.current = {
+        x: e.clientX - cameraPosition.x,
+        y: e.clientY - cameraPosition.y
+      };
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging && cameraRef.current) {
+      setCameraPosition({
+        x: e.clientX - dragStartPos.current.x,
+        y: e.clientY - dragStartPos.current.y
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // Touch event handlers for mobile drag functionality
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (cameraRef.current && e.touches.length === 1) {
+      setIsDragging(true);
+      const touch = e.touches[0];
+      dragStartPos.current = {
+        x: touch.clientX - cameraPosition.x,
+        y: touch.clientY - cameraPosition.y
+      };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isDragging && cameraRef.current && e.touches.length === 1) {
+      const touch = e.touches[0];
+      setCameraPosition({
+        x: touch.clientX - dragStartPos.current.x,
+        y: touch.clientY - dragStartPos.current.y
+      });
+      e.preventDefault(); // Prevent scrolling while dragging
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+  };
+
+  // Add global mouse/touch event listeners
+  useEffect(() => {
+    if (isDragging) {
+      // Add global event listeners to handle mouse movements outside the camera div
+      document.addEventListener('mousemove', handleMouseMove as unknown as EventListener);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleTouchMove as unknown as EventListener, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+    }
+
+    return () => {
+      // Clean up event listeners
+      document.removeEventListener('mousemove', handleMouseMove as unknown as EventListener);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove as unknown as EventListener);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDragging]);
 
   const handleTestResultUpdate = (questionId: string, passedTests: number, totalTests: number) => {
     setTestCaseStatus(prev => ({
@@ -468,9 +545,24 @@ const AssessmentPage = () => {
           )}
         </div>
         
-        {/* Add proctoring camera overlay */}
-        <div className="fixed bottom-16 right-4 z-20">
+        {/* Add draggable proctoring camera overlay */}
+        <div 
+          ref={cameraRef}
+          className="fixed z-20 cursor-move"
+          style={{
+            bottom: isDragging ? 'auto' : '4rem',
+            right: isDragging ? 'auto' : '1rem',
+            transform: `translate(${cameraPosition.x}px, ${cameraPosition.y}px)`,
+            transition: isDragging ? 'none' : 'transform 0.1s ease'
+          }}
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+        >
           <Card className="w-[240px] shadow-lg border-0 bg-black/10 backdrop-blur-sm overflow-hidden">
+            <div className="flex items-center justify-center px-2 py-1 bg-black/30 cursor-move">
+              <GripVertical className="h-4 w-4 text-white opacity-70" />
+              <span className="text-xs text-white ml-1 opacity-70">Drag to move</span>
+            </div>
             <ProctoringCamera 
               showControls={false}
               showStatus={false}

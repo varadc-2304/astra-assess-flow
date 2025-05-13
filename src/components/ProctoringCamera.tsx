@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
@@ -88,6 +89,17 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   // Track which violations have already been flagged
   const flaggedViolationsRef = useRef<Set<ViolationType>>(new Set());
   
+  // Track the last time each violation type was flagged (for 60-second cooldown)
+  const lastViolationTimeRef = useRef<Record<ViolationType, number>>({
+    noFaceDetected: 0,
+    multipleFacesDetected: 0,
+    faceNotCentered: 0,
+    faceCovered: 0,
+    rapidMovement: 0,
+    frequentDisappearance: 0,
+    identityMismatch: 0
+  });
+  
   const {
     videoRef,
     canvasRef,
@@ -146,23 +158,28 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       // Update violation counts
       const newViolationCount = { ...violationCount };
       let newViolationsDetected = false;
+      const currentTime = Date.now();
       
       // Process new violations
       Object.entries(violations).forEach(([type, count]) => {
         const violationType = type as ViolationType;
         if (count > newViolationCount[violationType]) {
-          // New violation occurred
-          newViolationsDetected = true;
-          const timestamp = new Date().toLocaleTimeString();
-          const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
-          setViolationLog(prev => [...prev, violationMessage]);
+          // Check if 60 seconds have passed since the last time this violation type was flagged
+          const timeSinceLastViolation = currentTime - lastViolationTimeRef.current[violationType];
+          const shouldFlag = timeSinceLastViolation >= 60000; // 60 seconds in milliseconds
           
-          if (trackViolations && user && submissionId) {
-            // Only log if violation hasn't been flagged yet
-            if (!flaggedViolationsRef.current.has(violationType)) {
+          if (shouldFlag) {
+            // Update the last violation time for this type
+            lastViolationTimeRef.current[violationType] = currentTime;
+            
+            // New violation occurred
+            newViolationsDetected = true;
+            const timestamp = new Date().toLocaleTimeString();
+            const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
+            setViolationLog(prev => [...prev, violationMessage]);
+            
+            if (trackViolations && user && submissionId) {
               updateViolationInDatabase(violationMessage);
-              // Mark this violation as flagged
-              flaggedViolationsRef.current.add(violationType);
             }
           }
         }
