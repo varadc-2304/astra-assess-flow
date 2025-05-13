@@ -23,6 +23,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import ProctoringCamera from '@/components/ProctoringCamera';
+import { ViolationType } from '@/hooks/proctoring';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';

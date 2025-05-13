@@ -1,5 +1,6 @@
+
 import React, { useEffect, useState, useRef } from 'react';
-import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
+import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/proctoring';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw } from 'lucide-react';
