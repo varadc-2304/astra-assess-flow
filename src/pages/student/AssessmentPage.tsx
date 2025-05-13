@@ -15,7 +15,7 @@ import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, GripVertical } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, GripVertical, Camera } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
@@ -23,6 +23,7 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/componen
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import ProctoringCamera from '@/components/ProctoringCamera';
+import { cn } from '@/lib/utils';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -74,6 +75,7 @@ const AssessmentPage = () => {
   // New states for draggable camera
   const [cameraPosition, setCameraPosition] = useState('bottom-right');
   const [isDragging, setIsDragging] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const cameraRef = useRef<HTMLDivElement>(null);
   
@@ -154,6 +156,7 @@ const AssessmentPage = () => {
   const handleMouseDown = (e: React.MouseEvent) => {
     if (cameraRef.current) {
       setIsDragging(true);
+      setIsAnimating(true); // Start animation when dragging starts
       dragStartPos.current = {
         x: e.clientX,
         y: e.clientY
@@ -190,12 +193,17 @@ const AssessmentPage = () => {
 
   const handleMouseUp = () => {
     setIsDragging(false);
+    // Set a short timeout to allow the animation to complete
+    setTimeout(() => {
+      setIsAnimating(false);
+    }, 300);
   };
 
   // Touch event handlers for mobile drag functionality
   const handleTouchStart = (e: React.TouchEvent) => {
     if (cameraRef.current && e.touches.length === 1) {
       setIsDragging(true);
+      setIsAnimating(true); // Start animation when touch dragging starts
       const touch = e.touches[0];
       dragStartPos.current = {
         x: touch.clientX,
@@ -234,6 +242,10 @@ const AssessmentPage = () => {
 
   const handleTouchEnd = () => {
     setIsDragging(false);
+    // Set a short timeout to allow the animation to complete
+    setTimeout(() => {
+      setIsAnimating(false);
+    }, 300);
   };
 
   // Add global mouse/touch event listeners
@@ -594,25 +606,47 @@ const AssessmentPage = () => {
           )}
         </div>
         
-        {/* Add draggable proctoring camera overlay */}
+        {/* Add draggable proctoring camera overlay with improved aesthetics */}
         <div 
           ref={cameraRef}
-          className={`fixed z-20 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} transition-all duration-300 ease-in-out`}
+          className={cn(
+            "fixed z-20 transition-all duration-300 ease-in-out",
+            isDragging ? "cursor-grabbing scale-105" : "cursor-grab hover:scale-102",
+            isAnimating ? "animate-pulse" : ""
+          )}
           style={{
             ...getCameraPositionStyles(),
-            transition: isDragging ? 'none' : 'all 0.3s ease'
+            transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+            filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))'
           }}
           onMouseDown={handleMouseDown}
           onTouchStart={handleTouchStart}
         >
-          <Card className="w-[240px] shadow-lg border-0 bg-black/10 backdrop-blur-sm overflow-hidden">
+          <Card className={cn(
+            "w-[240px] overflow-hidden rounded-lg border-0",
+            "bg-black/10 backdrop-blur-sm",
+            "transform transition-transform duration-200",
+            isDragging ? "scale-105" : "",
+            isAnimating ? "ring-2 ring-primary ring-opacity-70" : ""
+          )}>
             <div 
-              className={`flex items-center justify-center px-2 py-1 bg-black/30 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+              className={cn(
+                "flex items-center justify-between px-3 py-1.5",
+                "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
+                "border-b border-white/10",
+                isDragging ? "cursor-grabbing" : "cursor-grab"
+              )}
               onMouseDown={handleMouseDown}
               onTouchStart={handleTouchStart}
             >
-              <GripVertical className="h-4 w-4 text-white opacity-70" />
-              <span className="text-xs text-white ml-1 opacity-70">Drag to move</span>
+              <div className="flex items-center space-x-1.5">
+                <Camera className="h-3.5 w-3.5 text-white opacity-80" />
+                <span className="text-xs font-medium text-white opacity-90">Proctoring Camera</span>
+              </div>
+              <div className="flex items-center">
+                <div className="h-2 w-2 rounded-full bg-primary animate-pulse mr-1.5"></div>
+                <GripVertical className="h-3.5 w-3.5 text-white opacity-70" />
+              </div>
             </div>
             <ProctoringCamera 
               showControls={false}
@@ -621,6 +655,15 @@ const AssessmentPage = () => {
               assessmentId={assessment.id}
               submissionId={submissionId || undefined}
             />
+            <div className={cn(
+              "text-[10px] text-center py-1 text-white/70 opacity-0",
+              "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
+              "border-t border-white/10",
+              "transition-opacity duration-200",
+              isDragging ? "opacity-100" : "group-hover:opacity-100"
+            )}>
+              Drag to reposition • Release to place
+            </div>
           </Card>
         </div>
       </div>

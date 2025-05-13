@@ -320,11 +320,14 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   return (
     <div className="proctoring-camera-container">
       <div className="relative w-full max-w-md mx-auto">
-        {/* Video feed container */}
-        <div className="relative overflow-hidden rounded-lg bg-black mb-4 border-2 border-gray-200 dark:border-gray-700 shadow-lg">
+        {/* Video feed container with improved aesthetics */}
+        <div className="relative overflow-hidden rounded-lg bg-gray-900 mb-4 border border-gray-700/50 shadow-lg">
           <video
             ref={videoRef}
-            className="w-full h-full object-cover"
+            className={cn(
+              "w-full h-full object-cover",
+              isCameraReady ? "animate-fade-in" : "opacity-0"
+            )}
             autoPlay
             playsInline
             muted
@@ -334,36 +337,74 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
             className="absolute top-0 left-0 w-full h-full pointer-events-none" 
           />
           
-          {/* Loading overlay */}
+          {/* Loading overlay with improved animation */}
           {cameraLoading && (
-            <div className="absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-10">
-              <div className="text-center text-white">
-                <Loader2 className="animate-spin h-8 w-8 mx-auto mb-2" />
-                <p className="text-sm">Initializing camera...</p>
-                <p className="text-xs text-gray-300 mt-2">Please allow camera access if prompted</p>
+            <div className="absolute inset-0 bg-gradient-to-b from-gray-900 to-black bg-opacity-80 flex flex-col items-center justify-center z-10">
+              <div className="text-center">
+                <div className="relative">
+                  <div className="h-10 w-10 rounded-full border-2 border-gray-300 border-opacity-20 border-t-white animate-spin mx-auto mb-2"></div>
+                  <div className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center">
+                    <Camera className="h-4 w-4 text-gray-300 animate-pulse" />
+                  </div>
+                </div>
+                <p className="text-sm font-medium text-gray-100 mt-3">Initializing camera...</p>
+                <p className="text-xs text-gray-400 mt-1">Please allow camera access if prompted</p>
               </div>
             </div>
           )}
 
-          {/* Status indicator */}
+          {/* Status indicator with animation */}
           {showStatus && isCameraReady && isModelLoaded && (
-            <div className="absolute bottom-0 left-0 right-0 p-3 bg-gray-900/80">
+            <div className={cn(
+              "absolute bottom-0 left-0 right-0 p-2",
+              "bg-gradient-to-t from-gray-900 to-transparent",
+              "transition-opacity duration-300",
+              status === 'faceDetected' ? "opacity-50" : "opacity-90"
+            )}>
+              <div className={cn(
+                "flex items-center px-2 py-1 rounded-md",
+                "backdrop-blur-sm",
+                "transition-colors duration-300",
+                status === 'faceDetected' ? "bg-green-500/20" : 
+                status === 'error' ? "bg-red-500/20" : "bg-amber-500/20"
+              )}>
+                <div className={cn(
+                  "w-2 h-2 rounded-full mr-2",
+                  status === 'faceDetected' ? "bg-green-500 animate-pulse" : 
+                  status === 'error' ? "bg-red-500 animate-pulse" : "bg-amber-500 animate-pulse"
+                )}></div>
+                <p className={cn(
+                  "text-xs font-medium truncate",
+                  status === 'faceDetected' ? "text-green-300" : 
+                  status === 'error' ? "text-red-300" : "text-amber-300"
+                )}>
+                  {statusMessages[status]?.message || "Monitoring..."}
+                </p>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Controls */}
+        {/* Controls with improved aesthetics */}
         {showControls && (
-          <div className="flex justify-between mt-4">
+          <div className="flex justify-between mt-3 gap-2">
             <Button
               variant="outline"
               onClick={handleRestartCamera}
               disabled={isInitializing}
               type="button"
-              className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className={cn(
+                "hover:bg-gray-100 dark:hover:bg-gray-700 transition-all",
+                "border-gray-300 dark:border-gray-600",
+                "hover:shadow-md",
+                isInitializing && "opacity-50"
+              )}
             >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Restart Camera
+              <RefreshCw className={cn(
+                "h-4 w-4 mr-2",
+                isInitializing && "animate-spin"
+              )} />
+              Restart
             </Button>
             
             <Button
@@ -371,28 +412,36 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
               onClick={switchCamera}
               disabled={isInitializing}
               type="button"
-              className="hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className={cn(
+                "hover:bg-gray-100 dark:hover:bg-gray-700 transition-all",
+                "border-gray-300 dark:border-gray-600",
+                "hover:shadow-md",
+                isInitializing && "opacity-50"
+              )}
             >
               <Camera className="h-4 w-4 mr-2" />
-              Switch Camera
+              Switch
             </Button>
             
             <Button
               onClick={handleVerificationComplete}
               disabled={status !== 'faceDetected' || isInitializing}
               className={cn(
-                "transition-colors",
-                status === 'faceDetected' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-gray-400'
+                "transition-all duration-300",
+                status === 'faceDetected' 
+                  ? "bg-green-600 hover:bg-green-700 text-white shadow hover:shadow-md" 
+                  : "bg-gray-400 text-white"
               )}
               type="button"
             >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
+              <CheckCircle2 className={cn(
+                "h-4 w-4 mr-2",
+                status === 'faceDetected' && "animate-pulse"
+              )} />
               Verify
             </Button>
           </div>
         )}
-        
-
       </div>
     </div>
   );
