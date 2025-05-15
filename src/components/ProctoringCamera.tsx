@@ -1,13 +1,14 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { useProctoring, ProctoringStatus, ViolationType, ObjectViolationType } from '@/hooks/useProctoring';
+import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw, Smartphone } from 'lucide-react';
+import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { Json } from '@/types/database';
 
 interface ProctoringCameraProps {
   onVerificationComplete?: (success: boolean) => void;
@@ -16,7 +17,6 @@ interface ProctoringCameraProps {
   trackViolations?: boolean;
   assessmentId?: string;
   submissionId?: string;
-  autoStart?: boolean;
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -68,48 +68,50 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   showStatus = true,
   trackViolations = false,
   assessmentId,
-  submissionId,
-  autoStart = false
+  submissionId
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [violationCount, setViolationCount] = useState<Record<ViolationType | ObjectViolationType, number>>({
-    // Face violations
+  const [violationCount, setViolationCount] = useState<Record<ViolationType, number>>({
     noFaceDetected: 0,
     multipleFacesDetected: 0,
     faceNotCentered: 0,
     faceCovered: 0,
     rapidMovement: 0,
     frequentDisappearance: 0,
-    identityMismatch: 0,
-    // Object violations
-    phoneDetected: 0,
-    multiplePersonsDetected: 0,
-    unknownObjectDetected: 0
+    identityMismatch: 0
   });
   const [violationLog, setViolationLog] = useState<string[]>([]);
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
   const [cameraLoading, setCameraLoading] = useState(true);
+  const autoInitRef = useRef(false);
   
   // Track which violations have already been flagged
-  const flaggedViolationsRef = useRef<Set<ViolationType | ObjectViolationType>>(new Set());
+  const flaggedViolationsRef = useRef<Set<ViolationType>>(new Set());
+  
+  // Track the last time each violation type was flagged (for 60-second cooldown)
+  const lastViolationTimeRef = useRef<Record<ViolationType, number>>({
+    noFaceDetected: 0,
+    multipleFacesDetected: 0,
+    faceNotCentered: 0,
+    faceCovered: 0,
+    rapidMovement: 0,
+    frequentDisappearance: 0,
+    identityMismatch: 0
+  });
   
   const {
     videoRef,
     canvasRef,
     status,
     violations,
-    objectViolations,
     isCameraReady,
     isModelLoaded,
     isInitializing,
-    isPhoneDetected,
     switchCamera,
-    initialize,
     reinitialize,
     stopDetection
   } = useProctoring({
-    autoStart,
     showDebugInfo: false,
     drawLandmarks: false,
     drawExpressions: false,
@@ -117,12 +119,27 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     trackViolations: trackViolations,
     // Improved parameters for more accurate face detection
     detectionOptions: {
-      faceDetectionThreshold: 0.5, // Lower threshold for face detection
-      faceCenteredTolerance: 0.3, // More tolerance for face not being centered
-      rapidMovementThreshold: 0.3, // Higher threshold for rapid movement detection
+      faceDetectionThreshold: 0.5, // Lower threshold for face detection (was 0.65)
+      faceCenteredTolerance: 0.3, // More tolerance for face not being centered (was 0.25)
+      rapidMovementThreshold: 0.3, // Higher threshold for rapid movement detection (was 0.25)
     }
   });
 
+  // Initialize the camera when component mounts
+  useEffect(() => {
+    if (!autoInitRef.current) {
+      console.log("Initializing camera...");
+      reinitialize();
+      autoInitRef.current = true;
+    }
+    
+    // Cleanup function that will run when component unmounts
+    return () => {
+      console.log("Stopping camera detection...");
+      stopDetection();
+    };
+  }, [reinitialize, stopDetection]);
+  
   // Update camera loading state
   useEffect(() => {
     if (isInitializing) {
@@ -137,82 +154,53 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   }, [isInitializing, isCameraReady, isModelLoaded]);
 
   useEffect(() => {
-    if (trackViolations && violations && objectViolations) {
+    if (trackViolations && violations) {
       // Update violation counts
       const newViolationCount = { ...violationCount };
       let newViolationsDetected = false;
       const currentTime = Date.now();
-      const timeThreshold = 60000; // 60 seconds threshold for violation updates
       
-      // Only process violations if enough time has passed since last update
-      if (currentTime - lastUpdateTime > timeThreshold) {
-        // Process face violations
-        if (violations) {
-          Object.entries(violations).forEach(([type, count]) => {
-            const violationType = type as ViolationType;
-            if (typeof count === 'number' && count > newViolationCount[violationType]) {
-              newViolationsDetected = true;
-              const timestamp = new Date().toLocaleTimeString();
-              const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
-              setViolationLog(prev => [...prev, violationMessage]);
-              
-              if (trackViolations && user && submissionId) {
-                updateViolationInDatabase(violationMessage, 'face_violations');
-              }
+      // Process new violations
+      Object.entries(violations).forEach(([type, count]) => {
+        const violationType = type as ViolationType;
+        if (count > newViolationCount[violationType]) {
+          // Check if 60 seconds have passed since the last time this violation type was flagged
+          const timeSinceLastViolation = currentTime - lastViolationTimeRef.current[violationType];
+          const shouldFlag = timeSinceLastViolation >= 60000; // 60 seconds in milliseconds
+          
+          if (shouldFlag) {
+            // Update the last violation time for this type
+            lastViolationTimeRef.current[violationType] = currentTime;
+            
+            // New violation occurred
+            newViolationsDetected = true;
+            const timestamp = new Date().toLocaleTimeString();
+            const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
+            setViolationLog(prev => [...prev, violationMessage]);
+            
+            if (trackViolations && user && submissionId) {
+              updateViolationInDatabase(violationMessage);
             }
-            if (typeof count === 'number') {
-              newViolationCount[violationType] = count;
-            }
-          });
+          }
         }
-        
-        // Process object violations
-        if (objectViolations) {
-          Object.entries(objectViolations).forEach(([type, count]) => {
-            const violationType = type as ObjectViolationType;
-            if (typeof count === 'number' && count > newViolationCount[violationType]) {
-              newViolationsDetected = true;
-              const timestamp = new Date().toLocaleTimeString();
-              const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
-              setViolationLog(prev => [...prev, violationMessage]);
-              
-              if (trackViolations && user && submissionId) {
-                updateViolationInDatabase(violationMessage, 'object_violations');
-              }
-            }
-            if (typeof count === 'number') {
-              newViolationCount[violationType] = count;
-            }
-          });
-        }
-        
-        if (newViolationsDetected) {
-          setViolationCount(newViolationCount);
-          setLastUpdateTime(currentTime);
-        }
+        newViolationCount[violationType] = count;
+      });
+      
+      if (newViolationsDetected) {
+        setViolationCount(newViolationCount);
       }
       
-      // Check for total violations exceeding threshold (5 for face violations, 3 for object violations)
-      const totalFaceViolations = Object.entries(newViolationCount)
-        .filter(([type]) => ['noFaceDetected', 'multipleFacesDetected', 'faceNotCentered', 'faceCovered', 'rapidMovement']
-          .includes(type))
-        .reduce((sum, [_, count]) => sum + (typeof count === 'number' ? count : 0), 0);
-        
-      const totalObjectViolations = Object.entries(newViolationCount)
-        .filter(([type]) => ['phoneDetected', 'multiplePersonsDetected', 'unknownObjectDetected']
-          .includes(type))
-        .reduce((sum, [_, count]) => sum + (typeof count === 'number' ? count : 0), 0);
-      
-      if ((totalFaceViolations >= 5 || totalObjectViolations >= 3) && trackViolations && user && submissionId) {
+      // Check for total violations exceeding threshold
+      const totalViolations = Object.values(newViolationCount).reduce((sum, count) => sum + count, 0);
+      if (totalViolations >= 3 && trackViolations && user && submissionId) {
         const violationSummary = formatViolationSummary(newViolationCount);
-        updateViolationInDatabase(violationSummary, 'face_violations', true);
+        updateViolationInDatabase(violationSummary, true);
       }
     }
-  }, [violations, objectViolations, trackViolations, user, submissionId, violationCount, lastUpdateTime]);
+  }, [violations, trackViolations, user, submissionId]);
 
-  const getViolationMessage = (violationType: ViolationType | ObjectViolationType): string => {
+  const getViolationMessage = (violationType: ViolationType): string => {
     switch (violationType) {
-      // Face violations
       case 'noFaceDetected':
         return 'No face detected';
       case 'multipleFacesDetected':
@@ -227,63 +215,56 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         return 'Face frequently disappearing';
       case 'identityMismatch':
         return 'Face identity mismatch';
-      // Object violations
-      case 'phoneDetected':
-        return 'Phone or electronic device detected';
-      case 'multiplePersonsDetected':
-        return 'Multiple persons detected in frame';
-      case 'unknownObjectDetected':
-        return 'Unknown object detected';
       default:
         return 'Unknown violation';
     }
   };
   
-  const formatViolationSummary = (violations: Record<ViolationType | ObjectViolationType, number>): string => {
+  const formatViolationSummary = (violations: Record<ViolationType, number>): string => {
     const violationEntries = Object.entries(violations)
-      .filter(([_, count]) => (count as number) > 0)
-      .map(([type, count]) => `${getViolationMessage(type as ViolationType | ObjectViolationType)}: ${count} times`);
+      .filter(([_, count]) => count > 0)
+      .map(([type, count]) => `${getViolationMessage(type as ViolationType)}: ${count} times`);
       
     return `VIOLATION SUMMARY: ${violationEntries.join(', ')}`;
   };
 
-  const updateViolationInDatabase = async (violationText: string, violationType: 'face_violations' | 'object_violations', isFinal: boolean = false) => {
+  const updateViolationInDatabase = async (violationText: string, isFinal: boolean = false) => {
     if (!submissionId || !user) return;
     
     try {
       // Get current violations
       const { data: submission, error: fetchError } = await supabase
         .from('submissions')
-        .select(`${violationType}`)
+        .select('face_violations')
         .eq('id', submissionId)
         .single();
       
       if (fetchError) {
-        console.error(`Error fetching submission ${violationType}:`, fetchError);
+        console.error("Error fetching submission:", fetchError);
         return;
       }
       
       // Initialize or update violations array
       let currentViolations: string[] = [];
       
-      if (submission && submission[violationType]) {
+      if (submission && submission.face_violations) {
         // Handle both string and JSON array formats
-        if (Array.isArray(submission[violationType])) {
+        if (Array.isArray(submission.face_violations)) {
           // Fix the type error here: Convert any non-string items to strings
-          currentViolations = (submission[violationType] as any[]).map(item => String(item));
+          currentViolations = (submission.face_violations as Json[]).map(item => String(item));
         } else {
           try {
             // If it's stored as a JSON string, parse it
-            const parsedViolations = typeof submission[violationType] === 'string'
-              ? JSON.parse(submission[violationType] as string)
-              : submission[violationType];
+            const parsedViolations = typeof submission.face_violations === 'string'
+              ? JSON.parse(submission.face_violations)
+              : submission.face_violations;
             
             // Convert the parsed violations to strings
             currentViolations = Array.isArray(parsedViolations)
               ? parsedViolations.map(item => String(item))
               : [];
           } catch (e) {
-            console.error(`Error parsing ${violationType}:`, e);
+            console.error("Error parsing face_violations:", e);
             currentViolations = [];
           }
         }
@@ -293,25 +274,24 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       currentViolations.push(violationText);
       
       // Update submission with new violations
-      const updateData: Record<string, any> = {
-        [violationType]: currentViolations
-      };
-      
-      if (isFinal) {
-        updateData.is_terminated = true;
-      }
-      
       const { error: updateError } = await supabase
         .from('submissions')
-        .update(updateData)
+        .update({ 
+          face_violations: currentViolations,
+          is_terminated: isFinal ? true : undefined
+        })
         .eq('id', submissionId);
       
       if (updateError) {
-        console.error(`Error updating ${violationType}:`, updateError);
+        console.error("Error updating face violations:", updateError);
       }
       
+      // If this is the final violation that terminates the session
+      if (isFinal) {
+
+      }
     } catch (err) {
-      console.error(`Error updating ${violationType}:`, err);
+      console.error("Error updating face violations:", err);
     }
   };
 
@@ -326,13 +306,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         variant: "destructive",
       });
     }
-  };
-
-  const handleStartCamera = () => {
-    setCameraLoading(true);
-    setTimeout(() => {
-      initialize();
-    }, 100);
   };
 
   const handleRestartCamera = () => {
@@ -379,14 +352,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
               </div>
             </div>
           )}
-          
-          {/* Phone detection warning */}
-          {isPhoneDetected && (
-            <div className="absolute top-0 left-0 right-0 p-2 bg-red-500/80 flex items-center justify-center">
-              <Smartphone className="h-4 w-4 text-white mr-2" />
-              <p className="text-sm font-medium text-white">Phone detected - this will be flagged</p>
-            </div>
-          )}
 
           {/* Status indicator with animation */}
           {showStatus && isCameraReady && isModelLoaded && (
@@ -423,74 +388,60 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         {/* Controls with improved aesthetics */}
         {showControls && (
           <div className="flex justify-between mt-3 gap-2">
-            {!isCameraReady && !isInitializing ? (
-              <Button
-                className="w-full bg-primary hover:bg-primary-600 shadow hover:shadow-md"
-                onClick={handleStartCamera}
-                disabled={isInitializing}
-                type="button"
-              >
-                <Camera className="h-4 w-4 mr-2" />
-                Enable Camera
-              </Button>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={handleRestartCamera}
-                  disabled={isInitializing}
-                  type="button"
-                  className={cn(
-                    "hover:bg-gray-100 dark:hover:bg-gray-700 transition-all",
-                    "border-gray-300 dark:border-gray-600",
-                    "hover:shadow-md",
-                    isInitializing && "opacity-50"
-                  )}
-                >
-                  <RefreshCw className={cn(
-                    "h-4 w-4 mr-2",
-                    isInitializing && "animate-spin"
-                  )} />
-                  Restart
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  onClick={switchCamera}
-                  disabled={isInitializing}
-                  type="button"
-                  className={cn(
-                    "hover:bg-gray-100 dark:hover:bg-gray-700 transition-all",
-                    "border-gray-300 dark:border-gray-600",
-                    "hover:shadow-md",
-                    isInitializing && "opacity-50"
-                  )}
-                >
-                  <Camera className="h-4 w-4 mr-2" />
-                  Switch
-                </Button>
-                
-                <Button
-                  onClick={handleVerificationComplete}
-                  disabled={status !== 'faceDetected' || isInitializing}
-                  className={cn(
-                    "transition-all duration-300",
-                    status === 'faceDetected' 
-                      ? "bg-green-600 hover:bg-green-700 text-white shadow hover:shadow-md" 
-                      : "bg-gray-400 text-white"
-                  )}
-                  type="button"
-                >
-                  <CheckCircle2 className={cn(
-                    "h-4 w-4 mr-2",
-                    status === 'faceDetected' && "animate-pulse"
-                  )} />
-                  Verify
-                </Button>
-              </>
-            )}
+            <Button
+              variant="outline"
+              onClick={handleRestartCamera}
+              disabled={isInitializing}
+              type="button"
+              className={cn(
+                "hover:bg-gray-100 dark:hover:bg-gray-700 transition-all",
+                "border-gray-300 dark:border-gray-600",
+                "hover:shadow-md",
+                isInitializing && "opacity-50"
+              )}
+            >
+              <RefreshCw className={cn(
+                "h-4 w-4 mr-2",
+                isInitializing && "animate-spin"
+              )} />
+              Restart
+            </Button>
+            
+            <Button
+              variant="outline"
+              onClick={switchCamera}
+              disabled={isInitializing}
+              type="button"
+              className={cn(
+                "hover:bg-gray-100 dark:hover:bg-gray-700 transition-all",
+                "border-gray-300 dark:border-gray-600",
+                "hover:shadow-md",
+                isInitializing && "opacity-50"
+              )}
+            >
+              <Camera className="h-4 w-4 mr-2" />
+              Switch
+            </Button>
+            
+            <Button
+              onClick={handleVerificationComplete}
+              disabled={status !== 'faceDetected' || isInitializing}
+              className={cn(
+                "transition-all duration-300",
+                status === 'faceDetected' 
+                  ? "bg-green-600 hover:bg-green-700 text-white shadow hover:shadow-md" 
+                  : "bg-gray-400 text-white"
+              )}
+              type="button"
+            >
+              <CheckCircle2 className={cn(
+                "h-4 w-4 mr-2",
+                status === 'faceDetected' && "animate-pulse"
+              )} />
+              Verify
+            </Button>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

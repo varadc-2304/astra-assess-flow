@@ -18,7 +18,6 @@ export type Database = {
           end_time: string | null
           id: string
           instructions: string | null
-          is_ai_proctored: boolean
           is_practice: boolean
           name: string
           reattempt: boolean
@@ -33,7 +32,6 @@ export type Database = {
           end_time?: string | null
           id?: string
           instructions?: string | null
-          is_ai_proctored?: boolean
           is_practice?: boolean
           name: string
           reattempt?: boolean
@@ -48,7 +46,6 @@ export type Database = {
           end_time?: string | null
           id?: string
           instructions?: string | null
-          is_ai_proctored?: boolean
           is_practice?: boolean
           name?: string
           reattempt?: boolean
@@ -475,7 +472,6 @@ export type Database = {
           fullscreen_violations: number | null
           id: string
           is_terminated: boolean | null
-          object_violations: Json | null
           started_at: string
           user_id: string
         }
@@ -487,7 +483,6 @@ export type Database = {
           fullscreen_violations?: number | null
           id?: string
           is_terminated?: boolean | null
-          object_violations?: Json | null
           started_at?: string
           user_id: string
         }
@@ -499,7 +494,6 @@ export type Database = {
           fullscreen_violations?: number | null
           id?: string
           is_terminated?: boolean | null
-          object_violations?: Json | null
           started_at?: string
           user_id?: string
         }
