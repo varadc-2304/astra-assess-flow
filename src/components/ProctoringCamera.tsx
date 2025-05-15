@@ -17,6 +17,7 @@ interface ProctoringCameraProps {
   trackViolations?: boolean;
   assessmentId?: string;
   submissionId?: string;
+  autoInitialize?: boolean;
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -62,13 +63,24 @@ const statusMessages: Record<ProctoringStatus, { message: string; icon: React.Re
   }
 };
 
+const violationMessages: Record<ViolationType, string> = {
+  noFaceDetected: 'No face detected. Please position yourself in front of the camera.',
+  multipleFacesDetected: 'Multiple faces detected. Please ensure only you are visible in the frame.',
+  faceNotCentered: 'Your face is not centered. Please position yourself in the middle of the frame.',
+  faceCovered: 'Your face appears to be partially covered. Please ensure your face is fully visible.',
+  rapidMovement: 'Rapid head movement detected. Please keep your head still during the assessment.',
+  frequentDisappearance: 'You are frequently disappearing from the camera view. Please stay in frame.',
+  identityMismatch: 'Potential identity mismatch detected. Please ensure you are the verified candidate.'
+};
+
 export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   onVerificationComplete,
   showControls = true,
   showStatus = true,
   trackViolations = false,
   assessmentId,
-  submissionId
+  submissionId,
+  autoInitialize = false
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -125,10 +137,10 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }
   });
 
-  // Initialize the camera when component mounts
+  // Initialize the camera when component mounts, but only if autoInitialize is true
   useEffect(() => {
-    if (!autoInitRef.current) {
-      console.log("Initializing camera...");
+    if (autoInitialize && !autoInitRef.current) {
+      console.log("Auto-initializing camera...");
       reinitialize();
       autoInitRef.current = true;
     }
@@ -138,7 +150,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       console.log("Stopping camera detection...");
       stopDetection();
     };
-  }, [reinitialize, stopDetection]);
+  }, [autoInitialize, reinitialize, stopDetection]);
   
   // Update camera loading state
   useEffect(() => {
@@ -178,6 +190,13 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
             const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
             setViolationLog(prev => [...prev, violationMessage]);
             
+            // Display toast notification for the violation
+            toast({
+              title: "Proctoring Alert",
+              description: violationMessages[violationType],
+              variant: "destructive",
+            });
+            
             if (trackViolations && user && submissionId) {
               updateViolationInDatabase(violationMessage);
             }
@@ -197,7 +216,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         updateViolationInDatabase(violationSummary, true);
       }
     }
-  }, [violations, trackViolations, user, submissionId]);
+  }, [violations, trackViolations, user, submissionId, toast, violationCount]);
 
   const getViolationMessage = (violationType: ViolationType): string => {
     switch (violationType) {
@@ -288,7 +307,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       
       // If this is the final violation that terminates the session
       if (isFinal) {
-
+        // Additional handling for terminated session if needed
       }
     } catch (err) {
       console.error("Error updating face violations:", err);
@@ -314,8 +333,35 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       reinitialize();
     }, 100);
   };
+  
+  const handleInitializeCamera = () => {
+    if (!autoInitRef.current) {
+      setCameraLoading(true);
+      console.log("Initializing camera...");
+      reinitialize();
+      autoInitRef.current = true;
+    }
+  };
 
   const statusConfig = statusMessages[status] || statusMessages.initializing;
+
+  // If autoInitialize is false and camera hasn't been initialized yet, show activation UI
+  if (!autoInitialize && !autoInitRef.current) {
+    return (
+      <div className="text-center py-8">
+        <Camera className="h-16 w-16 mx-auto mb-4 text-gray-400" />
+        <h3 className="text-lg font-semibold mb-2">Camera Access Required</h3>
+        <p className="text-gray-500 mb-6">Click the button below to activate your camera for verification</p>
+        <Button 
+          onClick={handleInitializeCamera}
+          className="bg-astra-red hover:bg-red-600 text-white"
+          size="lg"
+        >
+          Activate Camera
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="proctoring-camera-container">
