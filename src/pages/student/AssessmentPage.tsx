@@ -654,7 +654,6 @@ const AssessmentPage = () => {
               trackViolations={true}
               assessmentId={assessment.id}
               submissionId={submissionId || undefined}
-              autoInitialize={true}
             />
             <div className={cn(
               "text-[10px] text-center py-1 text-white/70 opacity-0",

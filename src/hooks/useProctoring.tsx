@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import { useToast } from '@/hooks/use-toast';
@@ -53,7 +54,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
   const [isCameraPermissionGranted, setIsCameraPermissionGranted] = useState<boolean | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
-  const [isInitializing, setIsInitializing] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [violations, setViolations] = useState<Record<ViolationType, number>>({
     noFaceDetected: 0,
     multipleFacesDetected: 0,
@@ -126,8 +127,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
 
   // Initialize camera with improved error handling
   const initializeCamera = useCallback(async () => {
-    setIsInitializing(true);
-    
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       toast({
         title: 'Camera Error',
@@ -136,7 +135,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
       });
       setStatus('error');
       setIsCameraPermissionGranted(false);
-      setIsInitializing(false);
       return false;
     }
 
@@ -144,11 +142,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
       // Stop any existing stream
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      
-      // Load models first if not already loaded
-      if (!isModelLoaded) {
-        await loadModels();
       }
 
       // Request camera access with optimized settings for performance
@@ -174,7 +167,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
       setIsCameraPermissionGranted(true);
       setIsCameraReady(true);
       
-      setIsInitializing(false);
       return true;
     } catch (error) {
       console.error('Error accessing camera:', error);
@@ -185,10 +177,9 @@ export function useProctoring(options: ProctoringOptions = {}) {
       });
       setStatus('error');
       setIsCameraPermissionGranted(false);
-      setIsInitializing(false);
       return false;
     }
-  }, [facingMode, toast, loadModels, isModelLoaded]);
+  }, [facingMode, toast]);
 
   // Switch camera (for mobile devices with multiple cameras)
   const switchCamera = useCallback(() => {
@@ -645,19 +636,23 @@ export function useProctoring(options: ProctoringOptions = {}) {
     lastFaceDetectionTimeRef.current = 0;
   }, []);
 
-  // Only load models when first initialized 
+  // Initialize system
   useEffect(() => {
-    async function loadModelsOnFirstUse() {
-      await loadModels();
+    async function initializeProctoring() {
+      setIsInitializing(true);
+      const modelsLoaded = await loadModels();
+      if (modelsLoaded) {
+        await initializeCamera();
+      }
+      setIsInitializing(false);
     }
     
-    loadModelsOnFirstUse();
+    initializeProctoring();
     
-    // Cleanup when unmounting
     return () => {
       stopDetection();
     };
-  }, [loadModels, stopDetection]);
+  }, [loadModels, initializeCamera, stopDetection]);
 
   // Set up detection when camera is ready and models are loaded
   useEffect(() => {

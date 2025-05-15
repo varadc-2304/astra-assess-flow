@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
@@ -254,7 +255,6 @@ const CameraVerificationPage = () => {
                     trackViolations={false}
                     assessmentId={assessment.id}
                     submissionId={submissionId || undefined}
-                    autoInitialize={true}
                   />
                 )}
               </CardContent>
