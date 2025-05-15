@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
@@ -67,7 +66,7 @@ const violationMessages: Record<ViolationType, string> = {
   noFaceDetected: 'No face detected. Please position yourself in front of the camera.',
   multipleFacesDetected: 'Multiple faces detected. Please ensure only you are visible in the frame.',
   faceNotCentered: 'Your face is not centered. Please position yourself in the middle of the frame.',
-  faceCovered: 'Your face appears to be partially covered. Please ensure your face is fully visible.',
+  faceCovered: 'Your face appears to be partially obstructed. Please ensure your face is fully visible.',
   rapidMovement: 'Rapid head movement detected. Please keep your head still during the assessment.',
   frequentDisappearance: 'You are frequently disappearing from the camera view. Please stay in frame.',
   identityMismatch: 'Potential identity mismatch detected. Please ensure you are the verified candidate.'
@@ -131,9 +130,9 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     trackViolations: trackViolations,
     // Improved parameters for more accurate face detection
     detectionOptions: {
-      faceDetectionThreshold: 0.5, // Lower threshold for face detection (was 0.65)
-      faceCenteredTolerance: 0.3, // More tolerance for face not being centered (was 0.25)
-      rapidMovementThreshold: 0.3, // Higher threshold for rapid movement detection (was 0.25)
+      faceDetectionThreshold: 0.5, 
+      faceCenteredTolerance: 0.3, 
+      rapidMovementThreshold: 0.3, 
     }
   });
 
@@ -269,7 +268,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       if (submission && submission.face_violations) {
         // Handle both string and JSON array formats
         if (Array.isArray(submission.face_violations)) {
-          // Fix the type error here: Convert any non-string items to strings
+          // Convert any non-string items to strings
           currentViolations = (submission.face_violations as Json[]).map(item => String(item));
         } else {
           try {
@@ -303,11 +302,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       
       if (updateError) {
         console.error("Error updating face violations:", updateError);
-      }
-      
-      // If this is the final violation that terminates the session
-      if (isFinal) {
-        // Additional handling for terminated session if needed
       }
     } catch (err) {
       console.error("Error updating face violations:", err);
