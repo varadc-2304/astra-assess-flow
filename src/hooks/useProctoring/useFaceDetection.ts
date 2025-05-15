@@ -59,8 +59,8 @@ export const useFaceDetection = ({
   
   const lastDetectionTimeRef = useRef<number>(Date.now());
   const previousFacePositionRef = useRef<faceapi.FaceDetection | null>(null);
-  const noFaceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const detectionIntervalRef = useRef<NodeJS.Timer | null>(null);
+  const noFaceTimeoutRef = useRef<number | null>(null);
+  const detectionIntervalRef = useRef<number | null>(null);
   
   // Track when violations were last recorded (for cooldown)
   const lastViolationTimeRef = useRef<Record<ViolationType, number>>({
@@ -151,7 +151,7 @@ export const useFaceDetection = ({
       const face = detection.detection;
       
       // Check if face is centered in frame
-      const { _box: box } = face;
+      const box = face.box;
       const videoWidth = video.videoWidth || video.width;
       const videoHeight = video.videoHeight || video.height;
       
@@ -176,9 +176,10 @@ export const useFaceDetection = ({
       // Detect rapid movement
       if (previousFacePositionRef.current) {
         const prevFace = previousFacePositionRef.current;
+        const prevBox = prevFace.box;
         
-        const moveDistanceX = Math.abs(faceCenterX - (prevFace._box.x + prevFace._box.width / 2)) / videoWidth;
-        const moveDistanceY = Math.abs(faceCenterY - (prevFace._box.y + prevFace._box.height / 2)) / videoHeight;
+        const moveDistanceX = Math.abs(faceCenterX - (prevBox.x + prevBox.width / 2)) / videoWidth;
+        const moveDistanceY = Math.abs(faceCenterY - (prevBox.y + prevBox.height / 2)) / videoHeight;
         const moveDist = Math.sqrt(moveDistanceX * moveDistanceX + moveDistanceY * moveDistanceY);
         
         if (moveDist > defaultOptions.rapidMovementThreshold) {
@@ -208,7 +209,7 @@ export const useFaceDetection = ({
       
       // Clear any pending "face disappeared" timeout
       if (noFaceTimeoutRef.current) {
-        clearTimeout(noFaceTimeoutRef.current);
+        window.clearTimeout(noFaceTimeoutRef.current);
         noFaceTimeoutRef.current = null;
       }
       
@@ -232,17 +233,17 @@ export const useFaceDetection = ({
     if (isCameraReady && isModelLoaded && isRunningRef.current) {
       // Run detection at regular intervals
       if (!detectionIntervalRef.current) {
-        detectionIntervalRef.current = setInterval(detectFaces, 500);
+        detectionIntervalRef.current = window.setInterval(detectFaces, 500);
       }
       
       return () => {
         if (detectionIntervalRef.current) {
-          clearInterval(detectionIntervalRef.current);
+          window.clearInterval(detectionIntervalRef.current);
           detectionIntervalRef.current = null;
         }
         
         if (noFaceTimeoutRef.current) {
-          clearTimeout(noFaceTimeoutRef.current);
+          window.clearTimeout(noFaceTimeoutRef.current);
           noFaceTimeoutRef.current = null;
         }
       };

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import { useToast } from '@/hooks/use-toast';
@@ -19,13 +18,18 @@ export type ProctoringStatus =
   'error';
 
 export type ViolationType = 
-  'noFaceDetected' | 
-  'multipleFacesDetected' | 
-  'faceNotCentered' | 
-  'faceCovered' | 
-  'rapidMovement' | 
-  'frequentDisappearance' |
-  'identityMismatch';
+  | 'noFaceDetected' 
+  | 'multipleFacesDetected' 
+  | 'faceNotCentered' 
+  | 'faceCovered' 
+  | 'rapidMovement' 
+  | 'frequentDisappearance'
+  | 'identityMismatch';
+
+export type ObjectViolationType = 
+  | 'phoneDetected' 
+  | 'multiplePersonsDetected' 
+  | 'unknownObjectDetected';
 
 export interface ProctoringOptions {
   showDebugInfo?: boolean;
@@ -33,6 +37,7 @@ export interface ProctoringOptions {
   drawExpressions?: boolean;
   detectExpressions?: boolean;
   trackViolations?: boolean;
+  autoStart?: boolean;
   detectionOptions?: {
     faceDetectionThreshold?: number;
     faceCenteredTolerance?: number;
@@ -64,6 +69,14 @@ export function useProctoring(options: ProctoringOptions = {}) {
     frequentDisappearance: 0,
     identityMismatch: 0
   });
+  const [objectViolations, setObjectViolations] = useState<Record<ObjectViolationType, number>>({
+    phoneDetected: 0,
+    multiplePersonsDetected: 0,
+    unknownObjectDetected: 0
+  });
+  const [isPhoneDetected, setIsPhoneDetected] = useState(false);
+
+  const isRunningRef = useRef<boolean>(options.autoStart || false);
 
   // Set default detection options
   const detectionOptions = {
@@ -126,7 +139,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
   }, [toast]);
 
   // Initialize camera with improved error handling
-  const initializeCamera = useCallback(async () => {
+  const initialize = useCallback(async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       toast({
         title: 'Camera Error',
@@ -166,6 +179,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
       streamRef.current = stream;
       setIsCameraPermissionGranted(true);
       setIsCameraReady(true);
+      isRunningRef.current = true;
       
       return true;
     } catch (error) {
@@ -288,6 +302,28 @@ export function useProctoring(options: ProctoringOptions = {}) {
     return detectionScore < detectionOptions.faceDetectionThreshold;
   }, [detectionOptions.faceDetectionThreshold]);
 
+  // Simulate object detection for phone detection
+  const detectObjects = useCallback(() => {
+    if (!videoRef.current || !isRunningRef.current || !options.trackViolations) {
+      return;
+    }
+    
+    // For demo: randomly detect phone
+    const randomDetect = Math.random() < 0.05;
+    if (randomDetect) {
+      setIsPhoneDetected(true);
+      setObjectViolations(prev => ({
+        ...prev,
+        phoneDetected: prev.phoneDetected + 1
+      }));
+      
+      // Reset after 3 seconds
+      setTimeout(() => {
+        setIsPhoneDetected(false);
+      }, 3000);
+    }
+  }, [options.trackViolations]);
+
   // Detect faces from video with optimizations
   const detectFaces = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !isModelLoaded || !isCameraReady) {
@@ -358,6 +394,12 @@ export function useProctoring(options: ProctoringOptions = {}) {
             setViolations(prev => ({
               ...prev,
               multipleFacesDetected: prev.multipleFacesDetected + 1
+            }));
+            
+            // Update object violations for multiple persons
+            setObjectViolations(prev => ({
+              ...prev,
+              multiplePersonsDetected: prev.multiplePersonsDetected + 1
             }));
           }
           
@@ -465,141 +507,59 @@ export function useProctoring(options: ProctoringOptions = {}) {
       }
       
       // Draw the detections
-      if (ctx && detections.length > 0) {
+      if (ctx && detections.length > 0 && options.drawLandmarks) {
         // Draw each detected face
-        detections.forEach((detection, index) => {
-          const box = detection.detection.box;
-          
-          // Define a border color based on status
-          const borderColor = 
-            detections.length > 1 
-              ? "rgb(239, 68, 68)" // red
-              : "rgb(245, 158, 11)"; // amber
-          
-          if (ctx) {
-            ctx.lineWidth = 3;
-            ctx.strokeStyle = borderColor;
-            ctx.strokeRect(box.x, box.y, box.width, box.height);
-          }
-          
-          // Add corner marks for better visibility
-          const cornerLength = Math.min(25, Math.min(box.width, box.height) / 4);
-          if (ctx) {
-            ctx.lineWidth = 4;
-            
-            // Draw corner marks (top-left, top-right, bottom-left, bottom-right)
-            // Top-left
-            ctx.beginPath();
-            ctx.moveTo(box.x, box.y + cornerLength);
-            ctx.lineTo(box.x, box.y);
-            ctx.lineTo(box.x + cornerLength, box.y);
-            ctx.stroke();
-            
-            // Top-right
-            ctx.beginPath();
-            ctx.moveTo(box.x + box.width - cornerLength, box.y);
-            ctx.lineTo(box.x + box.width, box.y);
-            ctx.lineTo(box.x + box.width, box.y + cornerLength);
-            ctx.stroke();
-            
-            // Bottom-left
-            ctx.beginPath();
-            ctx.moveTo(box.x, box.y + box.height - cornerLength);
-            ctx.lineTo(box.x, box.y + box.height);
-            ctx.lineTo(box.x + cornerLength, box.y + box.height);
-            ctx.stroke();
-            
-            // Bottom-right
-            ctx.beginPath();
-            ctx.moveTo(box.x + box.width - cornerLength, box.y + box.height);
-            ctx.lineTo(box.x + box.width, box.y + box.height);
-            ctx.lineTo(box.x + box.width, box.y + box.height - cornerLength);
-            ctx.stroke();
-          }
-
-          // Optionally draw landmarks
-          if (options.drawLandmarks && ctx) {
+        detections.forEach((detection) => {
+          faceapi.draw.drawDetections(canvas, [detection.detection]);
+          if (options.drawLandmarks) {
             faceapi.draw.drawFaceLandmarks(canvas, detection);
           }
-          
-          // Optionally draw expressions
-          if (options.drawExpressions && ctx && 'expressions' in detection) {
-            const expressions = detection.expressions;
-            if (expressions) {
-              const sorted = Object.entries(expressions)
-                .sort((a, b) => b[1] - a[1]);
-                
-              if (sorted.length > 0) {
-                const [emotion, confidence] = sorted[0];
-                const text = `${emotion}: ${Math.round(confidence * 100)}%`;
-                
-                ctx.font = '16px Arial';
-                ctx.fillStyle = '#fff';
-                ctx.strokeStyle = '#000';
-                ctx.lineWidth = 2;
-                ctx.strokeText(text, box.x, box.y - 5);
-                ctx.fillText(text, box.x, box.y - 5);
-              }
-            }
-          }
         });
-        
-        // Show debug info if enabled
-        if (options.showDebugInfo && ctx) {
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-          ctx.fillRect(0, 0, 180, 80);
-          ctx.font = '14px Arial';
-          ctx.fillStyle = '#fff';
-          ctx.fillText(`Faces: ${detections.length}`, 10, 20);
-          ctx.fillText(`Status: ${status}`, 10, 40);
-          
-          if (options.trackViolations) {
-            const totalViolations = Object.values(violations).reduce((sum, val) => sum + val, 0);
-            ctx.fillText(`Violations: ${totalViolations}`, 10, 60);
-          }
-        }
       }
+      
     } catch (error) {
       console.error('Error in face detection:', error);
-      // Don't update status on transient errors to avoid flickering
+      setStatus('error');
     }
 
   }, [
     isModelLoaded, 
     isCameraReady, 
     options.trackViolations, 
-    options.showDebugInfo, 
-    options.drawLandmarks, 
-    options.drawExpressions,
     options.detectExpressions,
+    options.drawLandmarks,
     isFaceCentered,
     isFaceCovered,
-    checkForRapidMovements,
-    violations
+    checkForRapidMovements
   ]);
 
   // Start detection loop
   const startDetection = useCallback(() => {
     if (detectionIntervalRef.current) {
-      clearInterval(detectionIntervalRef.current);
+      window.clearInterval(detectionIntervalRef.current);
     }
 
     detectionIntervalRef.current = window.setInterval(detectFaces, DETECTION_INTERVAL);
+    
+    // Start object detection at a different interval
+    if (options.trackViolations) {
+      window.setInterval(detectObjects, 2000);
+    }
     
     // Initial detection immediately
     detectFaces();
     
     return () => {
       if (detectionIntervalRef.current) {
-        clearInterval(detectionIntervalRef.current);
+        window.clearInterval(detectionIntervalRef.current);
       }
     };
-  }, [detectFaces]);
+  }, [detectFaces, detectObjects, options.trackViolations]);
 
   // Stop detection and release camera
   const stopDetection = useCallback(() => {
     if (detectionIntervalRef.current) {
-      clearInterval(detectionIntervalRef.current);
+      window.clearInterval(detectionIntervalRef.current);
       detectionIntervalRef.current = null;
     }
 
@@ -609,6 +569,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     }
 
     setIsCameraReady(false);
+    isRunningRef.current = false;
     
     // Clear canvas
     const canvas = canvasRef.current;
@@ -641,8 +602,9 @@ export function useProctoring(options: ProctoringOptions = {}) {
     async function initializeProctoring() {
       setIsInitializing(true);
       const modelsLoaded = await loadModels();
-      if (modelsLoaded) {
-        await initializeCamera();
+      // Only auto-start camera if enabled
+      if (modelsLoaded && options.autoStart) {
+        await initialize();
       }
       setIsInitializing(false);
     }
@@ -652,7 +614,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     return () => {
       stopDetection();
     };
-  }, [loadModels, initializeCamera, stopDetection]);
+  }, [loadModels, initialize, stopDetection, options.autoStart]);
 
   // Set up detection when camera is ready and models are loaded
   useEffect(() => {
@@ -665,9 +627,9 @@ export function useProctoring(options: ProctoringOptions = {}) {
   // Handle facingMode changes
   useEffect(() => {
     if (isCameraPermissionGranted) {
-      initializeCamera();
+      initialize();
     }
-  }, [facingMode, isCameraPermissionGranted, initializeCamera]);
+  }, [facingMode, isCameraPermissionGranted, initialize]);
 
   // Return values and functions
   return {
@@ -675,13 +637,19 @@ export function useProctoring(options: ProctoringOptions = {}) {
     canvasRef,
     status,
     detectionResult,
-    violations: options.trackViolations ? violations : undefined,
+    violations,
+    objectViolations,
+    isPhoneDetected,
     isModelLoaded,
     isCameraReady,
     isCameraPermissionGranted,
     isInitializing,
+    isRunningRef,
     switchCamera,
     stopDetection,
-    reinitialize: initializeCamera
+    reinitialize: initialize,
+    initialize,
+    error: error || null,
+    debugInfo: ''
   };
 }

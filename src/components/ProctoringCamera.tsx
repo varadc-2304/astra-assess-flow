@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Json } from '@/types/database';
 
 interface ProctoringCameraProps {
   onVerificationComplete?: (success: boolean) => void;
@@ -138,7 +137,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   }, [isInitializing, isCameraReady, isModelLoaded]);
 
   useEffect(() => {
-    if (trackViolations && violations) {
+    if (trackViolations && violations && objectViolations) {
       // Update violation counts
       const newViolationCount = { ...violationCount };
       let newViolationsDetected = false;
@@ -161,20 +160,22 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       });
       
       // Process object violations
-      Object.entries(objectViolations).forEach(([type, count]) => {
-        const violationType = type as ObjectViolationType;
-        if (count > newViolationCount[violationType]) {
-          newViolationsDetected = true;
-          const timestamp = new Date().toLocaleTimeString();
-          const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
-          setViolationLog(prev => [...prev, violationMessage]);
-          
-          if (trackViolations && user && submissionId) {
-            updateViolationInDatabase(violationMessage, 'object_violations');
+      if (objectViolations) {
+        Object.entries(objectViolations).forEach(([type, count]) => {
+          const violationType = type as ObjectViolationType;
+          if (count > newViolationCount[violationType]) {
+            newViolationsDetected = true;
+            const timestamp = new Date().toLocaleTimeString();
+            const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
+            setViolationLog(prev => [...prev, violationMessage]);
+            
+            if (trackViolations && user && submissionId) {
+              updateViolationInDatabase(violationMessage, 'object_violations');
+            }
           }
-        }
-        newViolationCount[violationType] = count;
-      });
+          newViolationCount[violationType] = count;
+        });
+      }
       
       if (newViolationsDetected) {
         setViolationCount(newViolationCount);
@@ -184,19 +185,19 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       const totalFaceViolations = Object.entries(newViolationCount)
         .filter(([type]) => ['noFaceDetected', 'multipleFacesDetected', 'faceNotCentered', 'faceCovered', 'rapidMovement']
           .includes(type))
-        .reduce((sum, [_, count]) => sum + count, 0);
+        .reduce((sum, [_, count]) => sum + (count as number), 0);
         
       const totalObjectViolations = Object.entries(newViolationCount)
         .filter(([type]) => ['phoneDetected', 'multiplePersonsDetected', 'unknownObjectDetected']
           .includes(type))
-        .reduce((sum, [_, count]) => sum + count, 0);
+        .reduce((sum, [_, count]) => sum + (count as number), 0);
       
       if ((totalFaceViolations >= 5 || totalObjectViolations >= 3) && trackViolations && user && submissionId) {
         const violationSummary = formatViolationSummary(newViolationCount);
         updateViolationInDatabase(violationSummary, 'face_violations', true);
       }
     }
-  }, [violations, objectViolations, trackViolations, user, submissionId]);
+  }, [violations, objectViolations, trackViolations, user, submissionId, violationCount]);
 
   const getViolationMessage = (violationType: ViolationType | ObjectViolationType): string => {
     switch (violationType) {
@@ -229,7 +230,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   
   const formatViolationSummary = (violations: Record<ViolationType | ObjectViolationType, number>): string => {
     const violationEntries = Object.entries(violations)
-      .filter(([_, count]) => count > 0)
+      .filter(([_, count]) => (count as number) > 0)
       .map(([type, count]) => `${getViolationMessage(type as ViolationType | ObjectViolationType)}: ${count} times`);
       
     return `VIOLATION SUMMARY: ${violationEntries.join(', ')}`;
@@ -258,7 +259,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         // Handle both string and JSON array formats
         if (Array.isArray(submission[violationType])) {
           // Fix the type error here: Convert any non-string items to strings
-          currentViolations = (submission[violationType] as Json[]).map(item => String(item));
+          currentViolations = (submission[violationType] as any[]).map(item => String(item));
         } else {
           try {
             // If it's stored as a JSON string, parse it
@@ -281,7 +282,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       currentViolations.push(violationText);
       
       // Update submission with new violations
-      const updateData: any = {
+      const updateData: Record<string, any> = {
         [violationType]: currentViolations
       };
       

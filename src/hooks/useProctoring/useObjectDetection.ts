@@ -28,7 +28,7 @@ export const useObjectDetection = ({
   });
   
   const [isPhoneDetected, setIsPhoneDetected] = useState(false);
-  const detectionIntervalRef = useRef<NodeJS.Timer | null>(null);
+  const detectionIntervalRef = useRef<number | null>(null);
   
   // Track when violations were last recorded (for cooldown)
   const lastViolationTimeRef = useRef<Record<ObjectViolationType, number>>({
@@ -106,12 +106,12 @@ export const useObjectDetection = ({
     if (isCameraReady && isModelLoaded && isRunningRef.current && trackViolations) {
       // Run detection at regular intervals (less frequently than face detection)
       if (!detectionIntervalRef.current) {
-        detectionIntervalRef.current = setInterval(detectObjects, 2000);
+        detectionIntervalRef.current = window.setInterval(detectObjects, 2000);
       }
       
       return () => {
         if (detectionIntervalRef.current) {
-          clearInterval(detectionIntervalRef.current);
+          window.clearInterval(detectionIntervalRef.current);
           detectionIntervalRef.current = null;
         }
       };

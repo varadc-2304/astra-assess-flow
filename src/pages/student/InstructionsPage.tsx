@@ -9,7 +9,7 @@ import { useAssessment } from '@/contexts/AssessmentContext';
 import { supabase } from '@/integrations/supabase/client';
 
 const InstructionsPage = () => {
-  const { assessment, setCurrentAssessment } = useAssessment();
+  const { assessment } = useAssessment();
   const [isAgree, setIsAgree] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -78,7 +78,7 @@ const InstructionsPage = () => {
               <div className="flex flex-wrap gap-3">
                 <div className="inline-flex items-center rounded-md border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-sm font-medium dark:border-gray-800 dark:bg-gray-900">
                   <Clock className="h-3.5 w-3.5 mr-1 text-gray-500 dark:text-gray-400" />
-                  {assessment.duration_minutes} minutes
+                  {assessment.durationMinutes} minutes
                 </div>
                 <div className="inline-flex items-center rounded-md border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-sm font-medium dark:border-gray-800 dark:bg-gray-900">
                   <FileText className="h-3.5 w-3.5 mr-1 text-gray-500 dark:text-gray-400" />
