@@ -142,62 +142,73 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       const newViolationCount = { ...violationCount };
       let newViolationsDetected = false;
       const currentTime = Date.now();
+      const timeThreshold = 60000; // 60 seconds threshold for violation updates
       
-      // Process face violations
-      Object.entries(violations).forEach(([type, count]) => {
-        const violationType = type as ViolationType;
-        if (count > newViolationCount[violationType]) {
-          newViolationsDetected = true;
-          const timestamp = new Date().toLocaleTimeString();
-          const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
-          setViolationLog(prev => [...prev, violationMessage]);
-          
-          if (trackViolations && user && submissionId) {
-            updateViolationInDatabase(violationMessage, 'face_violations');
-          }
-        }
-        newViolationCount[violationType] = count;
-      });
-      
-      // Process object violations
-      if (objectViolations) {
-        Object.entries(objectViolations).forEach(([type, count]) => {
-          const violationType = type as ObjectViolationType;
-          if (count > newViolationCount[violationType]) {
-            newViolationsDetected = true;
-            const timestamp = new Date().toLocaleTimeString();
-            const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
-            setViolationLog(prev => [...prev, violationMessage]);
-            
-            if (trackViolations && user && submissionId) {
-              updateViolationInDatabase(violationMessage, 'object_violations');
+      // Only process violations if enough time has passed since last update
+      if (currentTime - lastUpdateTime > timeThreshold) {
+        // Process face violations
+        if (violations) {
+          Object.entries(violations).forEach(([type, count]) => {
+            const violationType = type as ViolationType;
+            if (typeof count === 'number' && count > newViolationCount[violationType]) {
+              newViolationsDetected = true;
+              const timestamp = new Date().toLocaleTimeString();
+              const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
+              setViolationLog(prev => [...prev, violationMessage]);
+              
+              if (trackViolations && user && submissionId) {
+                updateViolationInDatabase(violationMessage, 'face_violations');
+              }
             }
-          }
-          newViolationCount[violationType] = count;
-        });
-      }
-      
-      if (newViolationsDetected) {
-        setViolationCount(newViolationCount);
+            if (typeof count === 'number') {
+              newViolationCount[violationType] = count;
+            }
+          });
+        }
+        
+        // Process object violations
+        if (objectViolations) {
+          Object.entries(objectViolations).forEach(([type, count]) => {
+            const violationType = type as ObjectViolationType;
+            if (typeof count === 'number' && count > newViolationCount[violationType]) {
+              newViolationsDetected = true;
+              const timestamp = new Date().toLocaleTimeString();
+              const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
+              setViolationLog(prev => [...prev, violationMessage]);
+              
+              if (trackViolations && user && submissionId) {
+                updateViolationInDatabase(violationMessage, 'object_violations');
+              }
+            }
+            if (typeof count === 'number') {
+              newViolationCount[violationType] = count;
+            }
+          });
+        }
+        
+        if (newViolationsDetected) {
+          setViolationCount(newViolationCount);
+          setLastUpdateTime(currentTime);
+        }
       }
       
       // Check for total violations exceeding threshold (5 for face violations, 3 for object violations)
       const totalFaceViolations = Object.entries(newViolationCount)
         .filter(([type]) => ['noFaceDetected', 'multipleFacesDetected', 'faceNotCentered', 'faceCovered', 'rapidMovement']
           .includes(type))
-        .reduce((sum, [_, count]) => sum + (count as number), 0);
+        .reduce((sum, [_, count]) => sum + (typeof count === 'number' ? count : 0), 0);
         
       const totalObjectViolations = Object.entries(newViolationCount)
         .filter(([type]) => ['phoneDetected', 'multiplePersonsDetected', 'unknownObjectDetected']
           .includes(type))
-        .reduce((sum, [_, count]) => sum + (count as number), 0);
+        .reduce((sum, [_, count]) => sum + (typeof count === 'number' ? count : 0), 0);
       
       if ((totalFaceViolations >= 5 || totalObjectViolations >= 3) && trackViolations && user && submissionId) {
         const violationSummary = formatViolationSummary(newViolationCount);
         updateViolationInDatabase(violationSummary, 'face_violations', true);
       }
     }
-  }, [violations, objectViolations, trackViolations, user, submissionId, violationCount]);
+  }, [violations, objectViolations, trackViolations, user, submissionId, violationCount, lastUpdateTime]);
 
   const getViolationMessage = (violationType: ViolationType | ObjectViolationType): string => {
     switch (violationType) {
@@ -479,7 +490,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
               </>
             )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

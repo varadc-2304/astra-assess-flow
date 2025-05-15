@@ -45,9 +45,11 @@ const CameraVerificationPage = () => {
   // If AI proctoring is disabled, auto-verify and proceed
   useEffect(() => {
     if (assessment && !isAssessmentLoading && !isAiProctored) {
-      setIsVerified(true); // Auto-verify if no AI proctoring
+      // If proctoring is disabled, redirect directly to assessment
+      startAssessment();
+      navigate('/student/assessment');
     }
-  }, [assessment, isAssessmentLoading, isAiProctored]);
+  }, [assessment, isAssessmentLoading, isAiProctored, navigate, startAssessment]);
 
   const handleVerificationComplete = (success: boolean) => {
     if (success) {

@@ -9,7 +9,7 @@ import { useAssessment } from '@/contexts/AssessmentContext';
 import { supabase } from '@/integrations/supabase/client';
 
 const InstructionsPage = () => {
-  const { assessment } = useAssessment();
+  const { assessment, startAssessment } = useAssessment();
   const [isAgree, setIsAgree] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -49,6 +49,7 @@ const InstructionsPage = () => {
       navigate('/student/camera-verification');
     } else {
       // Otherwise go directly to the assessment
+      startAssessment();
       navigate('/student/assessment');
     }
   };

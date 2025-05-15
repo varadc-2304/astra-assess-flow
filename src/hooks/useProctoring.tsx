@@ -1,655 +1,177 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import * as faceapi from 'face-api.js';
-import { useToast } from '@/hooks/use-toast';
 
-// Define constants
-const DETECTION_INTERVAL = 1000; // 1 second interval between detections
-const MODEL_URL = '/models';
-
-// Types
-export type ProctoringStatus = 
-  'initializing' | 
-  'noFaceDetected' | 
-  'faceDetected' | 
-  'multipleFacesDetected' | 
-  'faceCovered' |
-  'faceNotCentered' |
-  'rapidMovement' |
-  'error';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useCameraSetup } from './useProctoring/useCameraSetup';
+import { useFaceDetection } from './useProctoring/useFaceDetection';
+import { useObjectDetection } from './useProctoring/useObjectDetection';
 
 export type ViolationType = 
-  | 'noFaceDetected' 
-  | 'multipleFacesDetected' 
-  | 'faceNotCentered' 
-  | 'faceCovered' 
-  | 'rapidMovement' 
+  | 'noFaceDetected'
+  | 'multipleFacesDetected'
+  | 'faceNotCentered'
+  | 'faceCovered'
+  | 'rapidMovement'
   | 'frequentDisappearance'
   | 'identityMismatch';
 
-export type ObjectViolationType = 
-  | 'phoneDetected' 
-  | 'multiplePersonsDetected' 
+export type ObjectViolationType =
+  | 'phoneDetected'
+  | 'multiplePersonsDetected'
   | 'unknownObjectDetected';
 
-export interface ProctoringOptions {
+export type ProctoringStatus =
+  | 'initializing'
+  | 'noFaceDetected'
+  | 'faceDetected'
+  | 'multipleFacesDetected'
+  | 'faceCovered'
+  | 'faceNotCentered'
+  | 'rapidMovement'
+  | 'error';
+
+export type ProctoringOptions = {
   showDebugInfo?: boolean;
   drawLandmarks?: boolean;
   drawExpressions?: boolean;
   detectExpressions?: boolean;
   trackViolations?: boolean;
-  autoStart?: boolean;
   detectionOptions?: {
     faceDetectionThreshold?: number;
     faceCenteredTolerance?: number;
     rapidMovementThreshold?: number;
   };
-}
+  autoStart?: boolean; // Added this option
+};
 
-export interface DetectionResult {
-  status: ProctoringStatus;
-  facesCount: number;
-  expressions?: Record<string, number>;
-  message?: string;
-}
+export const useProctoring = ({
+  showDebugInfo = false,
+  drawLandmarks = false,
+  drawExpressions = false,
+  detectExpressions = false,
+  trackViolations = false,
+  detectionOptions = {},
+  autoStart = true, // Default to true for backward compatibility
+}: ProctoringOptions = {}) => {
+  // Setup camera
+  const {
+    videoRef,
+    canvasRef,
+    isCameraReady,
+    error: cameraError,
+    switchCamera,
+    startCamera,
+    stopCamera,
+  } = useCameraSetup();
 
-export function useProctoring(options: ProctoringOptions = {}) {
-  const [isModelLoaded, setIsModelLoaded] = useState(false);
-  const [isCameraReady, setIsCameraReady] = useState(false);
-  const [status, setStatus] = useState<ProctoringStatus>('initializing');
-  const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
-  const [isCameraPermissionGranted, setIsCameraPermissionGranted] = useState<boolean | null>(null);
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  // Face detection
+  const {
+    isModelLoaded: isFaceModelLoaded,
+    isInitializing: isFaceInitializing,
+    status,
+    violations,
+    startFaceDetection,
+    stopFaceDetection,
+    error: faceDetectionError,
+  } = useFaceDetection({
+    videoRef,
+    canvasRef,
+    showDebugInfo,
+    drawLandmarks,
+    drawExpressions,
+    detectExpressions,
+    trackViolations,
+    ...detectionOptions
+  });
+
+  // Object detection
+  const {
+    isModelLoaded: isObjectModelLoaded,
+    isInitializing: isObjectInitializing,
+    objectViolations,
+    isPhoneDetected,
+    startObjectDetection,
+    stopObjectDetection,
+    error: objectDetectionError,
+  } = useObjectDetection({
+    videoRef,
+    canvasRef,
+    trackViolations,
+  });
+
+  // Combined state
   const [isInitializing, setIsInitializing] = useState(true);
-  const [violations, setViolations] = useState<Record<ViolationType, number>>({
-    noFaceDetected: 0,
-    multipleFacesDetected: 0,
-    faceNotCentered: 0,
-    faceCovered: 0,
-    rapidMovement: 0,
-    frequentDisappearance: 0,
-    identityMismatch: 0
-  });
-  const [objectViolations, setObjectViolations] = useState<Record<ObjectViolationType, number>>({
-    phoneDetected: 0,
-    multiplePersonsDetected: 0,
-    unknownObjectDetected: 0
-  });
-  const [isPhoneDetected, setIsPhoneDetected] = useState(false);
+  const hasInitialized = useRef(false);
 
-  const isRunningRef = useRef<boolean>(options.autoStart || false);
-
-  // Set default detection options
-  const detectionOptions = {
-    faceDetectionThreshold: options.detectionOptions?.faceDetectionThreshold || 0.8,
-    faceCenteredTolerance: options.detectionOptions?.faceCenteredTolerance || 0.2,
-    rapidMovementThreshold: options.detectionOptions?.rapidMovementThreshold || 0.2
-  };
-
-  // Configure face detector with options
-  const FACE_DETECTION_OPTIONS = new faceapi.TinyFaceDetectorOptions({ 
-    inputSize: 224, 
-    scoreThreshold: 0.5 
-  });
-
-  // Face tracking state
-  const faceHistoryRef = useRef<{positions: Array<{x: number, y: number, width: number, height: number}>, timestamps: number[]}>(
-    {positions: [], timestamps: []}
-  );
-  const noFaceCounterRef = useRef(0);
-  const lastFaceDetectionTimeRef = useRef(Date.now());
-  
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const detectionIntervalRef = useRef<number | null>(null);
-  const { toast } = useToast();
-
-  // Load models with performance optimizations
-  const loadModels = useCallback(async () => {
-    try {
-      // Check if models are already loaded to avoid reloading
-      if (faceapi.nets.tinyFaceDetector.isLoaded && 
-          faceapi.nets.faceLandmark68Net.isLoaded && 
-          faceapi.nets.faceExpressionNet.isLoaded) {
-        console.log('Face-API models already loaded');
-        setIsModelLoaded(true);
-        return true;
-      }
-
-      // Load models in parallel for better performance
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
-      ]);
-      
-      console.log('Face-API models loaded successfully');
-      setIsModelLoaded(true);
-      return true;
-    } catch (error) {
-      console.error('Error loading face-api.js models:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load face detection models. Please refresh and try again.',
-        variant: 'destructive',
-      });
-      setStatus('error');
-      return false;
-    }
-  }, [toast]);
-
-  // Initialize camera with improved error handling
-  const initialize = useCallback(async () => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      toast({
-        title: 'Camera Error',
-        description: 'Your browser does not support camera access.',
-        variant: 'destructive',
-      });
-      setStatus('error');
-      setIsCameraPermissionGranted(false);
-      return false;
-    }
-
-    try {
-      // Stop any existing stream
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-
-      // Request camera access with optimized settings for performance
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode,
-          width: { ideal: 640 }, // Lower resolution for better performance
-          height: { ideal: 480 },
-          frameRate: { ideal: 15 } // Lower framerate to reduce CPU usage
-        }
-      });
-
-      // Set the stream to the video element
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        // Add event listener for when video is ready to play
-        videoRef.current.onloadedmetadata = () => {
-          if (videoRef.current) videoRef.current.play();
-        };
-      }
-
-      streamRef.current = stream;
-      setIsCameraPermissionGranted(true);
-      setIsCameraReady(true);
-      isRunningRef.current = true;
-      
-      return true;
-    } catch (error) {
-      console.error('Error accessing camera:', error);
-      toast({
-        title: 'Camera Permission Denied',
-        description: 'Please allow camera access for proctoring.',
-        variant: 'destructive',
-      });
-      setStatus('error');
-      setIsCameraPermissionGranted(false);
-      return false;
-    }
-  }, [facingMode, toast]);
-
-  // Switch camera (for mobile devices with multiple cameras)
-  const switchCamera = useCallback(() => {
-    setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
-  }, []);
-
-  // Check for rapid head movements with improved threshold
-  const checkForRapidMovements = useCallback((currentBox: faceapi.Box) => {
-    const { positions, timestamps } = faceHistoryRef.current;
-    
-    // Add current position
-    positions.push({
-      x: currentBox.x,
-      y: currentBox.y,
-      width: currentBox.width,
-      height: currentBox.height
-    });
-    timestamps.push(Date.now());
-    
-    // Keep only the last 5 positions
-    if (positions.length > 5) {
-      positions.shift();
-      timestamps.shift();
-    }
-    
-    // Need at least 3 positions for movement detection
-    if (positions.length >= 3) {
-      const recentPositions = positions.slice(-3);
-      
-      // Calculate movement distance
-      let totalMovement = 0;
-      for (let i = 1; i < recentPositions.length; i++) {
-        const prev = recentPositions[i-1];
-        const curr = recentPositions[i];
-        
-        // Calculate center points
-        const prevCenterX = prev.x + prev.width/2;
-        const prevCenterY = prev.y + prev.height/2;
-        const currCenterX = curr.x + curr.width/2;
-        const currCenterY = curr.y + curr.height/2;
-        
-        // Calculate distance between centers
-        const distance = Math.sqrt(
-          Math.pow(currCenterX - prevCenterX, 2) + 
-          Math.pow(currCenterY - prevCenterY, 2)
-        );
-        
-        // Normalize by face width to account for distance from camera
-        totalMovement += distance / curr.width;
-      }
-      
-      // Check recent timestamps to ensure this is a rapid movement
-      const timeSpan = timestamps[timestamps.length - 1] - timestamps[0];
-      const averageMovement = totalMovement / (recentPositions.length - 1);
-      
-      // Use configurable threshold for rapid movement detection
-      if (averageMovement > detectionOptions.rapidMovementThreshold && timeSpan < 1500) {
-        return true;
-      }
-    }
-    
-    return false;
-  }, [detectionOptions.rapidMovementThreshold]);
-
-  // Check if face is centered with configurable tolerance
-  const isFaceCentered = useCallback((detection: faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>, videoWidth: number, videoHeight: number) => {
-    const box = detection.detection.box;
-    const centerX = box.x + box.width / 2;
-    const centerY = box.y + box.height / 2;
-    
-    const videoCenter = { x: videoWidth / 2, y: videoHeight / 2 };
-    
-    // Calculate how far (as a percentage of frame dimensions) the face is from center
-    const offsetX = Math.abs(centerX - videoCenter.x) / videoWidth;
-    const offsetY = Math.abs(centerY - videoCenter.y) / videoHeight;
-    
-    // Face should be within configurable % of center in both directions
-    return offsetX < detectionOptions.faceCenteredTolerance && offsetY < detectionOptions.faceCenteredTolerance;
-  }, [detectionOptions.faceCenteredTolerance]);
-
-  // Check if face is partially covered/occluded with improved detection
-  const isFaceCovered = useCallback((detection: faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>) => {
-    // Use low landmark detection confidence as a proxy for occlusion
-    const landmarks = detection.landmarks;
-    if (!landmarks) return false;
-    
-    // Check if landmarks have unusually low confidence score
-    // or if certain key landmarks are missing/have low confidence
-    const landmarksPositions = landmarks.positions;
-    
-    // A heuristic approach: if key facial landmarks deviate too much from expected positions
-    const nose = landmarks.getNose();
-    const leftEye = landmarks.getLeftEye();
-    const rightEye = landmarks.getRightEye();
-    const mouth = landmarks.getMouth();
-    
-    // Check if important facial features are detected
-    if (nose.length < 3 || leftEye.length < 3 || rightEye.length < 3 || mouth.length < 5) {
-      return true;
-    }
-    
-    // Use detection score as an indicator of face quality with configurable threshold
-    const detectionScore = detection.detection.score;
-    
-    // Use configurable threshold
-    return detectionScore < detectionOptions.faceDetectionThreshold;
-  }, [detectionOptions.faceDetectionThreshold]);
-
-  // Simulate object detection for phone detection
-  const detectObjects = useCallback(() => {
-    if (!videoRef.current || !isRunningRef.current || !options.trackViolations) {
-      return;
-    }
-    
-    // For demo: randomly detect phone
-    const randomDetect = Math.random() < 0.05;
-    if (randomDetect) {
-      setIsPhoneDetected(true);
-      setObjectViolations(prev => ({
-        ...prev,
-        phoneDetected: prev.phoneDetected + 1
-      }));
-      
-      // Reset after 3 seconds
-      setTimeout(() => {
-        setIsPhoneDetected(false);
-      }, 3000);
-    }
-  }, [options.trackViolations]);
-
-  // Detect faces from video with optimizations
-  const detectFaces = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || !isModelLoaded || !isCameraReady) {
-      return;
-    }
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    
-    // Ensure video is playing and has dimensions
-    if (video.paused || video.ended || !video.videoWidth) {
-      return;
-    }
-
-    // Match canvas size to video
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    try {
-      // Performance optimization - use a smaller size for detection
-      const detectionsPromise = faceapi
-        .detectAllFaces(video, FACE_DETECTION_OPTIONS)
-        .withFaceLandmarks();
-      
-      // Only add expressions if needed
-      const detections = options.detectExpressions 
-        ? await detectionsPromise.withFaceExpressions()
-        : await detectionsPromise;
-
-      // Clear previous drawings
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
-
-      // Track violations if enabled
-      if (options.trackViolations) {
-        const now = Date.now();
-        
-        if (detections.length === 0) {
-          // No face detected
-          noFaceCounterRef.current += 1;
-          
-          // Increase violation count if no face for 5 consecutive checks (5 seconds)
-          if (noFaceCounterRef.current >= 5) {
-            setViolations(prev => ({
-              ...prev,
-              noFaceDetected: prev.noFaceDetected + 1
-            }));
-            noFaceCounterRef.current = 0; // Reset counter after recording violation
-          }
-          
-          // Track frequent disappearance
-          if (lastFaceDetectionTimeRef.current > 0 && 
-              now - lastFaceDetectionTimeRef.current < 10000) {  // Within 10 seconds
-            setViolations(prev => ({
-              ...prev,
-              frequentDisappearance: prev.frequentDisappearance + 1
-            }));
-          }
-        } else {
-          // Reset no-face counter
-          noFaceCounterRef.current = 0;
-          lastFaceDetectionTimeRef.current = now;
-          
-          // Multiple faces detection
-          if (detections.length > 1) {
-            setViolations(prev => ({
-              ...prev,
-              multipleFacesDetected: prev.multipleFacesDetected + 1
-            }));
-            
-            // Update object violations for multiple persons
-            setObjectViolations(prev => ({
-              ...prev,
-              multiplePersonsDetected: prev.multiplePersonsDetected + 1
-            }));
-          }
-          
-          // Single face detection - check for other violations
-          if (detections.length === 1) {
-            const detection = detections[0];
-            
-            // Check if face is centered
-            if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
-              setViolations(prev => ({
-                ...prev,
-                faceNotCentered: prev.faceNotCentered + 1
-              }));
-            }
-            
-            // Check if face is covered
-            if (isFaceCovered(detection)) {
-              setViolations(prev => ({
-                ...prev,
-                faceCovered: prev.faceCovered + 1
-              }));
-            }
-            
-            // Check for rapid movements
-            if (checkForRapidMovements(detection.detection.box)) {
-              setViolations(prev => ({
-                ...prev,
-                rapidMovement: prev.rapidMovement + 1
-              }));
-            }
-          }
-        }
-      }
-
-      // Update status based on detection
-      if (detections.length === 0) {
-        setStatus('noFaceDetected');
-        setDetectionResult({
-          status: 'noFaceDetected',
-          facesCount: 0,
-          message: 'No face detected. Please position yourself in front of the camera.'
-        });
-      } else if (detections.length === 1) {
-        const detection = detections[0];
-        
-        // Convert FaceExpressions to Record<string, number>
-        const expressions: Record<string, number> = {};
-        if (options.detectExpressions && 'expressions' in detection) {
-          Object.entries(detection.expressions || {}).forEach(([key, value]) => {
-            expressions[key] = value;
-          });
-        }
-        
-        // Check for specific violations to update status
-        if (options.trackViolations) {
-          if (isFaceCovered(detection)) {
-            setStatus('faceCovered');
-            setDetectionResult({
-              status: 'faceCovered',
-              facesCount: 1,
-              expressions,
-              message: 'Face appears to be covered. Please remove any obstructions.'
-            });
-          } else if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
-            setStatus('faceNotCentered');
-            setDetectionResult({
-              status: 'faceNotCentered',
-              facesCount: 1,
-              expressions,
-              message: 'Face not centered. Please position yourself in the middle of the frame.'
-            });
-          } else if (checkForRapidMovements(detection.detection.box)) {
-            setStatus('rapidMovement');
-            setDetectionResult({
-              status: 'rapidMovement',
-              facesCount: 1,
-              expressions,
-              message: 'Rapid movement detected. Please keep your head still.'
-            });
-          } else {
-            setStatus('faceDetected');
-            setDetectionResult({
-              status: 'faceDetected',
-              facesCount: 1,
-              expressions,
-              message: 'Face detected successfully.'
-            });
-          }
-        } else {
-          setStatus('faceDetected');
-          setDetectionResult({
-            status: 'faceDetected',
-            facesCount: 1,
-            expressions,
-            message: 'Face detected successfully.'
-          });
-        }
-      } else {
-        setStatus('multipleFacesDetected');
-        setDetectionResult({
-          status: 'multipleFacesDetected',
-          facesCount: detections.length,
-          message: 'Multiple faces detected. Please ensure only you are visible.'
-        });
-      }
-      
-      // Draw the detections
-      if (ctx && detections.length > 0 && options.drawLandmarks) {
-        // Draw each detected face
-        detections.forEach((detection) => {
-          faceapi.draw.drawDetections(canvas, [detection.detection]);
-          if (options.drawLandmarks) {
-            faceapi.draw.drawFaceLandmarks(canvas, detection);
-          }
-        });
-      }
-      
-    } catch (error) {
-      console.error('Error in face detection:', error);
-      setStatus('error');
-    }
-
-  }, [
-    isModelLoaded, 
-    isCameraReady, 
-    options.trackViolations, 
-    options.detectExpressions,
-    options.drawLandmarks,
-    isFaceCentered,
-    isFaceCovered,
-    checkForRapidMovements
-  ]);
-
-  // Start detection loop
-  const startDetection = useCallback(() => {
-    if (detectionIntervalRef.current) {
-      window.clearInterval(detectionIntervalRef.current);
-    }
-
-    detectionIntervalRef.current = window.setInterval(detectFaces, DETECTION_INTERVAL);
-    
-    // Start object detection at a different interval
-    if (options.trackViolations) {
-      window.setInterval(detectObjects, 2000);
-    }
-    
-    // Initial detection immediately
-    detectFaces();
-    
-    return () => {
-      if (detectionIntervalRef.current) {
-        window.clearInterval(detectionIntervalRef.current);
-      }
-    };
-  }, [detectFaces, detectObjects, options.trackViolations]);
-
-  // Stop detection and release camera
-  const stopDetection = useCallback(() => {
-    if (detectionIntervalRef.current) {
-      window.clearInterval(detectionIntervalRef.current);
-      detectionIntervalRef.current = null;
-    }
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-
-    setIsCameraReady(false);
-    isRunningRef.current = false;
-    
-    // Clear canvas
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
-    }
-    
-    // Reset violation tracking
-    setViolations({
-      noFaceDetected: 0,
-      multipleFacesDetected: 0,
-      faceNotCentered: 0,
-      faceCovered: 0,
-      rapidMovement: 0,
-      frequentDisappearance: 0,
-      identityMismatch: 0
-    });
-    
-    // Reset face tracking state
-    faceHistoryRef.current = { positions: [], timestamps: [] };
-    noFaceCounterRef.current = 0;
-    lastFaceDetectionTimeRef.current = 0;
-  }, []);
-
-  // Initialize system
+  // Initialize detection if autoStart is true
   useEffect(() => {
-    async function initializeProctoring() {
-      setIsInitializing(true);
-      const modelsLoaded = await loadModels();
-      // Only auto-start camera if enabled
-      if (modelsLoaded && options.autoStart) {
-        await initialize();
-      }
+    if (autoStart && !hasInitialized.current) {
+      initialize();
+      hasInitialized.current = true;
+    } else {
       setIsInitializing(false);
     }
-    
-    initializeProctoring();
-    
-    return () => {
-      stopDetection();
-    };
-  }, [loadModels, initialize, stopDetection, options.autoStart]);
+  }, [autoStart]);
 
-  // Set up detection when camera is ready and models are loaded
-  useEffect(() => {
-    if (isModelLoaded && isCameraReady && !isInitializing) {
-      const cleanup = startDetection();
-      return cleanup;
+  // Initialize function
+  const initialize = useCallback(async () => {
+    setIsInitializing(true);
+    try {
+      await startCamera();
+      await startFaceDetection();
+      await startObjectDetection();
+    } catch (err) {
+      console.error("Failed to initialize proctoring:", err);
+    } finally {
+      setIsInitializing(false);
     }
-  }, [isModelLoaded, isCameraReady, isInitializing, startDetection]);
+  }, [startCamera, startFaceDetection, startObjectDetection]);
 
-  // Handle facingMode changes
-  useEffect(() => {
-    if (isCameraPermissionGranted) {
-      initialize();
+  // Reinitialize function
+  const reinitialize = useCallback(async () => {
+    setIsInitializing(true);
+    try {
+      stopFaceDetection();
+      stopObjectDetection();
+      stopCamera();
+      
+      await startCamera();
+      await startFaceDetection();
+      await startObjectDetection();
+    } catch (err) {
+      console.error("Failed to reinitialize proctoring:", err);
+    } finally {
+      setIsInitializing(false);
     }
-  }, [facingMode, isCameraPermissionGranted, initialize]);
+  }, [
+    startCamera, 
+    startFaceDetection, 
+    startObjectDetection, 
+    stopCamera, 
+    stopFaceDetection, 
+    stopObjectDetection
+  ]);
 
-  // Return values and functions
+  // Stop detection
+  const stopDetection = useCallback(() => {
+    stopFaceDetection();
+    stopObjectDetection();
+    stopCamera();
+  }, [stopFaceDetection, stopObjectDetection, stopCamera]);
+
+  // Return combined state and functions
   return {
     videoRef,
     canvasRef,
     status,
-    detectionResult,
     violations,
     objectViolations,
     isPhoneDetected,
-    isModelLoaded,
     isCameraReady,
-    isCameraPermissionGranted,
-    isInitializing,
-    isRunningRef,
+    isModelLoaded: isFaceModelLoaded && isObjectModelLoaded,
+    isInitializing: isInitializing || isFaceInitializing || isObjectInitializing,
+    error: cameraError || faceDetectionError || objectDetectionError,
     switchCamera,
-    stopDetection,
-    reinitialize: initialize,
     initialize,
-    error: error || null,
-    debugInfo: ''
+    reinitialize,
+    stopDetection,
   };
-}
+};
