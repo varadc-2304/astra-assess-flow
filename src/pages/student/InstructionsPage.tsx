@@ -10,7 +10,7 @@ import { ClipboardList, Clock, Code, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const InstructionsPage = () => {
-  const { assessment, assessmentCode, loading } = useAssessment();
+  const { assessment, assessmentCode, loading, startAssessment } = useAssessment();
   const navigate = useNavigate();
   const [countdownEnded, setCountdownEnded] = useState(false);
   const { toast } = useToast();
@@ -39,8 +39,16 @@ const InstructionsPage = () => {
     return null; // Don't render anything while redirecting
   }
   
-  const handleStartVerification = () => {
-    navigate('/camera-verification');
+  const handleStartAssessment = () => {
+    // Check if proctoring is required based on the is_ai_proctored flag
+    if (assessment.isAiProctored) {
+      // If AI proctoring is enabled, navigate to camera verification
+      navigate('/camera-verification');
+    } else {
+      // If AI proctoring is disabled, start assessment directly
+      startAssessment();
+      navigate('/assessment');
+    }
   };
 
   const handleCountdownEnd = () => {
@@ -98,7 +106,9 @@ const InstructionsPage = () => {
                 <Camera className="h-5 w-5 text-astra-red" />
                 <div>
                   <p className="text-sm text-gray-500">Proctoring</p>
-                  <p className="font-semibold">Camera Required</p>
+                  <p className="font-semibold">
+                    {assessment?.isAiProctored ? "Camera Required" : "Self Proctored"}
+                  </p>
                 </div>
               </div>
             </div>
@@ -117,7 +127,9 @@ const InstructionsPage = () => {
             <p>• You can navigate between questions using the navigation panel.</p>
             <p>• Your answers are auto-saved as you progress.</p>
             <p>• The assessment will automatically submit when the time expires.</p>
-            <p>• Camera proctoring will be active throughout the entire assessment.</p>
+            {assessment?.isAiProctored && (
+              <p>• Camera proctoring will be active throughout the entire assessment.</p>
+            )}
           </CardContent>
         </Card>
         
@@ -136,14 +148,14 @@ const InstructionsPage = () => {
           </CardContent>
           <CardFooter className="flex justify-center pb-6">
             <Button 
-              onClick={handleStartVerification}
+              onClick={handleStartAssessment}
               disabled={!countdownEnded}
               size="lg"
               className={`bg-astra-red hover:bg-red-600 text-white transition-all ${
                 countdownEnded ? 'animate-pulse' : 'opacity-50'
               }`}
             >
-              {countdownEnded ? 'Proceed to Camera Setup' : 'Please Wait...'}
+              {countdownEnded ? (assessment?.isAiProctored ? 'Proceed to Camera Setup' : 'Start Assessment') : 'Please Wait...'}
             </Button>
           </CardFooter>
         </Card>

@@ -106,6 +106,14 @@ const CameraVerificationPage = () => {
   });
   
   useEffect(() => {
+    // Check if assessment requires AI proctoring, if not, redirect to assessment page
+    if (!loading && assessment && !assessment.isAiProctored) {
+      console.log("Assessment doesn't require AI proctoring, redirecting to assessment page");
+      startAssessment();
+      navigate('/assessment');
+      return;
+    }
+    
     if (!loading && !assessment && assessmentCode) {
       console.log("No assessment data available, redirecting to dashboard");
       toast({
@@ -155,7 +163,7 @@ const CameraVerificationPage = () => {
     };
     
     checkSystemRequirements();
-  }, [assessment, assessmentCode, loading, navigate, toast, user, createSubmissionMutation, submissionId, isCreatingSubmission]);
+  }, [assessment, assessmentCode, loading, navigate, toast, user, createSubmissionMutation, submissionId, isCreatingSubmission, startAssessment]);
   
   if (loading) {
     return (
@@ -211,18 +219,18 @@ const CameraVerificationPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-12 animate-fade-in">
       <div className="max-w-4xl mx-auto px-4">
         <header className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 mb-2">
-            <img src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" alt="Yudha Logo" className="w-full h-full" />
+          <div className="mx-auto w-16 h-16 mb-2 animate-scale-in">
+            <img src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" alt="Yudha Logo" className="w-full h-full drop-shadow-md" />
           </div>
-          <p className="text-gray-600 dark:text-gray-400">{assessment?.name}</p>
+          <p className="text-gray-600 dark:text-gray-400 animate-fade-in">{assessment?.name}</p>
         </header>
         
         <div className="grid md:grid-cols-12 gap-6">
           <div className="md:col-span-8">
-            <Card className="mb-6 shadow-lg border-0 overflow-hidden">
+            <Card className="mb-6 shadow-lg border-0 overflow-hidden transform transition-all hover:shadow-xl">
               <CardHeader className="bg-gradient-to-r from-astra-red to-red-700 text-white">
                 <CardTitle className="text-xl flex items-center">
                   <Camera className="mr-2 h-5 w-5" />
@@ -235,33 +243,41 @@ const CameraVerificationPage = () => {
               </CardHeader>
               <CardContent className="p-6">
                 {!isCameraActivated ? (
-                  <div className="text-center py-8">
-                    <Camera className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-                    <h3 className="text-lg font-semibold mb-2">Camera Access Required</h3>
-                    <p className="text-gray-500 mb-6">Click the button below to activate your camera for verification</p>
+                  <div className="text-center py-12 animate-fade-in">
+                    <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-red-50 flex items-center justify-center transform hover:scale-105 transition-transform">
+                      <Camera className="h-10 w-10 text-astra-red" />
+                    </div>
+                    <h3 className="text-xl font-semibold mb-2">Camera Access Required</h3>
+                    <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                      For secure assessment proctoring, we need access to your camera. 
+                      Click the button below to enable your camera.
+                    </p>
                     <Button 
                       onClick={handleActivateCamera}
-                      className="bg-astra-red hover:bg-red-600 text-white"
+                      className="bg-astra-red hover:bg-red-600 text-white shadow-md hover:shadow-lg transition-all"
                       size="lg"
                     >
+                      <Camera className="mr-2 h-4 w-4" />
                       Activate Camera
                     </Button>
                   </div>
                 ) : (
-                  <ProctoringCamera 
-                    onVerificationComplete={handleVerificationComplete}
-                    showControls={!isVerified}
-                    showStatus={true}
-                    trackViolations={false}
-                    assessmentId={assessment.id}
-                    submissionId={submissionId || undefined}
-                  />
+                  <div className="animate-fade-in">
+                    <ProctoringCamera 
+                      onVerificationComplete={handleVerificationComplete}
+                      showControls={!isVerified}
+                      showStatus={true}
+                      trackViolations={false}
+                      assessmentId={assessment.id}
+                      submissionId={submissionId || undefined}
+                    />
+                  </div>
                 )}
               </CardContent>
-              <CardFooter className="flex-col gap-4 p-6 bg-gray-50 dark:bg-gray-800/50">
+              <CardFooter className="flex-col gap-4 p-6 bg-gray-50 dark:bg-gray-800/50 border-t">
                 {isVerified ? (
-                  <div className="w-full text-center">
-                    <div className="inline-flex items-center justify-center gap-2 bg-green-100 dark:bg-green-900/30 px-4 py-2 rounded-full text-green-700 dark:text-green-400 mb-4">
+                  <div className="w-full text-center animate-fade-in">
+                    <div className="inline-flex items-center justify-center gap-2 bg-green-100 dark:bg-green-900/30 px-4 py-2 rounded-full text-green-700 dark:text-green-400 mb-4 animate-pulse">
                       <CheckCircle className="h-5 w-5" />
                       <span>Verification Complete</span>
                     </div>
@@ -272,14 +288,14 @@ const CameraVerificationPage = () => {
                     <Button 
                       onClick={handleStartAssessment}
                       size="lg" 
-                      className="bg-astra-red hover:bg-red-600 text-white transition-all"
+                      className="bg-astra-red hover:bg-red-600 text-white transition-all shadow-md hover:shadow-lg transform hover:scale-105"
                     >
                       <ShieldCheck className="mr-2 h-5 w-5" />
                       Start Assessment
                     </Button>
                   </div>
                 ) : (
-                  <div className="w-full text-center">
+                  <div className="w-full text-center animate-fade-in">
                     <div className="flex items-center justify-center gap-2 text-amber-600 dark:text-amber-400 mb-3">
                       <AlertTriangle className="h-5 w-5" />
                       <span className="font-medium">Please complete verification first</span>
@@ -295,8 +311,8 @@ const CameraVerificationPage = () => {
           </div>
           
           <div className="md:col-span-4 space-y-6">
-            <Card className="shadow-lg border-0">
-              <CardHeader className="pb-3">
+            <Card className="shadow-lg border-0 transform transition-all hover:shadow-md">
+              <CardHeader className="pb-3 bg-gray-50 dark:bg-gray-800/50">
                 <CardTitle className="text-lg">System Check</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
@@ -342,8 +358,8 @@ const CameraVerificationPage = () => {
               </CardContent>
             </Card>
             
-            <Card className="shadow-lg border-0">
-              <CardHeader className="pb-3">
+            <Card className="shadow-lg border-0 transform transition-all hover:shadow-md">
+              <CardHeader className="pb-3 bg-gray-50 dark:bg-gray-800/50">
                 <CardTitle className="text-lg">Proctoring Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
