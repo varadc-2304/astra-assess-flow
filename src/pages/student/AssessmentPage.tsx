@@ -72,12 +72,15 @@ const AssessmentPage = () => {
   const { user } = useAuth();
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   
-  // New states for draggable camera
+  // Camera states - only used when AI proctoring is enabled
   const [cameraPosition, setCameraPosition] = useState('bottom-right');
   const [isDragging, setIsDragging] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
   const cameraRef = useRef<HTMLDivElement>(null);
+  
+  // Check if AI proctoring is enabled
+  const isAiProctoringEnabled = assessment?.isAiProctored === true;
   
   useEffect(() => {
     if (!assessment || !assessmentStarted) {
@@ -152,11 +155,13 @@ const AssessmentPage = () => {
     createSubmissionRecord();
   }, [assessment, assessmentStarted, user]);
 
-  // Mouse event handlers for drag functionality
+  // Only initialize camera-related event handlers if AI proctoring is enabled
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (!isAiProctoringEnabled) return;
+    
     if (cameraRef.current) {
       setIsDragging(true);
-      setIsAnimating(true); // Start animation when dragging starts
+      setIsAnimating(true);
       dragStartPos.current = {
         x: e.clientX,
         y: e.clientY
@@ -166,7 +171,7 @@ const AssessmentPage = () => {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
+    if (!isAiProctoringEnabled || !isDragging) return;
     
     const windowHeight = window.innerHeight;
     const windowWidth = window.innerWidth;
@@ -192,18 +197,20 @@ const AssessmentPage = () => {
   };
 
   const handleMouseUp = () => {
+    if (!isAiProctoringEnabled) return;
+    
     setIsDragging(false);
-    // Set a short timeout to allow the animation to complete
     setTimeout(() => {
       setIsAnimating(false);
     }, 300);
   };
 
-  // Touch event handlers for mobile drag functionality
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isAiProctoringEnabled) return;
+    
     if (cameraRef.current && e.touches.length === 1) {
       setIsDragging(true);
-      setIsAnimating(true); // Start animation when touch dragging starts
+      setIsAnimating(true);
       const touch = e.touches[0];
       dragStartPos.current = {
         x: touch.clientX,
@@ -213,7 +220,7 @@ const AssessmentPage = () => {
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging || !e.touches[0]) return;
+    if (!isAiProctoringEnabled || !isDragging || !e.touches[0]) return;
     
     const windowHeight = window.innerHeight;
     const windowWidth = window.innerWidth;
@@ -237,21 +244,23 @@ const AssessmentPage = () => {
       }
     }
     
-    e.preventDefault(); // Prevent scrolling while dragging
+    e.preventDefault();
   };
 
   const handleTouchEnd = () => {
+    if (!isAiProctoringEnabled) return;
+    
     setIsDragging(false);
-    // Set a short timeout to allow the animation to complete
     setTimeout(() => {
       setIsAnimating(false);
     }, 300);
   };
 
-  // Add global mouse/touch event listeners
+  // Only add event listeners if AI proctoring is enabled
   useEffect(() => {
+    if (!isAiProctoringEnabled) return;
+    
     if (isDragging) {
-      // Add global event listeners to handle mouse movements outside the camera div
       document.addEventListener('mousemove', handleMouseMove as unknown as EventListener);
       document.addEventListener('mouseup', handleMouseUp);
       document.addEventListener('touchmove', handleTouchMove as unknown as EventListener, { passive: false });
@@ -259,13 +268,12 @@ const AssessmentPage = () => {
     }
 
     return () => {
-      // Clean up event listeners
       document.removeEventListener('mousemove', handleMouseMove as unknown as EventListener);
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('touchmove', handleTouchMove as unknown as EventListener);
       document.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [isDragging]);
+  }, [isDragging, isAiProctoringEnabled]);
 
   const handleTestResultUpdate = (questionId: string, passedTests: number, totalTests: number) => {
     setTestCaseStatus(prev => ({
@@ -606,66 +614,68 @@ const AssessmentPage = () => {
           )}
         </div>
         
-        {/* Add draggable proctoring camera overlay with improved aesthetics */}
-        <div 
-          ref={cameraRef}
-          className={cn(
-            "fixed z-20 transition-all duration-300 ease-in-out",
-            isDragging ? "cursor-grabbing scale-105" : "cursor-grab hover:scale-102",
-            isAnimating ? "animate-pulse" : ""
-          )}
-          style={{
-            ...getCameraPositionStyles(),
-            transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
-            filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))'
-          }}
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleTouchStart}
-        >
-          <Card className={cn(
-            "w-[240px] overflow-hidden rounded-lg border-0",
-            "bg-black/10 backdrop-blur-sm",
-            "transform transition-transform duration-200",
-            isDragging ? "scale-105" : "",
-            isAnimating ? "ring-2 ring-primary ring-opacity-70" : ""
-          )}>
-            <div 
-              className={cn(
-                "flex items-center justify-between px-3 py-1.5",
-                "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
-                "border-b border-white/10",
-                isDragging ? "cursor-grabbing" : "cursor-grab"
-              )}
-              onMouseDown={handleMouseDown}
-              onTouchStart={handleTouchStart}
-            >
-              <div className="flex items-center space-x-1.5">
-                <Camera className="h-3.5 w-3.5 text-white opacity-80" />
-                <span className="text-xs font-medium text-white opacity-90">Proctoring Camera</span>
-              </div>
-              <div className="flex items-center">
-                <div className="h-2 w-2 rounded-full bg-primary animate-pulse mr-1.5"></div>
-                <GripVertical className="h-3.5 w-3.5 text-white opacity-70" />
-              </div>
-            </div>
-            <ProctoringCamera 
-              showControls={false}
-              showStatus={false}
-              trackViolations={true}
-              assessmentId={assessment.id}
-              submissionId={submissionId || undefined}
-            />
-            <div className={cn(
-              "text-[10px] text-center py-1 text-white/70 opacity-0",
-              "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
-              "border-t border-white/10",
-              "transition-opacity duration-200",
-              isDragging ? "opacity-100" : "group-hover:opacity-100"
+        {/* Conditionally render draggable proctoring camera overlay only if AI proctoring is enabled */}
+        {isAiProctoringEnabled && (
+          <div 
+            ref={cameraRef}
+            className={cn(
+              "fixed z-20 transition-all duration-300 ease-in-out",
+              isDragging ? "cursor-grabbing scale-105" : "cursor-grab hover:scale-102",
+              isAnimating ? "animate-pulse" : ""
+            )}
+            style={{
+              ...getCameraPositionStyles(),
+              transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+              filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))'
+            }}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+          >
+            <Card className={cn(
+              "w-[240px] overflow-hidden rounded-lg border-0",
+              "bg-black/10 backdrop-blur-sm",
+              "transform transition-transform duration-200",
+              isDragging ? "scale-105" : "",
+              isAnimating ? "ring-2 ring-primary ring-opacity-70" : ""
             )}>
-              Drag to reposition • Release to place
-            </div>
-          </Card>
-        </div>
+              <div 
+                className={cn(
+                  "flex items-center justify-between px-3 py-1.5",
+                  "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
+                  "border-b border-white/10",
+                  isDragging ? "cursor-grabbing" : "cursor-grab"
+                )}
+                onMouseDown={handleMouseDown}
+                onTouchStart={handleTouchStart}
+              >
+                <div className="flex items-center space-x-1.5">
+                  <Camera className="h-3.5 w-3.5 text-white opacity-80" />
+                  <span className="text-xs font-medium text-white opacity-90">Proctoring Camera</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="h-2 w-2 rounded-full bg-primary animate-pulse mr-1.5"></div>
+                  <GripVertical className="h-3.5 w-3.5 text-white opacity-70" />
+                </div>
+              </div>
+              <ProctoringCamera 
+                showControls={false}
+                showStatus={false}
+                trackViolations={true}
+                assessmentId={assessment.id}
+                submissionId={submissionId || undefined}
+              />
+              <div className={cn(
+                "text-[10px] text-center py-1 text-white/70 opacity-0",
+                "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
+                "border-t border-white/10",
+                "transition-opacity duration-200",
+                isDragging ? "opacity-100" : "group-hover:opacity-100"
+              )}>
+                Drag to reposition • Release to place
+              </div>
+            </Card>
+          </div>
+        )}
       </div>
       
       <div className={`${isAntiCheatingWarningActive ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'} border-t py-3 px-6 flex items-center justify-between sticky bottom-0 z-10 transition-colors duration-300`}>
