@@ -285,11 +285,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       if (updateError) {
         console.error("Error updating face violations:", updateError);
       }
-      
-      // If this is the final violation that terminates the session
-      if (isFinal) {
-
-      }
     } catch (err) {
       console.error("Error updating face violations:", err);
     }
@@ -321,12 +316,12 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     <div className="proctoring-camera-container">
       <div className="relative w-full max-w-md mx-auto">
         {/* Video feed container with improved aesthetics */}
-        <div className="relative overflow-hidden rounded-lg bg-gray-900 mb-4 border border-gray-700/50 shadow-lg">
+        <div className="relative overflow-hidden rounded-lg bg-gradient-to-b from-gray-900 to-black mb-4 border border-gray-700/50 shadow-lg">
           <video
             ref={videoRef}
             className={cn(
-              "w-full h-full object-cover",
-              isCameraReady ? "animate-fade-in" : "opacity-0"
+              "w-full h-full object-cover transition-opacity duration-300",
+              isCameraReady ? "opacity-100" : "opacity-0"
             )}
             autoPlay
             playsInline
@@ -342,12 +337,12 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
             <div className="absolute inset-0 bg-gradient-to-b from-gray-900 to-black bg-opacity-80 flex flex-col items-center justify-center z-10">
               <div className="text-center">
                 <div className="relative">
-                  <div className="h-10 w-10 rounded-full border-2 border-gray-300 border-opacity-20 border-t-white animate-spin mx-auto mb-2"></div>
+                  <div className="h-12 w-12 rounded-full border-2 border-gray-300/20 border-t-white animate-spin mx-auto mb-2"></div>
                   <div className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center">
-                    <Camera className="h-4 w-4 text-gray-300 animate-pulse" />
+                    <Camera className="h-5 w-5 text-gray-200 animate-pulse" />
                   </div>
                 </div>
-                <p className="text-sm font-medium text-gray-100 mt-3">Initializing camera...</p>
+                <p className="text-sm font-medium text-gray-200 mt-3">Initializing camera...</p>
                 <p className="text-xs text-gray-400 mt-1">Please allow camera access if prompted</p>
               </div>
             </div>
@@ -357,21 +352,23 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           {showStatus && isCameraReady && isModelLoaded && (
             <div className={cn(
               "absolute bottom-0 left-0 right-0 p-2",
-              "bg-gradient-to-t from-gray-900 to-transparent",
+              "bg-gradient-to-t from-black to-transparent",
               "transition-opacity duration-300",
               status === 'faceDetected' ? "opacity-50" : "opacity-90"
             )}>
               <div className={cn(
-                "flex items-center px-2 py-1 rounded-md",
+                "flex items-center px-3 py-1.5 rounded-md",
                 "backdrop-blur-sm",
                 "transition-colors duration-300",
-                status === 'faceDetected' ? "bg-green-500/20" : 
-                status === 'error' ? "bg-red-500/20" : "bg-amber-500/20"
+                status === 'faceDetected' ? "bg-green-500/20 border border-green-500/30" : 
+                status === 'error' ? "bg-red-500/20 border border-red-500/30" : 
+                "bg-amber-500/20 border border-amber-500/30"
               )}>
                 <div className={cn(
                   "w-2 h-2 rounded-full mr-2",
                   status === 'faceDetected' ? "bg-green-500 animate-pulse" : 
-                  status === 'error' ? "bg-red-500 animate-pulse" : "bg-amber-500 animate-pulse"
+                  status === 'error' ? "bg-red-500 animate-pulse" : 
+                  "bg-amber-500 animate-pulse"
                 )}></div>
                 <p className={cn(
                   "text-xs font-medium truncate",
@@ -387,7 +384,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
 
         {/* Controls with improved aesthetics */}
         {showControls && (
-          <div className="flex justify-between mt-3 gap-2">
+          <div className="flex justify-between mt-4 gap-2">
             <Button
               variant="outline"
               onClick={handleRestartCamera}

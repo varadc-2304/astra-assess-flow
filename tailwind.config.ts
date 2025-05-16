@@ -120,19 +120,43 @@ export default {
 				pulse: {
 					'0%, 100%': { opacity: '1' },
 					'50%': { opacity: '.5' }
-				}
+				},
+                scaleIn: {
+                    '0%': { transform: 'scale(0.95)', opacity: '0' },
+                    '100%': { transform: 'scale(1)', opacity: '1' }
+                },
+                slideInLeft: {
+                    '0%': { transform: 'translateX(-20px)', opacity: '0' },
+                    '100%': { transform: 'translateX(0)', opacity: '1' }
+                },
+                slideInRight: {
+                    '0%': { transform: 'translateX(20px)', opacity: '0' },
+                    '100%': { transform: 'translateX(0)', opacity: '1' }
+                },
+                float: {
+                    '0%, 100%': { transform: 'translateY(0)' },
+                    '50%': { transform: 'translateY(-5px)' }
+                }
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
 				'accordion-up': 'accordion-up 0.2s ease-out',
 				gradient: 'gradient 15s ease infinite',
 				'fade-in': 'fadeIn 0.3s ease-out forwards',
-				pulse: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+				pulse: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                'scale-in': 'scaleIn 0.3s ease-out forwards',
+                'slide-in-left': 'slideInLeft 0.3s ease-out forwards',
+                'slide-in-right': 'slideInRight 0.3s ease-out forwards',
+                'float': 'float 3s ease-in-out infinite'
 			},
 			boxShadow: {
 				'soft': '0 4px 14px 0 rgba(0,0,0,0.05)',
 				'hover': '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.06)',
 				'card': '0 2px 10px rgba(0,0,0,0.08)',
+                'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
+                'neon': '0 0 5px rgba(234, 56, 76, 0.5), 0 0 20px rgba(234, 56, 76, 0.3)',
+                'red-glow': '0 0 15px rgba(234, 56, 76, 0.6)'
 			}
 		}
 	},
