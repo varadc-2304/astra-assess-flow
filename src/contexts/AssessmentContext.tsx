@@ -63,6 +63,7 @@ export type Assessment = {
   startTime: string; // ISO string
   endTime?: string; // ISO string
   questions: Question[];
+  isAiproctored: boolean;
 };
 
 interface AssessmentContextType {
