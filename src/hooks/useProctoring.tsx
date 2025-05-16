@@ -1,8 +1,7 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import { useToast } from '@/hooks/use-toast';
-import * as cocossd from '@tensorflow-models/coco-ssd';
-import '@tensorflow/tfjs';
 
 // Define constants
 const DETECTION_INTERVAL = 1000; // 1 second interval between detections
@@ -26,8 +25,7 @@ export type ViolationType =
   'faceCovered' | 
   'rapidMovement' | 
   'frequentDisappearance' |
-  'identityMismatch' |
-  'electronicDeviceDetected';
+  'identityMismatch';
 
 export interface ProctoringOptions {
   showDebugInfo?: boolean;
@@ -35,7 +33,6 @@ export interface ProctoringOptions {
   drawExpressions?: boolean;
   detectExpressions?: boolean;
   trackViolations?: boolean;
-  detectObjects?: boolean;
   detectionOptions?: {
     faceDetectionThreshold?: number;
     faceCenteredTolerance?: number;
@@ -49,27 +46,6 @@ export interface DetectionResult {
   expressions?: Record<string, number>;
   message?: string;
 }
-
-export interface DetectedObject {
-  class: string;
-  score: number;
-  bbox: [number, number, number, number]; // [x, y, width, height]
-}
-
-// List of electronic device classes in COCO-SSD model
-const ELECTRONIC_DEVICE_CLASSES = [
-  'cell phone',
-  'laptop',
-  'tv',
-  'remote',
-  'keyboard',
-  'mouse',
-  'microwave',
-  'oven',
-  'toaster',
-  'refrigerator',
-  'hair drier',
-];
 
 export function useProctoring(options: ProctoringOptions = {}) {
   const [isModelLoaded, setIsModelLoaded] = useState(false);
@@ -86,14 +62,8 @@ export function useProctoring(options: ProctoringOptions = {}) {
     faceCovered: 0,
     rapidMovement: 0,
     frequentDisappearance: 0,
-    identityMismatch: 0,
-    electronicDeviceDetected: 0
+    identityMismatch: 0
   });
-  const [detectedObjects, setDetectedObjects] = useState<DetectedObject[]>([]);
-
-  // Object detection model reference
-  const objectDetectionModelRef = useRef<cocossd.ObjectDetection | null>(null);
-  const isObjectDetectionEnabledRef = useRef(options.detectObjects || false);
 
   // Set default detection options
   const detectionOptions = {
@@ -130,35 +100,24 @@ export function useProctoring(options: ProctoringOptions = {}) {
           faceapi.nets.faceExpressionNet.isLoaded) {
         console.log('Face-API models already loaded');
         setIsModelLoaded(true);
-      } else {
-        // Load models in parallel for better performance
-        await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-          faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
-        ]);
-        
-        console.log('Face-API models loaded successfully');
-        setIsModelLoaded(true);
+        return true;
       }
 
-      // Load object detection model if enabled
-      if (isObjectDetectionEnabledRef.current) {
-        if (!objectDetectionModelRef.current) {
-          console.log('Loading COCO-SSD object detection model...');
-          objectDetectionModelRef.current = await cocossd.load({
-            base: 'lite_mobilenet_v2' // Use lite model for better performance
-          });
-          console.log('COCO-SSD model loaded successfully');
-        }
-      }
+      // Load models in parallel for better performance
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+      ]);
       
+      console.log('Face-API models loaded successfully');
+      setIsModelLoaded(true);
       return true;
     } catch (error) {
-      console.error('Error loading models:', error);
+      console.error('Error loading face-api.js models:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load detection models. Please refresh and try again.',
+        description: 'Failed to load face detection models. Please refresh and try again.',
         variant: 'destructive',
       });
       setStatus('error');
@@ -329,35 +288,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
     return detectionScore < detectionOptions.faceDetectionThreshold;
   }, [detectionOptions.faceDetectionThreshold]);
 
-  // Check for electronic devices in detected objects
-  const checkForElectronicDevices = useCallback((objects: DetectedObject[]): boolean => {
-    return objects.some(obj => 
-      ELECTRONIC_DEVICE_CLASSES.includes(obj.class) && obj.score > 0.6
-    );
-  }, []);
-
-  // Detect objects using COCO-SSD
-  const detectObjects = useCallback(async (video: HTMLVideoElement): Promise<DetectedObject[]> => {
-    if (!objectDetectionModelRef.current || !isObjectDetectionEnabledRef.current) {
-      return [];
-    }
-    
-    try {
-      // Run object detection
-      const predictions = await objectDetectionModelRef.current.detect(video);
-      
-      // Convert to our interface format
-      return predictions.map(p => ({
-        class: p.class,
-        score: p.score,
-        bbox: p.bbox as [number, number, number, number]
-      }));
-    } catch (error) {
-      console.error('Error detecting objects:', error);
-      return [];
-    }
-  }, []);
-
   // Detect faces from video with optimizations
   const detectFaces = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !isModelLoaded || !isCameraReady) {
@@ -386,21 +316,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
       const detections = options.detectExpressions 
         ? await detectionsPromise.withFaceExpressions()
         : await detectionsPromise;
-
-      // Detect objects if enabled
-      let objects: DetectedObject[] = [];
-      if (isObjectDetectionEnabledRef.current) {
-        objects = await detectObjects(video);
-        setDetectedObjects(objects);
-        
-        // Check for electronic devices
-        if (objects.length > 0 && checkForElectronicDevices(objects)) {
-          setViolations(prev => ({
-            ...prev,
-            electronicDeviceDetected: prev.electronicDeviceDetected + 1
-          }));
-        }
-      }
 
       // Clear previous drawings
       const ctx = canvas.getContext('2d');
@@ -550,119 +465,89 @@ export function useProctoring(options: ProctoringOptions = {}) {
       }
       
       // Draw the detections
-      if (ctx) {
-        if (detections.length > 0) {
-          // Draw face detections
-          detections.forEach((detection, index) => {
-            const box = detection.detection.box;
+      if (ctx && detections.length > 0) {
+        // Draw each detected face
+        detections.forEach((detection, index) => {
+          const box = detection.detection.box;
+          
+          // Define a border color based on status
+          const borderColor = 
+            detections.length > 1 
+              ? "rgb(239, 68, 68)" // red
+              : "rgb(245, 158, 11)"; // amber
+          
+          if (ctx) {
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = borderColor;
+            ctx.strokeRect(box.x, box.y, box.width, box.height);
+          }
+          
+          // Add corner marks for better visibility
+          const cornerLength = Math.min(25, Math.min(box.width, box.height) / 4);
+          if (ctx) {
+            ctx.lineWidth = 4;
             
-            // Define a border color based on status
-            const borderColor = 
-              detections.length > 1 
-                ? "rgb(239, 68, 68)" // red
-                : "rgb(245, 158, 11)"; // amber
+            // Draw corner marks (top-left, top-right, bottom-left, bottom-right)
+            // Top-left
+            ctx.beginPath();
+            ctx.moveTo(box.x, box.y + cornerLength);
+            ctx.lineTo(box.x, box.y);
+            ctx.lineTo(box.x + cornerLength, box.y);
+            ctx.stroke();
             
-            if (ctx) {
-              ctx.lineWidth = 3;
-              ctx.strokeStyle = borderColor;
-              ctx.strokeRect(box.x, box.y, box.width, box.height);
-            }
+            // Top-right
+            ctx.beginPath();
+            ctx.moveTo(box.x + box.width - cornerLength, box.y);
+            ctx.lineTo(box.x + box.width, box.y);
+            ctx.lineTo(box.x + box.width, box.y + cornerLength);
+            ctx.stroke();
             
-            // Add corner marks for better visibility
-            const cornerLength = Math.min(25, Math.min(box.width, box.height) / 4);
-            if (ctx) {
-              ctx.lineWidth = 4;
-              
-              // Draw corner marks (top-left, top-right, bottom-left, bottom-right)
-              // Top-left
-              ctx.beginPath();
-              ctx.moveTo(box.x, box.y + cornerLength);
-              ctx.lineTo(box.x, box.y);
-              ctx.lineTo(box.x + cornerLength, box.y);
-              ctx.stroke();
-              
-              // Top-right
-              ctx.beginPath();
-              ctx.moveTo(box.x + box.width - cornerLength, box.y);
-              ctx.lineTo(box.x + box.width, box.y);
-              ctx.lineTo(box.x + box.width, box.y + cornerLength);
-              ctx.stroke();
-              
-              // Bottom-left
-              ctx.beginPath();
-              ctx.moveTo(box.x, box.y + box.height - cornerLength);
-              ctx.lineTo(box.x, box.y + box.height);
-              ctx.lineTo(box.x + cornerLength, box.y + box.height);
-              ctx.stroke();
-              
-              // Bottom-right
-              ctx.beginPath();
-              ctx.moveTo(box.x + box.width - cornerLength, box.y + box.height);
-              ctx.lineTo(box.x + box.width, box.y + box.height);
-              ctx.lineTo(box.x + box.width, box.y + box.height - cornerLength);
-              ctx.stroke();
-            }
+            // Bottom-left
+            ctx.beginPath();
+            ctx.moveTo(box.x, box.y + box.height - cornerLength);
+            ctx.lineTo(box.x, box.y + box.height);
+            ctx.lineTo(box.x + cornerLength, box.y + box.height);
+            ctx.stroke();
             
-            // Optionally draw landmarks
-            if (options.drawLandmarks && ctx) {
-              faceapi.draw.drawFaceLandmarks(canvas, detection);
-            }
-            
-            // Optionally draw expressions
-            if (options.drawExpressions && ctx && 'expressions' in detection) {
-              const expressions = detection.expressions;
-              if (expressions) {
-                const sorted = Object.entries(expressions)
-                  .sort((a, b) => b[1] - a[1]);
-                  
-                if (sorted.length > 0) {
-                  const [emotion, confidence] = sorted[0];
-                  const text = `${emotion}: ${Math.round(confidence * 100)}%`;
-                  
-                  ctx.font = '16px Arial';
-                  ctx.fillStyle = '#fff';
-                  ctx.strokeStyle = '#000';
-                  ctx.lineWidth = 2;
-                  ctx.strokeText(text, box.x, box.y - 5);
-                  ctx.fillText(text, box.x, box.y - 5);
-                }
+            // Bottom-right
+            ctx.beginPath();
+            ctx.moveTo(box.x + box.width - cornerLength, box.y + box.height);
+            ctx.lineTo(box.x + box.width, box.y + box.height);
+            ctx.lineTo(box.x + box.width, box.y + box.height - cornerLength);
+            ctx.stroke();
+          }
+
+          // Optionally draw landmarks
+          if (options.drawLandmarks && ctx) {
+            faceapi.draw.drawFaceLandmarks(canvas, detection);
+          }
+          
+          // Optionally draw expressions
+          if (options.drawExpressions && ctx && 'expressions' in detection) {
+            const expressions = detection.expressions;
+            if (expressions) {
+              const sorted = Object.entries(expressions)
+                .sort((a, b) => b[1] - a[1]);
+                
+              if (sorted.length > 0) {
+                const [emotion, confidence] = sorted[0];
+                const text = `${emotion}: ${Math.round(confidence * 100)}%`;
+                
+                ctx.font = '16px Arial';
+                ctx.fillStyle = '#fff';
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.strokeText(text, box.x, box.y - 5);
+                ctx.fillText(text, box.x, box.y - 5);
               }
             }
-          });
-          
-          // Draw object detections if enabled
-          if (isObjectDetectionEnabledRef.current && objects.length > 0) {
-            objects.forEach(obj => {
-              const [x, y, width, height] = obj.bbox;
-              
-              // Determine if it's an electronic device
-              const isElectronic = ELECTRONIC_DEVICE_CLASSES.includes(obj.class);
-              const color = isElectronic ? 'rgb(239, 68, 68)' : 'rgb(59, 130, 246)';
-              
-              // Draw bounding box
-              ctx.lineWidth = 2;
-              ctx.strokeStyle = color;
-              ctx.strokeRect(x, y, width, height);
-              
-              // Draw label
-              ctx.fillStyle = color;
-              ctx.font = '16px Arial';
-              ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-              ctx.fillRect(x, y - 20, obj.class.length * 8 + 60, 20);
-              ctx.fillStyle = 'white';
-              ctx.fillText(
-                `${obj.class} ${Math.round(obj.score * 100)}%`, 
-                x + 5, 
-                y - 5
-              );
-            });
           }
-        }
+        });
         
         // Show debug info if enabled
-        if (options.showDebugInfo) {
+        if (options.showDebugInfo && ctx) {
           ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-          ctx.fillRect(0, 0, 220, 110);
+          ctx.fillRect(0, 0, 180, 80);
           ctx.font = '14px Arial';
           ctx.fillStyle = '#fff';
           ctx.fillText(`Faces: ${detections.length}`, 10, 20);
@@ -671,12 +556,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
           if (options.trackViolations) {
             const totalViolations = Object.values(violations).reduce((sum, val) => sum + val, 0);
             ctx.fillText(`Violations: ${totalViolations}`, 10, 60);
-            
-            if (isObjectDetectionEnabledRef.current) {
-              ctx.fillText(`Objects: ${objects.length}`, 10, 80);
-              ctx.fillText(`Electronics: ${objects.filter(o => 
-                ELECTRONIC_DEVICE_CLASSES.includes(o.class)).length}`, 10, 100);
-            }
           }
         }
       }
@@ -696,8 +575,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
     isFaceCentered,
     isFaceCovered,
     checkForRapidMovements,
-    checkForElectronicDevices,
-    detectObjects,
     violations
   ]);
 
@@ -750,8 +627,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
       faceCovered: 0,
       rapidMovement: 0,
       frequentDisappearance: 0,
-      identityMismatch: 0,
-      electronicDeviceDetected: 0
+      identityMismatch: 0
     });
     
     // Reset face tracking state
@@ -800,7 +676,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
     status,
     detectionResult,
     violations: options.trackViolations ? violations : undefined,
-    detectedObjects: options.detectObjects ? detectedObjects : undefined,
     isModelLoaded,
     isCameraReady,
     isCameraPermissionGranted,
