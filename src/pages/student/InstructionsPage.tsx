@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -41,7 +40,7 @@ const InstructionsPage = () => {
   
   const handleStartAssessment = () => {
     // Check if proctoring is required based on the is_ai_proctored flag
-    if (assessment.isAiProctored) {
+    if (assessment?.isAiProctored) {
       // If AI proctoring is enabled, navigate to camera verification
       navigate('/camera-verification');
     } else {

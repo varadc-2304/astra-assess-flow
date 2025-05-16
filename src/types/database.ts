@@ -29,6 +29,7 @@ export interface Assessment {
   codingCount?: number;
   durationMinutes?: number;
   startTime?: string;
+  isAiProctored?: boolean; // Add missing property
   questions?: Array<MCQQuestion | CodingQuestion>; 
   contest_name?: string; // Add this to support the contest_name field in results
 }
