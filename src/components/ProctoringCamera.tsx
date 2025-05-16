@@ -17,6 +17,7 @@ interface ProctoringCameraProps {
   trackViolations?: boolean;
   assessmentId?: string;
   submissionId?: string;
+  size?: 'default' | 'small' | 'large'; // Add size prop
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -68,7 +69,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   showStatus = true,
   trackViolations = false,
   assessmentId,
-  submissionId
+  submissionId,
+  size = 'default' // Default size if not specified
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -316,10 +318,14 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   };
 
   const statusConfig = statusMessages[status] || statusMessages.initializing;
+  
+  // Determine container size based on the size prop
+  const containerSizeClass = size === 'small' ? 'max-w-[180px]' : 
+                            size === 'large' ? 'max-w-lg' : 'max-w-md';
 
   return (
     <div className="proctoring-camera-container">
-      <div className="relative w-full max-w-md mx-auto">
+      <div className={`relative w-full ${containerSizeClass} mx-auto`}>
         {/* Video feed container with improved aesthetics */}
         <div className="relative overflow-hidden rounded-lg bg-gray-900 mb-4 border border-gray-700/50 shadow-lg">
           <video
@@ -397,11 +403,13 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
                 "hover:bg-gray-100 dark:hover:bg-gray-700 transition-all",
                 "border-gray-300 dark:border-gray-600",
                 "hover:shadow-md",
-                isInitializing && "opacity-50"
+                isInitializing && "opacity-50",
+                size === 'small' ? "text-xs px-2 py-1 h-7" : ""
               )}
             >
               <RefreshCw className={cn(
-                "h-4 w-4 mr-2",
+                "mr-2",
+                size === 'small' ? "h-3 w-3" : "h-4 w-4",
                 isInitializing && "animate-spin"
               )} />
               Restart
@@ -416,10 +424,14 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
                 "hover:bg-gray-100 dark:hover:bg-gray-700 transition-all",
                 "border-gray-300 dark:border-gray-600",
                 "hover:shadow-md",
-                isInitializing && "opacity-50"
+                isInitializing && "opacity-50",
+                size === 'small' ? "text-xs px-2 py-1 h-7" : ""
               )}
             >
-              <Camera className="h-4 w-4 mr-2" />
+              <Camera className={cn(
+                "mr-2",
+                size === 'small' ? "h-3 w-3" : "h-4 w-4"
+              )} />
               Switch
             </Button>
             
@@ -430,12 +442,14 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
                 "transition-all duration-300",
                 status === 'faceDetected' 
                   ? "bg-green-600 hover:bg-green-700 text-white shadow hover:shadow-md" 
-                  : "bg-gray-400 text-white"
+                  : "bg-gray-400 text-white",
+                size === 'small' ? "text-xs px-2 py-1 h-7" : ""
               )}
               type="button"
             >
               <CheckCircle2 className={cn(
-                "h-4 w-4 mr-2",
+                "mr-2",
+                size === 'small' ? "h-3 w-3" : "h-4 w-4",
                 status === 'faceDetected' && "animate-pulse"
               )} />
               Verify
