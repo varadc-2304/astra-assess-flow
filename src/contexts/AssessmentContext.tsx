@@ -310,7 +310,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         durationMinutes: assessmentData.duration_minutes,
         startTime: assessmentData.start_time,
         endTime: assessmentData.end_time,
-        questions: allQuestions
+        questions: allQuestions,
+        isAiProctored: assessmentData.is_ai_proctored !== undefined ? assessmentData.is_ai_proctored : true
       };
       
       console.log('Setting assessment:', loadedAssessment);
