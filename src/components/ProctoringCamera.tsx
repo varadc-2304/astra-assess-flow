@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,7 +17,7 @@ interface ProctoringCameraProps {
   trackViolations?: boolean;
   assessmentId?: string;
   submissionId?: string;
-  size?: 'default' | 'small' | 'large'; // Add size prop
+  size?: 'default' | 'small' | 'large'; // Size prop
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -81,11 +81,13 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     faceCovered: 0,
     rapidMovement: 0,
     frequentDisappearance: 0,
-    identityMismatch: 0
+    identityMismatch: 0,
+    electronicDeviceDetected: 0
   });
   const [violationLog, setViolationLog] = useState<string[]>([]);
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
   const [cameraLoading, setCameraLoading] = useState(true);
+  const [deviceDetected, setDeviceDetected] = useState(false);
   const autoInitRef = useRef(false);
   
   // Track which violations have already been flagged
@@ -99,7 +101,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     faceCovered: 0,
     rapidMovement: 0,
     frequentDisappearance: 0,
-    identityMismatch: 0
+    identityMismatch: 0,
+    electronicDeviceDetected: 0
   });
   
   const {
@@ -107,6 +110,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     canvasRef,
     status,
     violations,
+    detectedObjects,
     isCameraReady,
     isModelLoaded,
     isInitializing,
@@ -119,6 +123,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     drawExpressions: false,
     detectExpressions: true,
     trackViolations: trackViolations,
+    detectObjects: true,
     // Improved parameters for more accurate face detection
     detectionOptions: {
       faceDetectionThreshold: 0.5, // Lower threshold for face detection (was 0.65)
@@ -154,6 +159,36 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       return () => clearTimeout(timer);
     }
   }, [isInitializing, isCameraReady, isModelLoaded]);
+
+  // Check for electronic devices
+  useEffect(() => {
+    if (detectedObjects && detectedObjects.length > 0) {
+      const electronicDevices = detectedObjects.filter(obj => {
+        const electronicClasses = [
+          'cell phone', 'laptop', 'tv', 'remote', 'keyboard', 
+          'mouse', 'microwave', 'oven', 'toaster'
+        ];
+        return electronicClasses.includes(obj.class) && obj.score > 0.6;
+      });
+      
+      if (electronicDevices.length > 0) {
+        setDeviceDetected(true);
+        
+        // Show a toast notification when an electronic device is first detected
+        if (!flaggedViolationsRef.current.has('electronicDeviceDetected')) {
+          flaggedViolationsRef.current.add('electronicDeviceDetected');
+          
+          toast({
+            title: "Electronic Device Detected",
+            description: `${electronicDevices[0].class} detected. This may be considered a violation.`,
+            variant: "destructive",
+          });
+        }
+      } else {
+        setDeviceDetected(false);
+      }
+    }
+  }, [detectedObjects, toast]);
 
   useEffect(() => {
     if (trackViolations && violations) {
@@ -217,6 +252,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         return 'Face frequently disappearing';
       case 'identityMismatch':
         return 'Face identity mismatch';
+      case 'electronicDeviceDetected':
+        return 'Electronic device detected';
       default:
         return 'Unknown violation';
     }
@@ -287,11 +324,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       if (updateError) {
         console.error("Error updating face violations:", updateError);
       }
-      
-      // If this is the final violation that terminates the session
-      if (isFinal) {
-
-      }
     } catch (err) {
       console.error("Error updating face violations:", err);
     }
@@ -356,6 +388,14 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
                 <p className="text-sm font-medium text-gray-100 mt-3">Initializing camera...</p>
                 <p className="text-xs text-gray-400 mt-1">Please allow camera access if prompted</p>
               </div>
+            </div>
+          )}
+
+          {/* Electronic device detection warning */}
+          {deviceDetected && !cameraLoading && (
+            <div className="absolute top-0 left-0 right-0 p-2 bg-red-500/80 text-white text-sm flex items-center justify-center animate-pulse">
+              <Smartphone className="mr-2 h-4 w-4" />
+              Electronic device detected!
             </div>
           )}
 

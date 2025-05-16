@@ -583,29 +583,24 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   };
 
   const editorOptions = {
-    minimap: { enabled: true },
+    minimap: { enabled: false },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    wordWrap: 'on' as 'on',
+    wordWrap: "on",
     automaticLayout: true,
     tabSize: 2,
     formatOnPaste: true,
-    formatOnType: false,
-    autoIndent: 'advanced' as 'advanced',
-    quickSuggestions: true,
+    formatOnType: true,
+    autoIndent: "advanced",
+    scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
+    lineNumbers: "on",
+    glyphMargin: false,
+    folding: true,
+    renderLineHighlight: "all",
     suggestOnTriggerCharacters: true,
-    fixedOverflowWidgets: true,
-    cursorBlinking: 'smooth' as 'smooth',
-    cursorSmoothCaretAnimation: 'off' as 'off',
-    cursorStyle: 'line' as 'line',
-    mouseWheelZoom: true,
-    renderWhitespace: 'selection' as 'selection',
-    renderLineHighlight: 'all' as 'all',
-    lineNumbers: 'on' as const,
-    renderValidationDecorations: 'on' as const,
-    lightbulb: {
-      enabled: true
-    }
+    acceptSuggestionOnEnter: "on",
+    cursorBlinking: "blink",
+    lightbulb: { enabled: 'on' }
   };
 
   const handleEditorDidMount = (editor: any) => {
