@@ -1,7 +1,7 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 // Define constants
 const DETECTION_INTERVAL = 1000; // 1 second interval between detections
@@ -317,13 +317,12 @@ export function useProctoring(options: ProctoringOptions = {}) {
   }, [detectionOptions.faceDetectionThreshold]);
 
   // Detect objects (electronic devices) in the frame - IMPROVED VERSION
-  const detectObjects = useCallback(async (video: HTMLVideoElement) => {
+  const detectObjects = useCallback(async (video: HTMLVideoElement, faceBoxes: Array<{x: number, y: number, width: number, height: number}>) => {
     if (!options.detectObjects) {
       return [];
     }
 
     try {
-      // Use a simple approach: detect rectangular objects that are NOT in face regions
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) return [];
@@ -332,31 +331,56 @@ export function useProctoring(options: ProctoringOptions = {}) {
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0);
 
-      // Get image data for basic edge detection
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
 
-      // Simple edge detection to find rectangular objects
       const devices = [];
-      const blockSize = 40; // Check in 40x40 pixel blocks
+      const blockSize = 60; // Larger blocks for better device detection
+      const edgeThreshold = 40;
+      const rectangleAspectRatios = [
+        { min: 0.4, max: 0.8, type: 'smartphone' },
+        { min: 1.2, max: 2.0, type: 'tablet' },
+        { min: 1.4, max: 1.8, type: 'laptop' }
+      ];
       
-      for (let y = 0; y < canvas.height - blockSize; y += blockSize) {
-        for (let x = 0; x < canvas.width - blockSize; x += blockSize) {
-          // Calculate average brightness in this block
-          let totalBrightness = 0;
-          let edgeCount = 0;
+      for (let y = 0; y < canvas.height - blockSize; y += 30) {
+        for (let x = 0; x < canvas.width - blockSize; x += 30) {
+          // Skip areas where faces are detected
+          const overlapsFace = faceBoxes.some(face => {
+            return !(x > face.x + face.width || 
+                    x + blockSize < face.x || 
+                    y > face.y + face.height || 
+                    y + blockSize < face.y);
+          });
           
+          if (overlapsFace) continue;
+          
+          let edgeCount = 0;
+          let totalBrightness = 0;
+          let darkPixels = 0;
+          let brightPixels = 0;
+          
+          // Analyze the block for device characteristics
           for (let dy = 0; dy < blockSize; dy++) {
             for (let dx = 0; dx < blockSize; dx++) {
               const i = ((y + dy) * canvas.width + (x + dx)) * 4;
               const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
               totalBrightness += brightness;
               
-              // Simple edge detection
+              if (brightness < 80) darkPixels++;
+              if (brightness > 180) brightPixels++;
+              
+              // Edge detection
               if (dx > 0 && dy > 0) {
                 const prevI = ((y + dy) * canvas.width + (x + dx - 1)) * 4;
                 const prevBrightness = (data[prevI] + data[prevI + 1] + data[prevI + 2]) / 3;
-                if (Math.abs(brightness - prevBrightness) > 30) {
+                if (Math.abs(brightness - prevBrightness) > edgeThreshold) {
+                  edgeCount++;
+                }
+                
+                const topI = ((y + dy - 1) * canvas.width + (x + dx)) * 4;
+                const topBrightness = (data[topI] + data[topI + 1] + data[topI + 2]) / 3;
+                if (Math.abs(brightness - topBrightness) > edgeThreshold) {
                   edgeCount++;
                 }
               }
@@ -364,22 +388,69 @@ export function useProctoring(options: ProctoringOptions = {}) {
           }
           
           const avgBrightness = totalBrightness / (blockSize * blockSize);
+          const edgeDensity = edgeCount / (blockSize * blockSize);
+          const contrastRatio = (brightPixels + darkPixels) / (blockSize * blockSize);
           
-          // Detect potential device: high edge count and specific brightness patterns
-          if (edgeCount > 50 && avgBrightness > 100 && avgBrightness < 200) {
-            // Check if this looks like a rectangular device (phone, tablet, etc.)
-            const aspectRatio = blockSize / blockSize; // Will expand this logic
+          // Device detection heuristics
+          const hasStrongEdges = edgeDensity > 0.1;
+          const hasContrast = contrastRatio > 0.3;
+          const hasDeviceBrightness = (avgBrightness > 100 && avgBrightness < 220);
+          const hasScreenCharacteristics = brightPixels > (blockSize * blockSize * 0.2);
+          
+          if (hasStrongEdges && hasContrast && (hasDeviceBrightness || hasScreenCharacteristics)) {
+            // Refine the bounding box by finding the actual edges
+            let minX = x + blockSize, maxX = x, minY = y + blockSize, maxY = y;
             
-            // This is a very basic heuristic - in production you'd want a proper ML model
-            if (Math.random() > 0.95) { // Simulate occasional device detection for testing
+            for (let dy = 0; dy < blockSize; dy++) {
+              for (let dx = 0; dx < blockSize; dx++) {
+                const i = ((y + dy) * canvas.width + (x + dx)) * 4;
+                const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                
+                // Check if this pixel is part of an edge
+                let isEdge = false;
+                if (dx > 0) {
+                  const leftI = ((y + dy) * canvas.width + (x + dx - 1)) * 4;
+                  const leftBrightness = (data[leftI] + data[leftI + 1] + data[leftI + 2]) / 3;
+                  if (Math.abs(brightness - leftBrightness) > edgeThreshold) isEdge = true;
+                }
+                if (dy > 0) {
+                  const topI = ((y + dy - 1) * canvas.width + (x + dx)) * 4;
+                  const topBrightness = (data[topI] + data[topI + 1] + data[topI + 2]) / 3;
+                  if (Math.abs(brightness - topBrightness) > edgeThreshold) isEdge = true;
+                }
+                
+                if (isEdge) {
+                  minX = Math.min(minX, x + dx);
+                  maxX = Math.max(maxX, x + dx);
+                  minY = Math.min(minY, y + dy);
+                  maxY = Math.max(maxY, y + dy);
+                }
+              }
+            }
+            
+            const width = maxX - minX;
+            const height = maxY - minY;
+            const aspectRatio = width / height;
+            
+            // Determine device type based on aspect ratio and size
+            let deviceType = 'electronic_device';
+            for (const ratio of rectangleAspectRatios) {
+              if (aspectRatio >= ratio.min && aspectRatio <= ratio.max) {
+                deviceType = ratio.type;
+                break;
+              }
+            }
+            
+            // Only add if it's a reasonable size for a device
+            if (width > 40 && height > 40 && width < canvas.width * 0.7 && height < canvas.height * 0.7) {
               devices.push({
-                type: 'electronic_device',
-                confidence: 0.7,
+                type: deviceType,
+                confidence: Math.min(0.9, (edgeDensity * 2 + contrastRatio) * 0.5),
                 box: {
-                  x: x,
-                  y: y,
-                  width: blockSize,
-                  height: blockSize
+                  x: minX,
+                  y: minY,
+                  width: width,
+                  height: height
                 }
               });
             }
@@ -394,7 +465,69 @@ export function useProctoring(options: ProctoringOptions = {}) {
     }
   }, [options.detectObjects]);
 
-  // Detect faces from video with optimizations
+  // Function to log object violations to database
+  const logObjectViolation = useCallback(async (objects: Array<{type: string, confidence: number, box: any}>, submissionId?: string) => {
+    if (!submissionId || objects.length === 0) return;
+
+    try {
+      const { data: submission, error: fetchError } = await supabase
+        .from('submissions')
+        .select('object_violations')
+        .eq('id', submissionId)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching submission for object violations:', fetchError);
+        return;
+      }
+
+      let currentViolations: any[] = [];
+      if (submission && submission.object_violations) {
+        if (Array.isArray(submission.object_violations)) {
+          currentViolations = submission.object_violations as any[];
+        } else {
+          try {
+            const parsed = typeof submission.object_violations === 'string'
+              ? JSON.parse(submission.object_violations)
+              : submission.object_violations;
+            currentViolations = Array.isArray(parsed) ? parsed : [];
+          } catch (e) {
+            console.error('Error parsing object_violations:', e);
+            currentViolations = [];
+          }
+        }
+      }
+
+      const violationEntry = {
+        timestamp: new Date().toISOString(),
+        devices_detected: objects.map(obj => ({
+          type: obj.type,
+          confidence: obj.confidence,
+          position: obj.box
+        })),
+        violation_count: currentViolations.length + 1
+      };
+
+      currentViolations.push(violationEntry);
+
+      const { error: updateError } = await supabase
+        .from('submissions')
+        .update({ 
+          object_violations: currentViolations
+        })
+        .eq('id', submissionId);
+
+      if (updateError) {
+        console.error('Error updating object violations:', updateError);
+      } else {
+        console.log('Object violation logged:', violationEntry);
+      }
+    } catch (err) {
+      console.error('Error logging object violation:', err);
+    }
+  }, []);
+
+  // Detect faces from video with improved object detection integration
   const detectFaces = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !isModelLoaded || !isCameraReady) {
       return;
@@ -423,10 +556,12 @@ export function useProctoring(options: ProctoringOptions = {}) {
         ? await detectionsPromise.withFaceExpressions()
         : await detectionsPromise;
 
-      // Detect objects if enabled (now properly implemented to avoid false positives)
-      const objects = await detectObjects(video);
+      // Get face bounding boxes for object detection
+      const faceBoxes = detections.map(detection => detection.detection.box);
+      
+      // Detect objects with improved algorithm
+      const objects = await detectObjects(video, faceBoxes);
 
-      // Clear previous drawings
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -482,42 +617,82 @@ export function useProctoring(options: ProctoringOptions = {}) {
           if (detections.length === 1) {
             const detection = detections[0];
             
-            // Check if face is centered
-            if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
-              setViolations(prev => ({
-                ...prev,
-                faceNotCentered: prev.faceNotCentered + 1
-              }));
+            // Convert FaceExpressions to Record<string, number>
+            const expressions: Record<string, number> = {};
+            if (options.detectExpressions && 'expressions' in detection) {
+              Object.entries(detection.expressions || {}).forEach(([key, value]) => {
+                expressions[key] = value;
+              });
             }
             
-            // Check if face is covered
-            if (isFaceCovered(detection)) {
-              setViolations(prev => ({
-                ...prev,
-                faceCovered: prev.faceCovered + 1
-              }));
-            }
-            
-            // Check for rapid movements
-            if (checkForRapidMovements(detection.detection.box)) {
-              setViolations(prev => ({
-                ...prev,
-                rapidMovement: prev.rapidMovement + 1
-              }));
+            // Check for specific violations to update status
+            if (options.trackViolations) {
+              if (isFaceCovered(detection)) {
+                setStatus('faceCovered');
+                setDetectionResult({
+                  status: 'faceCovered',
+                  facesCount: 1,
+                  expressions,
+                  objects,
+                  message: 'Face appears to be covered. Please remove any obstructions.'
+                });
+              } else if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
+                setStatus('faceNotCentered');
+                setDetectionResult({
+                  status: 'faceNotCentered',
+                  facesCount: 1,
+                  expressions,
+                  objects,
+                  message: 'Face not centered. Please position yourself in the middle of the frame.'
+                });
+              } else if (checkForRapidMovements(detection.detection.box)) {
+                setStatus('rapidMovement');
+                setDetectionResult({
+                  status: 'rapidMovement',
+                  facesCount: 1,
+                  expressions,
+                  objects,
+                  message: 'Rapid movement detected. Please keep your head still.'
+                });
+              } else {
+                setStatus('faceDetected');
+                setDetectionResult({
+                  status: 'faceDetected',
+                  facesCount: 1,
+                  expressions,
+                  objects,
+                  message: 'Face detected successfully.'
+                });
+              }
+            } else {
+              setStatus('faceDetected');
+              setDetectionResult({
+                status: 'faceDetected',
+                facesCount: 1,
+                expressions,
+                objects,
+                message: 'Face detected successfully.'
+              });
             }
           }
         }
       }
 
-      // Update status based on detection (objects will no longer cause false device alerts)
+      // Update status and log object violations if needed
       if (objects.length > 0) {
         setStatus('objectDetected');
         setDetectionResult({
           status: 'objectDetected',
           facesCount: detections.length,
           objects,
-          message: 'Electronic device detected in frame.'
+          message: `${objects.length} electronic device(s) detected: ${objects.map(o => o.type).join(', ')}`
         });
+        
+        // Log to database if we have submission context
+        const submissionId = (window as any).currentSubmissionId;
+        if (submissionId) {
+          logObjectViolation(objects, submissionId);
+        }
       } else if (detections.length === 0) {
         setStatus('noFaceDetected');
         setDetectionResult({
@@ -529,7 +704,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
       } else if (detections.length === 1) {
         const detection = detections[0];
         
-        // Convert FaceExpressions to Record<string, number>
         const expressions: Record<string, number> = {};
         if (options.detectExpressions && 'expressions' in detection) {
           Object.entries(detection.expressions || {}).forEach(([key, value]) => {
@@ -537,7 +711,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
           });
         }
         
-        // Check for specific violations to update status
         if (options.trackViolations) {
           if (isFaceCovered(detection)) {
             setStatus('faceCovered');
@@ -596,7 +769,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
         });
       }
       
-      // Draw the detections
+      // Draw the detections with improved object boxes
       if (ctx && (detections.length > 0 || objects.length > 0)) {
         // Draw face detections
         detections.forEach((detection, index) => {
@@ -672,26 +845,34 @@ export function useProctoring(options: ProctoringOptions = {}) {
           }
         });
 
-        // Draw object detections
+        // Draw object detections with improved styling
         objects.forEach((obj, index) => {
           const box = obj.box;
           
-          ctx.lineWidth = 3;
+          ctx.lineWidth = 4;
           ctx.strokeStyle = "rgb(239, 68, 68)"; // red for objects
+          ctx.setLineDash([10, 5]); // Dashed line for objects
           ctx.strokeRect(box.x, box.y, box.width, box.height);
+          ctx.setLineDash([]); // Reset line dash
           
-          // Add warning label
-          ctx.font = '14px Arial';
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.8)';
-          ctx.fillRect(box.x, box.y - 25, 150, 20);
+          // Add device type and confidence label
+          const label = `${obj.type} (${Math.round(obj.confidence * 100)}%)`;
+          const labelWidth = ctx.measureText(label).width + 10;
+          
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+          ctx.fillRect(box.x, box.y - 30, labelWidth, 25);
           ctx.fillStyle = '#fff';
-          ctx.fillText('Device Detected!', box.x + 5, box.y - 8);
+          ctx.font = '14px Arial';
+          ctx.fillText(label, box.x + 5, box.y - 10);
+          
+          // Add warning icon
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.3)';
+          ctx.fillRect(box.x, box.y, box.width, box.height);
         });
         
-        // Show debug info if enabled
         if (options.showDebugInfo) {
           ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-          ctx.fillRect(0, 0, 200, 100);
+          ctx.fillRect(0, 0, 200, 120);
           ctx.font = '14px Arial';
           ctx.fillStyle = '#fff';
           ctx.fillText(`Faces: ${detections.length}`, 10, 20);
@@ -702,11 +883,17 @@ export function useProctoring(options: ProctoringOptions = {}) {
             const totalViolations = Object.values(violations).reduce((sum, val) => sum + val, 0);
             ctx.fillText(`Violations: ${totalViolations}`, 10, 80);
           }
+          
+          if (objects.length > 0) {
+            ctx.fillText(`Device Types:`, 10, 100);
+            objects.forEach((obj, i) => {
+              ctx.fillText(`${obj.type}`, 10, 120 + (i * 15));
+            });
+          }
         }
       }
     } catch (error) {
       console.error('Error in face detection:', error);
-      // Don't update status on transient errors to avoid flickering
     }
 
   }, [
@@ -719,6 +906,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     options.detectExpressions,
     options.detectObjects,
     detectObjects,
+    logObjectViolation,
     isFaceCentered,
     isFaceCovered,
     checkForRapidMovements,

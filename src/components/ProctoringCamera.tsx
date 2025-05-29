@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
@@ -94,7 +93,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   const [cameraLoading, setCameraLoading] = useState(true);
   const autoInitRef = useRef(false);
   
-  // Track the last time each violation type was flagged (for 60-second cooldown)
   const lastViolationTimeRef = useRef<Record<ViolationType, number>>({
     noFaceDetected: 0,
     multipleFacesDetected: 0,
@@ -123,14 +121,25 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     drawExpressions: false,
     detectExpressions: true,
     trackViolations: trackViolations,
-    detectObjects: true, // Enable object detection
+    detectObjects: true,
     detectionOptions: {
       faceDetectionThreshold: 0.5,
       faceCenteredTolerance: 0.3,
       rapidMovementThreshold: 0.3,
-      objectDetectionThreshold: 0.3 // Threshold for object detection
+      objectDetectionThreshold: 0.3
     }
   });
+
+  useEffect(() => {
+    if (submissionId) {
+      (window as any).currentSubmissionId = submissionId;
+    }
+    return () => {
+      delete (window as any).currentSubmissionId;
+    };
+  }, [submissionId]);
+
+  // Set submission ID in global context for object detection logging
 
   // Initialize the camera when component mounts
   useEffect(() => {
@@ -250,7 +259,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     if (!submissionId || !user) return;
     
     try {
-      // Get current violations
       const { data: submission, error: fetchError } = await supabase
         .from('submissions')
         .select('face_violations')
@@ -262,11 +270,9 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         return;
       }
       
-      // Initialize or update violations array
       let currentViolations: string[] = [];
       
       if (submission && submission.face_violations) {
-        // Handle both string and JSON array formats
         if (Array.isArray(submission.face_violations)) {
           currentViolations = (submission.face_violations as Json[]).map(item => String(item));
         } else {
@@ -285,10 +291,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         }
       }
       
-      // Add new violation
       currentViolations.push(violationText);
       
-      // Update submission with new violations
       const { error: updateError } = await supabase
         .from('submissions')
         .update({ 
@@ -301,7 +305,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         console.error("Error updating face violations:", updateError);
       }
       
-      // If this is the final violation that terminates the session
       if (isFinal) {
         toast({
           title: "Assessment Terminated",
@@ -315,7 +318,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   };
 
   const handleVerificationComplete = () => {
-    // Only allow completion if face is detected and no objects are detected
     if (status === 'faceDetected' && onVerificationComplete) {
       onVerificationComplete(true);
     } else if (status !== 'faceDetected' && onVerificationComplete) {
