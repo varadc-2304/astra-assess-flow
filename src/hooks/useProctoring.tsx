@@ -1,10 +1,10 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import { useToast } from '@/hooks/use-toast';
 
 // Define constants
 const DETECTION_INTERVAL = 1000; // 1 second interval between detections
-const VIOLATION_RECORDING_INTERVAL = 60000; // 60 seconds for violation recording
 const MODEL_URL = '/models';
 
 // Types
@@ -38,7 +38,6 @@ export interface ProctoringOptions {
     faceCenteredTolerance?: number;
     rapidMovementThreshold?: number;
   };
-  onViolationRecorded?: (violationType: ViolationType, count: number) => void;
 }
 
 export interface DetectionResult {
@@ -66,17 +65,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
     identityMismatch: 0
   });
 
-  // Enhanced violation tracking state
-  const [currentViolationCounts, setCurrentViolationCounts] = useState<Record<ViolationType, number>>({
-    noFaceDetected: 0,
-    multipleFacesDetected: 0,
-    faceNotCentered: 0,
-    faceCovered: 0,
-    rapidMovement: 0,
-    frequentDisappearance: 0,
-    identityMismatch: 0
-  });
-
   // Set default detection options
   const detectionOptions = {
     faceDetectionThreshold: options.detectionOptions?.faceDetectionThreshold || 0.8,
@@ -90,96 +78,18 @@ export function useProctoring(options: ProctoringOptions = {}) {
     scoreThreshold: 0.5 
   });
 
-  // Enhanced violation tracking refs
-  const violationTrackingRef = useRef<{
-    lastRecordingTime: number;
-    currentPeriodViolations: Record<ViolationType, number>;
-    consecutiveNoFaceCount: number;
-    lastFaceDetectionTime: number;
-  }>({
-    lastRecordingTime: Date.now(),
-    currentPeriodViolations: {
-      noFaceDetected: 0,
-      multipleFacesDetected: 0,
-      faceNotCentered: 0,
-      faceCovered: 0,
-      rapidMovement: 0,
-      frequentDisappearance: 0,
-      identityMismatch: 0
-    },
-    consecutiveNoFaceCount: 0,
-    lastFaceDetectionTime: Date.now()
-  });
-
   // Face tracking state
   const faceHistoryRef = useRef<{positions: Array<{x: number, y: number, width: number, height: number}>, timestamps: number[]}>(
     {positions: [], timestamps: []}
   );
+  const noFaceCounterRef = useRef(0);
+  const lastFaceDetectionTimeRef = useRef(Date.now());
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectionIntervalRef = useRef<number | null>(null);
-  const violationRecordingIntervalRef = useRef<number | null>(null);
   const { toast } = useToast();
-
-  // Record violations to database every 60 seconds
-  const recordViolationsToDB = useCallback(() => {
-    const now = Date.now();
-    const timeSinceLastRecording = now - violationTrackingRef.current.lastRecordingTime;
-    
-    if (timeSinceLastRecording >= VIOLATION_RECORDING_INTERVAL) {
-      const currentPeriodViolations = violationTrackingRef.current.currentPeriodViolations;
-      
-      // Check if there are any violations to record
-      const hasViolations = Object.values(currentPeriodViolations).some(count => count > 0);
-      
-      if (hasViolations && options.trackViolations) {
-        console.log('Recording violations to database:', currentPeriodViolations);
-        
-        // Update the main violations state with accumulated counts
-        setViolations(prev => {
-          const newViolations = { ...prev };
-          Object.entries(currentPeriodViolations).forEach(([type, count]) => {
-            const violationType = type as ViolationType;
-            newViolations[violationType] += count;
-            
-            // Trigger callback for each violation type that occurred
-            if (count > 0 && options.onViolationRecorded) {
-              options.onViolationRecorded(violationType, newViolations[violationType]);
-            }
-          });
-          return newViolations;
-        });
-        
-        // Reset current period violations
-        violationTrackingRef.current.currentPeriodViolations = {
-          noFaceDetected: 0,
-          multipleFacesDetected: 0,
-          faceNotCentered: 0,
-          faceCovered: 0,
-          rapidMovement: 0,
-          frequentDisappearance: 0,
-          identityMismatch: 0
-        };
-      }
-      
-      violationTrackingRef.current.lastRecordingTime = now;
-    }
-  }, [options.trackViolations, options.onViolationRecorded]);
-
-  // Start violation recording interval
-  useEffect(() => {
-    if (options.trackViolations) {
-      violationRecordingIntervalRef.current = window.setInterval(recordViolationsToDB, 10000); // Check every 10 seconds
-      
-      return () => {
-        if (violationRecordingIntervalRef.current) {
-          clearInterval(violationRecordingIntervalRef.current);
-        }
-      };
-    }
-  }, [recordViolationsToDB, options.trackViolations]);
 
   // Load models with performance optimizations
   const loadModels = useCallback(async () => {
@@ -378,22 +288,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     return detectionScore < detectionOptions.faceDetectionThreshold;
   }, [detectionOptions.faceDetectionThreshold]);
 
-  // Enhanced violation tracking in face detection
-  const trackViolation = useCallback((violationType: ViolationType) => {
-    if (options.trackViolations) {
-      violationTrackingRef.current.currentPeriodViolations[violationType] += 1;
-      
-      // Update current counts for UI display
-      setCurrentViolationCounts(prev => ({
-        ...prev,
-        [violationType]: prev[violationType] + 1
-      }));
-      
-      console.log(`Violation tracked: ${violationType}, current period count: ${violationTrackingRef.current.currentPeriodViolations[violationType]}`);
-    }
-  }, [options.trackViolations]);
-
-  // Detect faces from video with enhanced violation tracking
+  // Detect faces from video with optimizations
   const detectFaces = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !isModelLoaded || !isCameraReady) {
       return;
@@ -428,33 +323,42 @@ export function useProctoring(options: ProctoringOptions = {}) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
 
-      // Enhanced violation tracking
+      // Track violations if enabled
       if (options.trackViolations) {
         const now = Date.now();
         
         if (detections.length === 0) {
           // No face detected
-          violationTrackingRef.current.consecutiveNoFaceCount += 1;
+          noFaceCounterRef.current += 1;
           
-          // Track violation after 3 consecutive detections (3 seconds)
-          if (violationTrackingRef.current.consecutiveNoFaceCount >= 3) {
-            trackViolation('noFaceDetected');
-            violationTrackingRef.current.consecutiveNoFaceCount = 0; // Reset after tracking
+          // Increase violation count if no face for 5 consecutive checks (5 seconds)
+          if (noFaceCounterRef.current >= 5) {
+            setViolations(prev => ({
+              ...prev,
+              noFaceDetected: prev.noFaceDetected + 1
+            }));
+            noFaceCounterRef.current = 0; // Reset counter after recording violation
           }
           
           // Track frequent disappearance
-          if (violationTrackingRef.current.lastFaceDetectionTime > 0 && 
-              now - violationTrackingRef.current.lastFaceDetectionTime < 10000) {  // Within 10 seconds
-            trackViolation('frequentDisappearance');
+          if (lastFaceDetectionTimeRef.current > 0 && 
+              now - lastFaceDetectionTimeRef.current < 10000) {  // Within 10 seconds
+            setViolations(prev => ({
+              ...prev,
+              frequentDisappearance: prev.frequentDisappearance + 1
+            }));
           }
         } else {
-          // Reset no-face counter when face is detected
-          violationTrackingRef.current.consecutiveNoFaceCount = 0;
-          violationTrackingRef.current.lastFaceDetectionTime = now;
+          // Reset no-face counter
+          noFaceCounterRef.current = 0;
+          lastFaceDetectionTimeRef.current = now;
           
           // Multiple faces detection
           if (detections.length > 1) {
-            trackViolation('multipleFacesDetected');
+            setViolations(prev => ({
+              ...prev,
+              multipleFacesDetected: prev.multipleFacesDetected + 1
+            }));
           }
           
           // Single face detection - check for other violations
@@ -463,17 +367,26 @@ export function useProctoring(options: ProctoringOptions = {}) {
             
             // Check if face is centered
             if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
-              trackViolation('faceNotCentered');
+              setViolations(prev => ({
+                ...prev,
+                faceNotCentered: prev.faceNotCentered + 1
+              }));
             }
             
             // Check if face is covered
             if (isFaceCovered(detection)) {
-              trackViolation('faceCovered');
+              setViolations(prev => ({
+                ...prev,
+                faceCovered: prev.faceCovered + 1
+              }));
             }
             
             // Check for rapid movements
             if (checkForRapidMovements(detection.detection.box)) {
-              trackViolation('rapidMovement');
+              setViolations(prev => ({
+                ...prev,
+                rapidMovement: prev.rapidMovement + 1
+              }));
             }
           }
         }
@@ -662,7 +575,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     isFaceCentered,
     isFaceCovered,
     checkForRapidMovements,
-    trackViolation
+    violations
   ]);
 
   // Start detection loop
@@ -688,11 +601,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
     if (detectionIntervalRef.current) {
       clearInterval(detectionIntervalRef.current);
       detectionIntervalRef.current = null;
-    }
-
-    if (violationRecordingIntervalRef.current) {
-      clearInterval(violationRecordingIntervalRef.current);
-      violationRecordingIntervalRef.current = null;
     }
 
     if (streamRef.current) {
@@ -722,32 +630,10 @@ export function useProctoring(options: ProctoringOptions = {}) {
       identityMismatch: 0
     });
     
-    setCurrentViolationCounts({
-      noFaceDetected: 0,
-      multipleFacesDetected: 0,
-      faceNotCentered: 0,
-      faceCovered: 0,
-      rapidMovement: 0,
-      frequentDisappearance: 0,
-      identityMismatch: 0
-    });
-    
     // Reset face tracking state
     faceHistoryRef.current = { positions: [], timestamps: [] };
-    violationTrackingRef.current = {
-      lastRecordingTime: Date.now(),
-      currentPeriodViolations: {
-        noFaceDetected: 0,
-        multipleFacesDetected: 0,
-        faceNotCentered: 0,
-        faceCovered: 0,
-        rapidMovement: 0,
-        frequentDisappearance: 0,
-        identityMismatch: 0
-      },
-      consecutiveNoFaceCount: 0,
-      lastFaceDetectionTime: 0
-    };
+    noFaceCounterRef.current = 0;
+    lastFaceDetectionTimeRef.current = 0;
   }, []);
 
   // Initialize system
@@ -790,7 +676,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
     status,
     detectionResult,
     violations: options.trackViolations ? violations : undefined,
-    currentViolationCounts: options.trackViolations ? currentViolationCounts : undefined,
     isModelLoaded,
     isCameraReady,
     isCameraPermissionGranted,

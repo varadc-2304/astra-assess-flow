@@ -603,18 +603,9 @@ const AssessmentPage = () => {
                   {isCodeQuestion(currentQuestion) && (
                     <CodeEditor 
                       question={currentQuestion}
-                      onSolutionChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
-                      onMarksUpdate={(testResults) => {
-                        // Calculate marks from test results
-                        const totalMarks = testResults.reduce((sum: number, result: any) => {
-                          return sum + (result.passed ? result.marks || 0 : 0);
-                        }, 0);
-                        handleUpdateMarks(currentQuestion.id, totalMarks);
-                        
-                        // Update test case status
-                        const passedTests = testResults.filter((r: any) => r.passed).length;
-                        handleTestResultUpdate(currentQuestion.id, passedTests, testResults.length);
-                      }}
+                      onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
+                      onMarksUpdate={handleUpdateMarks}
+                      onTestResultsUpdate={(passed, total) => handleTestResultUpdate(currentQuestion.id, passed, total)}
                     />
                   )}
                 </ResizablePanel>
