@@ -218,10 +218,6 @@ const AssessmentPage: React.FC = () => {
       }
 
       const currentViolations = submission.fullscreen_violations || 0;
-      const newViolation = {
-        type: violationType,
-        timestamp: new Date().toISOString()
-      };
 
       const { error: updateError } = await supabase
         .from('submissions')
@@ -555,10 +551,10 @@ const AssessmentPage: React.FC = () => {
                       id: currentQuestion.id,
                       title: currentQuestion.question_text,
                       description: currentQuestion.question_text,
-                      assessment_id: assessment.id,
-                      image_url: null,
-                      order_index: currentQuestionIndex,
-                      created_at: new Date().toISOString(),
+                      assessmentId: assessment.id,
+                      imageUrl: null,
+                      orderIndex: currentQuestionIndex,
+                      createdAt: new Date().toISOString(),
                       type: 'code',
                       examples: [],
                       constraints: [],
