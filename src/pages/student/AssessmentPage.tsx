@@ -551,7 +551,6 @@ const AssessmentPage: React.FC = () => {
                       title: currentQuestion.question_text,
                       description: currentQuestion.question_text,
                       assessmentId: assessment.id,
-                      image_url: null,
                       orderIndex: currentQuestionIndex,
                       createdAt: new Date().toISOString(),
                       type: 'code',
