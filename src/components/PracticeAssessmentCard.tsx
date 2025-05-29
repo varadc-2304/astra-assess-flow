@@ -87,13 +87,13 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
       <CardContent className="pt-4">
         <div className="flex flex-col gap-3">
           <div className="flex items-center text-sm text-gray-600">
-            <FileCode className="mr-2 h-4 w-4 text-blue-500" />
+            <FileCode className="mr-2 h-4 w-4 text-red-500" />
             <span>
               {assessment.mcqCount || 0} MCQs, {assessment.codingCount || 0} Coding
             </span>
           </div>
           <div className="flex items-center text-sm text-gray-600">
-            <Clock className="mr-2 h-4 w-4 text-blue-500" />
+            <Clock className="mr-2 h-4 w-4 text-red-500" />
             <span>{assessment.duration_minutes} minutes</span>
           </div>
           {isSolved && (
@@ -105,15 +105,6 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
         </div>
       </CardContent>
       
-      <CardFooter className="pt-0 pb-4">
-        <Button 
-          onClick={handleStart}
-          className="w-full button-hover bg-gradient-to-r from-blue-500 to-blue-600"
-        >
-          {isSolved ? "Review" : "Start"} 
-          <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
-      </CardFooter>
     </Card>
   );
 };
