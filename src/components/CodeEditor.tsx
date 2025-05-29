@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { Button } from '@/components/ui/button';
@@ -214,7 +215,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
           options={editorOptions}
           onChange={handleSolutionChange}
           onMount={handleEditorDidMount}
-          readOnly={readOnly}
         />
         {showTestResults && (
           <div className="mt-4">
@@ -240,7 +240,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                       )}
                     </span>
                     {question.testCases && question.testCases[index].marks && (
-                      <Badge variant={result.passed ? 'success' : 'destructive'}>
+                      <Badge variant={result.passed ? 'default' : 'destructive'}>
                         {result.passed ? question.testCases[index].marks : 0} Marks
                       </Badge>
                     )}

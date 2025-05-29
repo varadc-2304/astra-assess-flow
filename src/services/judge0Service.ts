@@ -9,7 +9,8 @@ export const LANGUAGE_IDS = {
   c: 50,
   cpp: 54,
   java: 62,
-  python: 71
+  python: 71,
+  javascript: 63
 };
 
 // Submission status
@@ -158,4 +159,38 @@ export const waitForSubmissionResult = async (token: string): Promise<Submission
   }
   
   throw new Error('Timed out waiting for submission result');
+};
+
+// Execute code against test cases
+export const executeCode = async (
+  language: string,
+  code: string,
+  testCases: Array<{ input: string; output: string }>
+): Promise<SubmissionResult[]> => {
+  const results: SubmissionResult[] = [];
+  
+  for (const testCase of testCases) {
+    try {
+      const token = await createSubmission(code, language, testCase.input);
+      const result = await waitForSubmissionResult(token);
+      results.push(result);
+    } catch (error) {
+      console.error('Error executing test case:', error);
+      // Create a failed result for this test case
+      results.push({
+        stdout: null,
+        stderr: 'Execution failed',
+        compile_output: null,
+        message: 'Test execution failed',
+        time: '0',
+        memory: 0,
+        status: {
+          id: SubmissionStatus.INTERNAL_ERROR,
+          description: 'Internal Error'
+        }
+      });
+    }
+  }
+  
+  return results;
 };
