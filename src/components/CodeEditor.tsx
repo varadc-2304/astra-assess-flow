@@ -167,7 +167,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     tabCompletion: 'on' as const,
     wordBasedSuggestions: 'matchingDocuments' as const,
     lightbulb: {
-      enabled: 'on' as const
+      enabled: 'auto'
     }
   };
 
