@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,7 +17,7 @@ interface ProctoringCameraProps {
   trackViolations?: boolean;
   assessmentId?: string;
   submissionId?: string;
-  size?: 'default' | 'small' | 'large'; // Add size prop
+  size?: 'default' | 'small' | 'large';
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -56,6 +56,11 @@ const statusMessages: Record<ProctoringStatus, { message: string; icon: React.Re
     icon: <AlertCircle className="mr-2 h-5 w-5" />,
     color: 'text-amber-500'
   },
+  objectDetected: {
+    message: 'Electronic device detected! Please remove all devices from view.',
+    icon: <Smartphone className="mr-2 h-5 w-5" />,
+    color: 'text-red-500'
+  },
   error: { 
     message: 'Error initializing camera. Please check permissions and try again.', 
     icon: <AlertCircle className="mr-2 h-5 w-5" />,
@@ -70,7 +75,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   trackViolations = false,
   assessmentId,
   submissionId,
-  size = 'default' // Default size if not specified
+  size = 'default'
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -81,15 +86,13 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     faceCovered: 0,
     rapidMovement: 0,
     frequentDisappearance: 0,
-    identityMismatch: 0
+    identityMismatch: 0,
+    electronicDeviceDetected: 0
   });
   const [violationLog, setViolationLog] = useState<string[]>([]);
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
   const [cameraLoading, setCameraLoading] = useState(true);
   const autoInitRef = useRef(false);
-  
-  // Track which violations have already been flagged
-  const flaggedViolationsRef = useRef<Set<ViolationType>>(new Set());
   
   // Track the last time each violation type was flagged (for 60-second cooldown)
   const lastViolationTimeRef = useRef<Record<ViolationType, number>>({
@@ -99,7 +102,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     faceCovered: 0,
     rapidMovement: 0,
     frequentDisappearance: 0,
-    identityMismatch: 0
+    identityMismatch: 0,
+    electronicDeviceDetected: 0
   });
   
   const {
@@ -119,11 +123,12 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     drawExpressions: false,
     detectExpressions: true,
     trackViolations: trackViolations,
-    // Improved parameters for more accurate face detection
+    detectObjects: true, // Enable object detection
     detectionOptions: {
-      faceDetectionThreshold: 0.5, // Lower threshold for face detection (was 0.65)
-      faceCenteredTolerance: 0.3, // More tolerance for face not being centered (was 0.25)
-      rapidMovementThreshold: 0.3, // Higher threshold for rapid movement detection (was 0.25)
+      faceDetectionThreshold: 0.5,
+      faceCenteredTolerance: 0.3,
+      rapidMovementThreshold: 0.3,
+      objectDetectionThreshold: 0.3 // Threshold for object detection
     }
   });
 
@@ -180,6 +185,15 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
             const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
             setViolationLog(prev => [...prev, violationMessage]);
             
+            // Show immediate toast for electronic device detection
+            if (violationType === 'electronicDeviceDetected') {
+              toast({
+                title: "Electronic Device Detected!",
+                description: "Please remove all electronic devices from view immediately.",
+                variant: "destructive",
+              });
+            }
+            
             if (trackViolations && user && submissionId) {
               updateViolationInDatabase(violationMessage);
             }
@@ -194,7 +208,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       
       // Check for total violations exceeding threshold
       const totalViolations = Object.values(newViolationCount).reduce((sum, count) => sum + count, 0);
-      if (totalViolations >= 3 && trackViolations && user && submissionId) {
+      if (totalViolations >= 5 && trackViolations && user && submissionId) {
         const violationSummary = formatViolationSummary(newViolationCount);
         updateViolationInDatabase(violationSummary, true);
       }
@@ -217,6 +231,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         return 'Face frequently disappearing';
       case 'identityMismatch':
         return 'Face identity mismatch';
+      case 'electronicDeviceDetected':
+        return 'Electronic device detected in frame';
       default:
         return 'Unknown violation';
     }
@@ -252,16 +268,13 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       if (submission && submission.face_violations) {
         // Handle both string and JSON array formats
         if (Array.isArray(submission.face_violations)) {
-          // Fix the type error here: Convert any non-string items to strings
           currentViolations = (submission.face_violations as Json[]).map(item => String(item));
         } else {
           try {
-            // If it's stored as a JSON string, parse it
             const parsedViolations = typeof submission.face_violations === 'string'
               ? JSON.parse(submission.face_violations)
               : submission.face_violations;
             
-            // Convert the parsed violations to strings
             currentViolations = Array.isArray(parsedViolations)
               ? parsedViolations.map(item => String(item))
               : [];
@@ -290,7 +303,11 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       
       // If this is the final violation that terminates the session
       if (isFinal) {
-
+        toast({
+          title: "Assessment Terminated",
+          description: "Too many violations detected. Your assessment has been terminated.",
+          variant: "destructive",
+        });
       }
     } catch (err) {
       console.error("Error updating face violations:", err);
@@ -298,13 +315,18 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   };
 
   const handleVerificationComplete = () => {
-    // Only allow completion if face is detected
+    // Only allow completion if face is detected and no objects are detected
     if (status === 'faceDetected' && onVerificationComplete) {
       onVerificationComplete(true);
     } else if (status !== 'faceDetected' && onVerificationComplete) {
+      let description = "Please ensure your face is clearly visible and centered before verifying.";
+      if (status === 'objectDetected') {
+        description = "Please remove all electronic devices from view before verifying.";
+      }
+      
       toast({
         title: "Verification Failed",
-        description: "Please ensure your face is clearly visible and centered before verifying.",
+        description,
         variant: "destructive",
       });
     }
@@ -372,16 +394,19 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
                 "backdrop-blur-sm",
                 "transition-colors duration-300",
                 status === 'faceDetected' ? "bg-green-500/20" : 
+                status === 'objectDetected' ? "bg-red-500/20" :
                 status === 'error' ? "bg-red-500/20" : "bg-amber-500/20"
               )}>
                 <div className={cn(
                   "w-2 h-2 rounded-full mr-2",
                   status === 'faceDetected' ? "bg-green-500 animate-pulse" : 
+                  status === 'objectDetected' ? "bg-red-500 animate-pulse" :
                   status === 'error' ? "bg-red-500 animate-pulse" : "bg-amber-500 animate-pulse"
                 )}></div>
                 <p className={cn(
                   "text-xs font-medium truncate",
                   status === 'faceDetected' ? "text-green-300" : 
+                  status === 'objectDetected' ? "text-red-300" :
                   status === 'error' ? "text-red-300" : "text-amber-300"
                 )}>
                   {statusMessages[status]?.message || "Monitoring..."}
