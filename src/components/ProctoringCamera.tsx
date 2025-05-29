@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ interface ProctoringCameraProps {
   trackViolations?: boolean;
   assessmentId?: string;
   submissionId?: string;
-  size?: 'default' | 'small' | 'large'; // Add size prop
+  size?: 'default' | 'small' | 'large';
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -70,43 +70,113 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   trackViolations = false,
   assessmentId,
   submissionId,
-  size = 'default' // Default size if not specified
+  size = 'default'
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [violationCount, setViolationCount] = useState<Record<ViolationType, number>>({
-    noFaceDetected: 0,
-    multipleFacesDetected: 0,
-    faceNotCentered: 0,
-    faceCovered: 0,
-    rapidMovement: 0,
-    frequentDisappearance: 0,
-    identityMismatch: 0
-  });
   const [violationLog, setViolationLog] = useState<string[]>([]);
-  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
   const [cameraLoading, setCameraLoading] = useState(true);
   const autoInitRef = useRef(false);
   
-  // Track which violations have already been flagged
-  const flaggedViolationsRef = useRef<Set<ViolationType>>(new Set());
-  
-  // Track the last time each violation type was flagged (for 60-second cooldown)
-  const lastViolationTimeRef = useRef<Record<ViolationType, number>>({
-    noFaceDetected: 0,
-    multipleFacesDetected: 0,
-    faceNotCentered: 0,
-    faceCovered: 0,
-    rapidMovement: 0,
-    frequentDisappearance: 0,
-    identityMismatch: 0
-  });
+  // Database update function
+  const updateViolationInDatabase = useCallback(async (violationType: ViolationType, totalCount: number) => {
+    if (!submissionId || !user) return;
+    
+    try {
+      console.log(`Updating database: ${violationType} = ${totalCount}`);
+      
+      // Get current violations
+      const { data: submission, error: fetchError } = await supabase
+        .from('submissions')
+        .select('face_violations')
+        .eq('id', submissionId)
+        .single();
+      
+      if (fetchError) {
+        console.error("Error fetching submission:", fetchError);
+        return;
+      }
+      
+      // Initialize or update violations array
+      let currentViolations: string[] = [];
+      
+      if (submission && submission.face_violations) {
+        // Handle both string and JSON array formats
+        if (Array.isArray(submission.face_violations)) {
+          currentViolations = (submission.face_violations as Json[]).map(item => String(item));
+        } else {
+          try {
+            const parsedViolations = typeof submission.face_violations === 'string'
+              ? JSON.parse(submission.face_violations)
+              : submission.face_violations;
+            
+            currentViolations = Array.isArray(parsedViolations)
+              ? parsedViolations.map(item => String(item))
+              : [];
+          } catch (e) {
+            console.error("Error parsing face_violations:", e);
+            currentViolations = [];
+          }
+        }
+      }
+      
+      // Create violation message with timestamp
+      const timestamp = new Date().toLocaleTimeString();
+      const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)} (Total: ${totalCount})`;
+      
+      // Add new violation to log
+      currentViolations.push(violationMessage);
+      setViolationLog(prev => [...prev, violationMessage]);
+      
+      // Update submission with new violations
+      const { error: updateError } = await supabase
+        .from('submissions')
+        .update({ 
+          face_violations: currentViolations,
+          is_terminated: totalCount >= 5 ? true : undefined // Terminate after 5 violations
+        })
+        .eq('id', submissionId);
+      
+      if (updateError) {
+        console.error("Error updating face violations:", updateError);
+      } else {
+        console.log("Successfully updated face violations in database");
+      }
+      
+      // Show warning for multiple violations
+      if (totalCount >= 3) {
+        toast({
+          title: "Multiple Violations Detected",
+          description: `${getViolationMessage(violationType)} detected ${totalCount} times. Please maintain proper exam conduct.`,
+          variant: "destructive",
+        });
+      }
+      
+      // Terminate session if too many violations
+      if (totalCount >= 5) {
+        toast({
+          title: "Assessment Terminated",
+          description: "Too many proctoring violations detected. Your session has been terminated.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error("Error updating face violations:", err);
+    }
+  }, [submissionId, user, toast]);
+
+  // Handle violation recording callback
+  const handleViolationRecorded = useCallback((violationType: ViolationType, totalCount: number) => {
+    console.log(`Violation recorded: ${violationType}, total count: ${totalCount}`);
+    updateViolationInDatabase(violationType, totalCount);
+  }, [updateViolationInDatabase]);
   
   const {
     videoRef,
     canvasRef,
     status,
     violations,
+    currentViolationCounts,
     isCameraReady,
     isModelLoaded,
     isInitializing,
@@ -119,12 +189,12 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     drawExpressions: false,
     detectExpressions: true,
     trackViolations: trackViolations,
-    // Improved parameters for more accurate face detection
     detectionOptions: {
-      faceDetectionThreshold: 0.5, // Lower threshold for face detection (was 0.65)
-      faceCenteredTolerance: 0.3, // More tolerance for face not being centered (was 0.25)
-      rapidMovementThreshold: 0.3, // Higher threshold for rapid movement detection (was 0.25)
-    }
+      faceDetectionThreshold: 0.5,
+      faceCenteredTolerance: 0.3,
+      rapidMovementThreshold: 0.3,
+    },
+    onViolationRecorded: handleViolationRecorded
   });
 
   // Initialize the camera when component mounts
@@ -147,59 +217,12 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     if (isInitializing) {
       setCameraLoading(true);
     } else if (isCameraReady && isModelLoaded) {
-      // Add a small delay to ensure the UI updates smoothly
       const timer = setTimeout(() => {
         setCameraLoading(false);
       }, 300);
       return () => clearTimeout(timer);
     }
   }, [isInitializing, isCameraReady, isModelLoaded]);
-
-  useEffect(() => {
-    if (trackViolations && violations) {
-      // Update violation counts
-      const newViolationCount = { ...violationCount };
-      let newViolationsDetected = false;
-      const currentTime = Date.now();
-      
-      // Process new violations
-      Object.entries(violations).forEach(([type, count]) => {
-        const violationType = type as ViolationType;
-        if (count > newViolationCount[violationType]) {
-          // Check if 60 seconds have passed since the last time this violation type was flagged
-          const timeSinceLastViolation = currentTime - lastViolationTimeRef.current[violationType];
-          const shouldFlag = timeSinceLastViolation >= 60000; // 60 seconds in milliseconds
-          
-          if (shouldFlag) {
-            // Update the last violation time for this type
-            lastViolationTimeRef.current[violationType] = currentTime;
-            
-            // New violation occurred
-            newViolationsDetected = true;
-            const timestamp = new Date().toLocaleTimeString();
-            const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
-            setViolationLog(prev => [...prev, violationMessage]);
-            
-            if (trackViolations && user && submissionId) {
-              updateViolationInDatabase(violationMessage);
-            }
-          }
-        }
-        newViolationCount[violationType] = count;
-      });
-      
-      if (newViolationsDetected) {
-        setViolationCount(newViolationCount);
-      }
-      
-      // Check for total violations exceeding threshold
-      const totalViolations = Object.values(newViolationCount).reduce((sum, count) => sum + count, 0);
-      if (totalViolations >= 3 && trackViolations && user && submissionId) {
-        const violationSummary = formatViolationSummary(newViolationCount);
-        updateViolationInDatabase(violationSummary, true);
-      }
-    }
-  }, [violations, trackViolations, user, submissionId]);
 
   const getViolationMessage = (violationType: ViolationType): string => {
     switch (violationType) {
@@ -219,81 +242,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         return 'Face identity mismatch';
       default:
         return 'Unknown violation';
-    }
-  };
-  
-  const formatViolationSummary = (violations: Record<ViolationType, number>): string => {
-    const violationEntries = Object.entries(violations)
-      .filter(([_, count]) => count > 0)
-      .map(([type, count]) => `${getViolationMessage(type as ViolationType)}: ${count} times`);
-      
-    return `VIOLATION SUMMARY: ${violationEntries.join(', ')}`;
-  };
-
-  const updateViolationInDatabase = async (violationText: string, isFinal: boolean = false) => {
-    if (!submissionId || !user) return;
-    
-    try {
-      // Get current violations
-      const { data: submission, error: fetchError } = await supabase
-        .from('submissions')
-        .select('face_violations')
-        .eq('id', submissionId)
-        .single();
-      
-      if (fetchError) {
-        console.error("Error fetching submission:", fetchError);
-        return;
-      }
-      
-      // Initialize or update violations array
-      let currentViolations: string[] = [];
-      
-      if (submission && submission.face_violations) {
-        // Handle both string and JSON array formats
-        if (Array.isArray(submission.face_violations)) {
-          // Fix the type error here: Convert any non-string items to strings
-          currentViolations = (submission.face_violations as Json[]).map(item => String(item));
-        } else {
-          try {
-            // If it's stored as a JSON string, parse it
-            const parsedViolations = typeof submission.face_violations === 'string'
-              ? JSON.parse(submission.face_violations)
-              : submission.face_violations;
-            
-            // Convert the parsed violations to strings
-            currentViolations = Array.isArray(parsedViolations)
-              ? parsedViolations.map(item => String(item))
-              : [];
-          } catch (e) {
-            console.error("Error parsing face_violations:", e);
-            currentViolations = [];
-          }
-        }
-      }
-      
-      // Add new violation
-      currentViolations.push(violationText);
-      
-      // Update submission with new violations
-      const { error: updateError } = await supabase
-        .from('submissions')
-        .update({ 
-          face_violations: currentViolations,
-          is_terminated: isFinal ? true : undefined
-        })
-        .eq('id', submissionId);
-      
-      if (updateError) {
-        console.error("Error updating face violations:", updateError);
-      }
-      
-      // If this is the final violation that terminates the session
-      if (isFinal) {
-
-      }
-    } catch (err) {
-      console.error("Error updating face violations:", err);
     }
   };
 
@@ -386,6 +334,23 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
                 )}>
                   {statusMessages[status]?.message || "Monitoring..."}
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* Violation counter display */}
+          {trackViolations && currentViolationCounts && (
+            <div className="absolute top-2 right-2 bg-black/70 text-white text-xs p-2 rounded">
+              <div className="text-center">
+                <div className="font-semibold">Violations</div>
+                {Object.entries(currentViolationCounts).map(([type, count]) => (
+                  count > 0 && (
+                    <div key={type} className="flex justify-between gap-2">
+                      <span className="truncate">{getViolationMessage(type as ViolationType)}</span>
+                      <span className="font-bold text-red-400">{count}</span>
+                    </div>
+                  )
+                ))}
               </div>
             </div>
           )}

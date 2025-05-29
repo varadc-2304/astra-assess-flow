@@ -1,711 +1,264 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CodeQuestion } from '@/contexts/AssessmentContext';
-import { Terminal, Play, Check, Loader2 } from 'lucide-react';
-import { createSubmission, waitForSubmissionResult } from '@/services/judge0Service';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { TestCase, QuestionSubmission, TestResult, Json } from '@/types/database';
+import React, { useRef, useEffect, useState } from 'react';
 import Editor from '@monaco-editor/react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Play, RotateCcw, CheckCircle, XCircle, Clock, Code } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { executeCode } from '@/services/judge0Service';
+import { CodingQuestion } from '@/types/database';
 
-export interface CodeEditorProps {
-  question: CodeQuestion;
-  onCodeChange: (language: string, code: string) => void;
-  onMarksUpdate: (questionId: string, marks: number) => void;
-  onTestResultsUpdate?: (passedTests: number, totalTests: number) => void;
+interface CodeEditorProps {
+  question: CodingQuestion;
+  onSolutionChange: (language: string, solution: string) => void;
+  onMarksUpdate?: (testResults: any) => void;
+  readOnly?: boolean;
+  showTestResults?: boolean;
+  initialSolution?: Record<string, string>;
 }
 
-const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarksUpdate, onTestResultsUpdate }) => {
-  const [selectedLanguage, setSelectedLanguage] = useState<string>(
-    Object.keys(question.solutionTemplate)[0] || 'python'
-  );
-  const [output, setOutput] = useState<string>('');
-  const [isRunning, setIsRunning] = useState<boolean>(false);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+interface TestResult {
+  passed: boolean;
+  actualOutput?: string;
+  marks?: number;
+  isHidden?: boolean;
+}
+
+const CodeEditor: React.FC<CodeEditorProps> = ({
+  question,
+  onSolutionChange,
+  onMarksUpdate,
+  readOnly = false,
+  showTestResults = true,
+  initialSolution = {}
+}) => {
+  const editorRef = useRef<any>(null);
+  const [language, setLanguage] = useState(Object.keys(question.solutionTemplate || {})[0] || 'javascript');
+  const [solution, setSolution] = useState(initialSolution[language] || question.solutionTemplate?.[language] || '');
+  const [isExecuting, setIsExecuting] = useState(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const [isLoadingTemplate, setIsLoadingTemplate] = useState<boolean>(false);
+  const [executionTime, setExecutionTime] = useState<number>(0);
   const { toast } = useToast();
-  const { user } = useAuth();
-  
-  const [currentCode, setCurrentCode] = useState<string>(
-    question.userSolution[selectedLanguage] ||
-    question.solutionTemplate[selectedLanguage] ||
-    ''
-  );
 
-  // Effect to handle language changes when question changes
   useEffect(() => {
-    const fetchTemplate = async () => {
-      setIsLoadingTemplate(true);
-      const availableLanguages = Object.keys(question.solutionTemplate);
-      if (availableLanguages.length === 0) return;
+    setSolution(initialSolution[language] || question.solutionTemplate?.[language] || '');
+  }, [language, question.solutionTemplate, initialSolution]);
 
-      const newLanguage = availableLanguages.includes(selectedLanguage)
-        ? selectedLanguage
-        : availableLanguages[0];
+  useEffect(() => {
+    onSolutionChange(language, solution);
+  }, [language, solution, onSolutionChange]);
 
-      setSelectedLanguage(newLanguage);
+  const handleEditorDidMount = (editor: any, monaco: any) => {
+    editorRef.current = editor;
+  }
 
-      try {
-        // First check if there's a saved code snippet for this question and language
-        if (user && question.assessmentId) {
-          const { data: savedCode, error: savedCodeError } = await supabase
-            .from('user_code_snippets')
-            .select('code')
-            .eq('user_id', user.id)
-            .eq('assessment_id', question.assessmentId)
-            .eq('question_id', question.id)
-            .eq('language', newLanguage)
-            .maybeSingle();
-            
-          if (!savedCodeError && savedCode) {
-            setCurrentCode(savedCode.code);
-            onCodeChange(newLanguage, savedCode.code);
-            setIsLoadingTemplate(false);
-            return;
-          }
-        }
-
-        // If no saved code, get the template or use existing solution
-        if (question.userSolution[newLanguage]) {
-          setCurrentCode(question.userSolution[newLanguage]);
-        } else {
-          const { data, error } = await supabase
-            .from('coding_languages')
-            .select('solution_template')
-            .eq('coding_question_id', question.id)
-            .eq('coding_lang', newLanguage)
-            .maybeSingle();
-
-          if (error) {
-            console.error('Error fetching solution template:', error);
-            toast({
-              title: "Error",
-              description: "Failed to load code template",
-              variant: "destructive",
-            });
-          } else if (data) {
-            setCurrentCode(data.solution_template);
-            onCodeChange(newLanguage, data.solution_template);
-          }
-        }
-      } catch (err) {
-        console.error('Error in template fetch:', err);
-      } finally {
-        setIsLoadingTemplate(false);
-      }
-    };
-
-    fetchTemplate();
-  }, [question.id, question.assessmentId, user]);
-
-  const handleLanguageChange = async (language: string) => {
-    setSelectedLanguage(language);
-    setIsLoadingTemplate(true);
-
-    try {
-      // First check if there's a saved code snippet for this question and language
-      if (user && question.assessmentId) {
-        const { data: savedCode, error: savedCodeError } = await supabase
-          .from('user_code_snippets')
-          .select('code')
-          .eq('user_id', user.id)
-          .eq('assessment_id', question.assessmentId)
-          .eq('question_id', question.id)
-          .eq('language', language)
-          .maybeSingle();
-          
-        if (!savedCodeError && savedCode) {
-          setCurrentCode(savedCode.code);
-          onCodeChange(language, savedCode.code);
-          setIsLoadingTemplate(false);
-          return;
-        }
-      }
-
-      // If no saved code, check if there's a user solution already
-      if (question.userSolution[language]) {
-        setCurrentCode(question.userSolution[language]);
-        setIsLoadingTemplate(false);
-        return;
-      }
-
-      // If no user solution, get the template
-      const { data, error } = await supabase
-        .from('coding_languages')
-        .select('solution_template')
-        .eq('coding_question_id', question.id)
-        .eq('coding_lang', language)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error fetching solution template:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load code template",
-          variant: "destructive",
-        });
-      } else if (data) {
-        setCurrentCode(data.solution_template);
-        onCodeChange(language, data.solution_template);
-      }
-    } catch (err) {
-      console.error('Error in template fetch:', err);
-    } finally {
-      setIsLoadingTemplate(false);
-    }
+  const handleLanguageChange = (value: string) => {
+    setLanguage(value);
   };
 
-  // Save code snippet when code changes
-  const handleCodeChange = async (value: string | undefined) => {
-    if (value !== undefined) {
-      setCurrentCode(value);
-      onCodeChange(selectedLanguage, value);
-      
-      // Save code to database
-      if (user && question.assessmentId) {
-        try {
-          const { data, error } = await supabase
-            .from('user_code_snippets')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('assessment_id', question.assessmentId)
-            .eq('question_id', question.id)
-            .eq('language', selectedLanguage);
-
-          if (error) {
-            console.error('Error checking existing code snippet:', error);
-            return;
-          }
-
-          if (data && data.length > 0) {
-            // Update existing code snippet
-            await supabase
-              .from('user_code_snippets')
-              .update({
-                code: value,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', data[0].id);
-          } else {
-            // Insert new code snippet
-            await supabase
-              .from('user_code_snippets')
-              .insert({
-                user_id: user.id,
-                assessment_id: question.assessmentId,
-                question_id: question.id,
-                language: selectedLanguage,
-                code: value
-              });
-          }
-        } catch (err) {
-          console.error('Error saving code snippet:', err);
-        }
-      }
-    }
+  const handleSolutionChange = (value: string) => {
+    setSolution(value);
   };
 
-  const cleanErrorOutput = (errorOutput: string): string => {
-    return errorOutput
-      .replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI color codes
-      .replace(/[\r\n]+/g, '\n')      // Normalize line endings
-      .trim();
-  };
-
-  const handleRunCode = async () => {
-    if (!currentCode.trim()) {
-      toast({
-        title: "Error",
-        description: "Please write some code before running.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsRunning(true);
-    setOutput('Running code on visible test cases...\n');
-    
-    try {
-      const { data: testCases, error: testCasesError } = await supabase
-        .from('test_cases')
-        .select('*')
-        .eq('coding_question_id', question.id)
-        .eq('is_hidden', false)
-        .order('order_index', { ascending: true });
-        
-      if (testCasesError) {
-        throw new Error(`Failed to load test cases: ${testCasesError.message}`);
-      }
-      
-      if (!testCases || testCases.length === 0) {
-        throw new Error('No visible test cases found for this question');
-      }
-      
-      let passedCount = 0;
-      let totalTestCases = testCases.length;
-      
-      for (let i = 0; i < testCases.length; i++) {
-        const testCase = testCases[i];
-        setOutput(prev => `${prev}\nRunning test case ${i + 1}/${totalTestCases}...\n`);
-        
-        const token = await createSubmission(currentCode, selectedLanguage, testCase.input);
-        const result = await waitForSubmissionResult(token);
-        
-        if (result.status.id >= 6) {
-          const errorOutput = cleanErrorOutput(
-            result.compile_output || result.stderr || 'An error occurred while running your code'
-          );
-            
-          setOutput(prev => `${prev}\nError in test case ${i + 1}:\n${errorOutput}\n`);
-          continue;
-        }
-        
-        const actualOutput = result.stdout?.trim() || '';
-        const expectedOutput = testCase.output.trim().replace(/\r\n/g, '\n');
-        const passed = actualOutput === expectedOutput;
-        
-        if (passed) {
-          passedCount++;
-        }
-        
-        setOutput(prev => `${prev}Test case ${i + 1}/${totalTestCases}: ${passed ? 'Passed' : 'Failed'}\n`);
-        if (!passed) {
-          setOutput(prev => `${prev}Expected Output: "${expectedOutput}"\nYour Output: "${actualOutput}"\n`);
-        }
-      }
-      
-      setOutput(prev => `${prev}\n${passedCount}/${totalTestCases} test cases passed\n`);
-      
-      // Update test results to parent component
-      if (onTestResultsUpdate) {
-        onTestResultsUpdate(passedCount, totalTestCases);
-      }
-      
-      toast({
-        title: passedCount === totalTestCases ? "Success!" : "Test Cases Completed",
-        description: `${passedCount}/${totalTestCases} test cases passed.`,
-        variant: passedCount === totalTestCases ? "default" : "destructive",
-      });
-      
-    } catch (error) {
-      console.error('Error running code:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      setOutput(`Error: ${errorMessage}`);
-      
-      toast({
-        title: "Error",
-        description: "Failed to run code. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsRunning(false);
-    }
-  };
-
-  const fetchTestCases = async (questionId: string): Promise<TestCase[]> => {
-    try {
-      const { data: testCases, error } = await supabase
-        .from('test_cases')
-        .select('*')
-        .eq('coding_question_id', questionId)
-        .order('order_index', { ascending: true });
-        
-      if (error) {
-        throw error;
-      }
-      
-      return testCases || [];
-    } catch (error) {
-      console.error('Error fetching test cases:', error);
-      return [];
-    }
-  };
-
-  const processTestCase = async (
-    index: number, 
-    testCases: TestCase[], 
-    allResults: TestResult[] = [], 
-    totalMarks: number = 0
-  ): Promise<{results: TestResult[], totalMarksEarned: number}> => {
-    if (index >= testCases.length) {
-      return { results: allResults, totalMarksEarned: totalMarks };
-    }
-    
-    try {
-      const testCase = testCases[index];
-      const isHidden = testCase.is_hidden;
-      const testMarks = testCase.marks || 0;
-      
-      setOutput(prev => `${prev}\n\nProcessing test case ${index + 1}/${testCases.length}...\n`);
-      
-      const token = await createSubmission(currentCode, selectedLanguage, testCase.input);
-      
-      const result = await waitForSubmissionResult(token);
-      
-      if (result.status.id >= 6) {
-        const cleanErrorOutput = (result.compile_output || result.stderr || 'An error occurred while running your code')
-          .replace(/\x1b\[[0-9;]*m/g, '')  // Remove ANSI color codes
-          .replace(/[\r\n]+/g, '\n')       // Normalize line endings
-          .trim();
-        
-        setOutput(prev => `${prev}\nError in test case ${index + 1}: ${cleanErrorOutput}`);
-        
-        const newResult: TestResult = { 
-          passed: false, 
-          actualOutput: `Error: ${cleanErrorOutput}`,
-          marks: 0,
-          isHidden
-        };
-        const updatedResults = [...allResults, newResult];
-        setTestResults(updatedResults);
-        
-        if (!isHidden) {
-          setOutput(prev => `${prev}\n\nTest case ${index + 1}/${testCases.length}: Failed (Error)\n`);
-        } else {
-          setOutput(prev => `${prev}\n\nHidden test case ${index + 1}/${testCases.length}: Failed (Error)\n`);
-        }
-        
-        return processTestCase(index + 1, testCases, updatedResults, totalMarks);
-      }
-      
-      const actualOutput = result.stdout?.trim() || '';
-      const expectedOutput = testCase.output.trim().replace(/\r\n/g, '\n');
-      const passed = actualOutput === expectedOutput;
-      
-      const marksEarned = passed ? testMarks : 0;
-      const updatedTotalMarks = totalMarks + marksEarned;
-      
-      const newResult: TestResult = { 
-        passed, 
-        actualOutput,
-        marks: marksEarned,
-        isHidden
-      };
-      const updatedResults = [...allResults, newResult];
-      setTestResults(updatedResults);
-      
-      if (!isHidden) {
-        const testResultOutput = `Test case ${index + 1}/${testCases.length} (${testMarks} marks): ${passed ? 'Passed' : 'Failed'}\n` + 
-          (!passed ? `Expected Output: "${expectedOutput}"\nYour Output: "${actualOutput}"\n` : '');
-        setOutput(prev => `${prev}\n${testResultOutput}`);
-      } else {
-        setOutput(prev => `${prev}\nHidden test case ${index + 1}/${testCases.length} (${testMarks} marks): ${passed ? 'Passed' : 'Failed'}\n`);
-      }
-      
-      return processTestCase(index + 1, testCases, updatedResults, updatedTotalMarks);
-    } catch (error) {
-      console.error(`Error processing test case ${index + 1}:`, error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setOutput(prev => `${prev}\nError processing test case ${index + 1}: ${errorMessage}\n`);
-      
-      const newResult: TestResult = { 
-        passed: false, 
-        actualOutput: `Error: ${errorMessage}`,
-        marks: 0,
-        isHidden: testCases[index]?.is_hidden
-      };
-      const updatedResults = [...allResults, newResult];
-      setTestResults(updatedResults);
-      
-      return processTestCase(index + 1, testCases, updatedResults, totalMarks);
-    }
-  };
-
-  const handleSubmitCode = async () => {
-    if (!currentCode.trim()) {
-      toast({
-        title: "Error",
-        description: "Please write some code before submitting.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setIsSubmitting(true);
-    setOutput('Submitting solution...\n');
+  const handleResetCode = () => {
+    setSolution(question.solutionTemplate?.[language] || '');
     setTestResults([]);
-    
+  };
+
+  const executeUserCode = async () => {
+    if (!question.testCases || question.testCases.length === 0) {
+      toast({
+        title: 'No Test Cases',
+        description: 'This question does not have any test cases to execute.',
+      });
+      return;
+    }
+
+    setIsExecuting(true);
+    setTestResults([]);
+    setExecutionTime(0);
+
+    const startTime = performance.now();
     try {
-      const testCases = await fetchTestCases(question.id);
-      console.log('Fetched test cases:', testCases);
-      
-      if (testCases.length === 0) {
-        throw new Error('No test cases found for this question');
-      }
-      
-      const { results: finalResults, totalMarksEarned } = await processTestCase(0, testCases);
-      const allPassed = finalResults.every(r => r.passed);
-      const totalPossibleMarks = testCases.reduce((sum, tc) => sum + (tc.marks || 0), 0);
-      const correctPercentage = totalPossibleMarks > 0 ? (totalMarksEarned / totalPossibleMarks) * 100 : 0;
-    
-      if (onMarksUpdate) {
-        onMarksUpdate(question.id, totalMarksEarned);
-      }
-      
-      // Update test results status
-      const passedTests = finalResults.filter(r => r.passed).length;
-      if (onTestResultsUpdate) {
-        onTestResultsUpdate(passedTests, testCases.length);
-      }
-      
-      if (user) {
-        try {
-          const { data: submissions, error: submissionError } = await supabase
-            .from('submissions')
-            .select('*')
-            .eq('assessment_id', question.assessmentId || '')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(1);
-            
-          if (submissionError) {
-            throw submissionError;
-          }
-          
-          let submissionId: string;
-          
-          if (!submissions || submissions.length === 0) {
-            const { data: newSubmission, error: submissionError } = await supabase
-              .from('submissions')
-              .insert({
-                assessment_id: question.assessmentId || '',
-                user_id: user.id,
-                started_at: new Date().toISOString()
-              })
-              .select()
-              .single();
+      const results = await executeCode(
+        language,
+        solution,
+        question.testCases.map(testCase => ({
+          input: testCase.input,
+          output: testCase.output,
+        }))
+      );
 
-            if (submissionError || !newSubmission) {
-              console.error('Error creating submission:', submissionError);
-              throw new Error('No submission result returned');
-            }
-
-            submissionId = newSubmission.id;
-          } else {
-            submissionId = submissions[0].id;
-          }
-
-          const { data: existingSubmission, error: existingError } = await supabase
-            .from('question_submissions')
-            .select('*')
-            .eq('submission_id', submissionId)
-            .eq('question_id', question.id)
-            .eq('question_type', 'code');
-            
-          if (existingError) {
-            throw existingError;
-          }
-
-          // Convert test results to a format that matches the Json type
-          const testResultsForJson = finalResults.map(result => ({
-            passed: result.passed,
-            actualOutput: result.actualOutput,
-            marks: result.marks,
-            isHidden: result.isHidden
-          }));
-
-          const questionSubmissionData = {
-            submission_id: submissionId,
-            question_id: question.id,
-            question_type: 'code' as const,
-            code_solution: currentCode,
-            language: selectedLanguage,
-            is_correct: allPassed,
-            marks_obtained: totalMarksEarned,
-            test_results: testResultsForJson as unknown as Json
+      if (results && results.length > 0) {
+        const newTestResults = question.testCases.map((testCase, index) => {
+          const result = results[index];
+          return {
+            passed: result.status.id === 3,
+            actualOutput: result.stdout,
+            marks: testCase.marks,
+            isHidden: testCase.is_hidden,
           };
-
-          if (existingSubmission && existingSubmission.length > 0) {
-            const { error: updateError } = await supabase
-              .from('question_submissions')
-              .update(questionSubmissionData)
-              .eq('id', existingSubmission[0].id);
-              
-            if (updateError) {
-              console.error('Error updating question submission:', updateError);
-              throw updateError;
-            }
-          } else {
-            const { error: insertError } = await supabase
-              .from('question_submissions')
-              .insert(questionSubmissionData);
-
-            if (insertError) {
-              console.error('Error storing question submission:', insertError);
-              throw insertError;
-            }
-          }
-          
-          toast({
-            title: "Submission Successful",
-            description: `Your solution was evaluated. You scored ${totalMarksEarned}/${totalPossibleMarks} marks.`,
-            variant: allPassed ? "default" : "default",
-          });
-          
-        } catch (dbError) {
-          console.error('Error storing results:', dbError);
-          toast({
-            title: "Warning",
-            description: "Your solution was evaluated but there was an error saving your submission.",
-            variant: "destructive",
-          });
+        });
+        setTestResults(newTestResults);
+        const endTime = performance.now();
+        setExecutionTime(endTime - startTime);
+        if (onMarksUpdate) {
+          onMarksUpdate(newTestResults);
         }
       } else {
         toast({
-          title: "Authentication Warning",
-          description: "Your solution was evaluated but not saved. You must be logged in to submit solutions.",
-          variant: "destructive",
+          title: 'Execution Error',
+          description: 'Failed to execute code. Please try again.',
+          variant: 'destructive',
         });
       }
     } catch (error) {
-      console.error('Error submitting code:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      setOutput(`Error: ${errorMessage}`);
-      
+      console.error('Error executing code:', error);
       toast({
-        title: "Error",
-        description: "Failed to submit solution. Please try again.",
-        variant: "destructive",
+        title: 'Execution Error',
+        description: 'An error occurred while executing the code.',
+        variant: 'destructive',
       });
     } finally {
-      setIsSubmitting(false);
+      setIsExecuting(false);
     }
   };
 
   const editorOptions = {
-    minimap: { enabled: true },
+    minimap: { enabled: false },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    wordWrap: 'on' as 'on',
+    wordWrap: 'on' as const,
     automaticLayout: true,
     tabSize: 2,
     formatOnPaste: true,
-    formatOnType: false,
-    autoIndent: 'advanced' as 'advanced',
-    quickSuggestions: true,
-    suggestOnTriggerCharacters: true,
-    fixedOverflowWidgets: true,
-    cursorBlinking: 'smooth' as 'smooth',
-    cursorSmoothCaretAnimation: 'off' as 'off',
-    cursorStyle: 'line' as 'line',
+    formatOnType: true,
+    selectOnLineNumbers: true,
+    roundedSelection: false,
+    readOnly: readOnly,
+    cursorStyle: 'line' as const,
     mouseWheelZoom: true,
-    renderWhitespace: 'selection' as 'selection',
-    renderLineHighlight: 'all' as 'all',
+    contextmenu: false,
     lineNumbers: 'on' as const,
-    renderValidationDecorations: 'on' as const,
-    lightbulb: {
+    glyphMargin: false,
+    folding: true,
+    lineDecorationsWidth: 0,
+    lineNumbersMinChars: 3,
+    renderLineHighlight: 'line' as const,
+    scrollbar: {
+      vertical: 'visible' as const,
+      horizontal: 'visible' as const,
+      useShadows: false,
+      verticalHasArrows: false,
+      horizontalHasArrows: false,
+    },
+    quickSuggestions: {
+      other: true,
+      comments: false,
+      strings: false
+    },
+    parameterHints: {
       enabled: true
+    },
+    suggestOnTriggerCharacters: true,
+    acceptSuggestionOnEnter: 'on' as const,
+    tabCompletion: 'on' as const,
+    wordBasedSuggestions: 'matchingDocuments' as const,
+    lightbulb: {
+      enabled: 'on' as const
     }
   };
 
-  const handleEditorDidMount = (editor: any) => {
-    setTimeout(() => {
-      editor.layout();
-    }, 100);
-  };
-
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center mb-2">
-        {isLoadingTemplate && (
-          <div className="text-sm text-muted-foreground ml-2 animate-pulse">
-            Loading template...
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <Code className="mr-2 h-4 w-4" />
+          Code Editor
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="relative">
+        <div className="absolute top-2 right-2 z-10 flex items-center space-x-2">
+          <Select value={language} onValueChange={handleLanguageChange}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select Language" />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.keys(question.solutionTemplate || {}).map((lang) => (
+                <SelectItem key={lang} value={lang}>{lang}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleResetCode}
+            disabled={isExecuting}
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            onClick={executeUserCode}
+            disabled={isExecuting}
+          >
+            {isExecuting ? <Clock className="mr-2 h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+          </Button>
+        </div>
+        <Editor
+          height="400px"
+          defaultLanguage={language}
+          value={solution}
+          theme="vs-dark"
+          options={editorOptions}
+          onChange={handleSolutionChange}
+          onMount={handleEditorDidMount}
+          readOnly={readOnly}
+        />
+        {showTestResults && (
+          <div className="mt-4">
+            <h3 className="text-sm font-medium">Test Results:</h3>
+            {testResults.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No test results yet. Execute the code to see results.</p>
+            ) : (
+              <ul className="mt-2 space-y-2">
+                {testResults.map((result, index) => (
+                  <li key={index} className="flex items-center space-x-2">
+                    {result.passed ? (
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-500" />
+                    )}
+                    <span className="text-sm">
+                      Test Case #{index + 1}:{' '}
+                      {result.passed ? 'Passed' : 'Failed'}
+                      {!result.passed && result.actualOutput && (
+                        <span className="ml-2 text-xs text-gray-400">
+                          (Output: {result.actualOutput})
+                        </span>
+                      )}
+                    </span>
+                    {question.testCases && question.testCases[index].marks && (
+                      <Badge variant={result.passed ? 'success' : 'destructive'}>
+                        {result.passed ? question.testCases[index].marks : 0} Marks
+                      </Badge>
+                    )}
+                    {result.isHidden && (
+                      <Badge variant="secondary">Hidden</Badge>
+                    )}
+                  </li>
+                ))}
+                <div className="mt-2">
+                  <span className="text-sm font-medium">Execution Time:</span>
+                  <span className="text-sm text-muted-foreground ml-1">{executionTime.toFixed(2)}ms</span>
+                </div>
+              </ul>
+            )}
           </div>
         )}
-
-        <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Language" />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.keys(question.solutionTemplate).map((lang) => (
-              <SelectItem value={lang} key={lang}>
-                {lang.charAt(0).toUpperCase() + lang.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <div className="flex gap-2">
-          <Button 
-            variant="secondary" 
-            size="sm"
-            onClick={handleRunCode}
-            disabled={isRunning || isSubmitting || isLoadingTemplate}
-          >
-            {isRunning ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <Play className="h-4 w-4 mr-1" />
-            )}
-            Run
-          </Button>
-          <Button 
-            className="bg-astra-red hover:bg-red-600 text-white"
-            size="sm"
-            onClick={handleSubmitCode}
-            disabled={isRunning || isSubmitting || isLoadingTemplate}
-          >
-            {isSubmitting ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <Check className="h-4 w-4 mr-1" />
-            )}
-            Submit
-          </Button>
-        </div>
-      </div>
-
-      <Tabs defaultValue="code" className="flex-1 flex flex-col">
-        <TabsList className="mb-2">
-          <TabsTrigger value="code">Code</TabsTrigger>
-          <TabsTrigger value="output">Output</TabsTrigger>
-        </TabsList>
-        <div className="flex-1 flex">
-          <TabsContent value="code" className="flex-1 h-full m-0">
-            <div className="h-[calc(100vh-280px)] border border-gray-200 rounded-md overflow-hidden">
-              {isLoadingTemplate ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                  <span className="ml-2 text-gray-400">Loading template...</span>
-                </div>
-              ) : (
-                <Editor
-                  height="100%"
-                  defaultLanguage={selectedLanguage}
-                  language={selectedLanguage}
-                  defaultValue={currentCode}
-                  onChange={handleCodeChange}
-                  theme="vs-dark"
-                  options={editorOptions}
-                  className="monaco-editor"
-                  onMount={handleEditorDidMount}
-                />
-              )}
-            </div>
-          </TabsContent>
-          <TabsContent value="output" className="flex-1 h-full m-0">
-            <div className="h-[calc(100vh-280px)] bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto whitespace-pre-wrap">
-              <div className="flex items-center mb-2">
-                <Terminal className="h-4 w-4 mr-2" />
-                <span>Output</span>
-              </div>
-              <pre className="whitespace-pre-wrap break-words">{output || 'Run your code to see output here'}</pre>
-            </div>
-          </TabsContent>
-        </div>
-      </Tabs>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 
