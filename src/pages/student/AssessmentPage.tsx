@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -552,7 +551,7 @@ const AssessmentPage: React.FC = () => {
                       title: currentQuestion.question_text,
                       description: currentQuestion.question_text,
                       assessmentId: assessment.id,
-                      imageUrl: null,
+                      image_url: null,
                       orderIndex: currentQuestionIndex,
                       createdAt: new Date().toISOString(),
                       type: 'code',
