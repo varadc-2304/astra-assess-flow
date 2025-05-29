@@ -1,7 +1,7 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 
 // Define constants
 const DETECTION_INTERVAL = 1000; // 1 second interval between detections
@@ -16,7 +16,6 @@ export type ProctoringStatus =
   'faceCovered' |
   'faceNotCentered' |
   'rapidMovement' |
-  'objectDetected' |
   'error';
 
 export type ViolationType = 
@@ -26,8 +25,7 @@ export type ViolationType =
   'faceCovered' | 
   'rapidMovement' | 
   'frequentDisappearance' |
-  'identityMismatch' |
-  'electronicDeviceDetected';
+  'identityMismatch';
 
 export interface ProctoringOptions {
   showDebugInfo?: boolean;
@@ -35,12 +33,10 @@ export interface ProctoringOptions {
   drawExpressions?: boolean;
   detectExpressions?: boolean;
   trackViolations?: boolean;
-  detectObjects?: boolean;
   detectionOptions?: {
     faceDetectionThreshold?: number;
     faceCenteredTolerance?: number;
     rapidMovementThreshold?: number;
-    objectDetectionThreshold?: number;
   };
 }
 
@@ -48,7 +44,6 @@ export interface DetectionResult {
   status: ProctoringStatus;
   facesCount: number;
   expressions?: Record<string, number>;
-  objects?: Array<{type: string, confidence: number, box: any}>;
   message?: string;
 }
 
@@ -67,28 +62,20 @@ export function useProctoring(options: ProctoringOptions = {}) {
     faceCovered: 0,
     rapidMovement: 0,
     frequentDisappearance: 0,
-    identityMismatch: 0,
-    electronicDeviceDetected: 0
+    identityMismatch: 0
   });
 
   // Set default detection options
   const detectionOptions = {
-    faceDetectionThreshold: options.detectionOptions?.faceDetectionThreshold || 0.5,
-    faceCenteredTolerance: options.detectionOptions?.faceCenteredTolerance || 0.3,
-    rapidMovementThreshold: options.detectionOptions?.rapidMovementThreshold || 0.3,
-    objectDetectionThreshold: options.detectionOptions?.objectDetectionThreshold || 0.3
+    faceDetectionThreshold: options.detectionOptions?.faceDetectionThreshold || 0.8,
+    faceCenteredTolerance: options.detectionOptions?.faceCenteredTolerance || 0.2,
+    rapidMovementThreshold: options.detectionOptions?.rapidMovementThreshold || 0.2
   };
 
   // Configure face detector with options
   const FACE_DETECTION_OPTIONS = new faceapi.TinyFaceDetectorOptions({ 
     inputSize: 224, 
     scoreThreshold: 0.5 
-  });
-
-  // Object detection options
-  const SSD_DETECTION_OPTIONS = new faceapi.SsdMobilenetv1Options({
-    minConfidence: detectionOptions.objectDetectionThreshold,
-    maxResults: 10
   });
 
   // Face tracking state
@@ -104,41 +91,24 @@ export function useProctoring(options: ProctoringOptions = {}) {
   const detectionIntervalRef = useRef<number | null>(null);
   const { toast } = useToast();
 
-  // Electronic device detection keywords
-  const electronicDeviceKeywords = [
-    'cell phone', 'mobile phone', 'smartphone', 'phone', 'tablet', 
-    'laptop', 'computer', 'monitor', 'screen', 'device', 'electronics',
-    'remote', 'calculator', 'headphones', 'earbuds', 'smartwatch', 'watch'
-  ];
-
   // Load models with performance optimizations
   const loadModels = useCallback(async () => {
     try {
       // Check if models are already loaded to avoid reloading
       if (faceapi.nets.tinyFaceDetector.isLoaded && 
           faceapi.nets.faceLandmark68Net.isLoaded && 
-          faceapi.nets.faceExpressionNet.isLoaded &&
-          faceapi.nets.ssdMobilenetv1.isLoaded) {
+          faceapi.nets.faceExpressionNet.isLoaded) {
         console.log('Face-API models already loaded');
         setIsModelLoaded(true);
         return true;
       }
 
-      console.log('Loading face-api.js models...');
-      
       // Load models in parallel for better performance
-      const modelPromises = [
+      await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
         faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
-      ];
-
-      // Add object detection model if enabled
-      if (options.detectObjects) {
-        modelPromises.push(faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL));
-      }
-
-      await Promise.all(modelPromises);
+      ]);
       
       console.log('Face-API models loaded successfully');
       setIsModelLoaded(true);
@@ -153,7 +123,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
       setStatus('error');
       return false;
     }
-  }, [toast, options.detectObjects]);
+  }, [toast]);
 
   // Initialize camera with improved error handling
   const initializeCamera = useCallback(async () => {
@@ -178,15 +148,16 @@ export function useProctoring(options: ProctoringOptions = {}) {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode,
-          width: { ideal: 640 },
+          width: { ideal: 640 }, // Lower resolution for better performance
           height: { ideal: 480 },
-          frameRate: { ideal: 15 }
+          frameRate: { ideal: 15 } // Lower framerate to reduce CPU usage
         }
       });
 
       // Set the stream to the video element
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        // Add event listener for when video is ready to play
         videoRef.current.onloadedmetadata = () => {
           if (videoRef.current) videoRef.current.play();
         };
@@ -296,6 +267,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     if (!landmarks) return false;
     
     // Check if landmarks have unusually low confidence score
+    // or if certain key landmarks are missing/have low confidence
     const landmarksPositions = landmarks.positions;
     
     // A heuristic approach: if key facial landmarks deviate too much from expected positions
@@ -316,218 +288,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     return detectionScore < detectionOptions.faceDetectionThreshold;
   }, [detectionOptions.faceDetectionThreshold]);
 
-  // Detect objects (electronic devices) in the frame - IMPROVED VERSION
-  const detectObjects = useCallback(async (video: HTMLVideoElement, faceBoxes: Array<{x: number, y: number, width: number, height: number}>) => {
-    if (!options.detectObjects) {
-      return [];
-    }
-
-    try {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return [];
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0);
-
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-
-      const devices = [];
-      const blockSize = 60; // Larger blocks for better device detection
-      const edgeThreshold = 40;
-      const rectangleAspectRatios = [
-        { min: 0.4, max: 0.8, type: 'smartphone' },
-        { min: 1.2, max: 2.0, type: 'tablet' },
-        { min: 1.4, max: 1.8, type: 'laptop' }
-      ];
-      
-      for (let y = 0; y < canvas.height - blockSize; y += 30) {
-        for (let x = 0; x < canvas.width - blockSize; x += 30) {
-          // Skip areas where faces are detected
-          const overlapsFace = faceBoxes.some(face => {
-            return !(x > face.x + face.width || 
-                    x + blockSize < face.x || 
-                    y > face.y + face.height || 
-                    y + blockSize < face.y);
-          });
-          
-          if (overlapsFace) continue;
-          
-          let edgeCount = 0;
-          let totalBrightness = 0;
-          let darkPixels = 0;
-          let brightPixels = 0;
-          
-          // Analyze the block for device characteristics
-          for (let dy = 0; dy < blockSize; dy++) {
-            for (let dx = 0; dx < blockSize; dx++) {
-              const i = ((y + dy) * canvas.width + (x + dx)) * 4;
-              const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
-              totalBrightness += brightness;
-              
-              if (brightness < 80) darkPixels++;
-              if (brightness > 180) brightPixels++;
-              
-              // Edge detection
-              if (dx > 0 && dy > 0) {
-                const prevI = ((y + dy) * canvas.width + (x + dx - 1)) * 4;
-                const prevBrightness = (data[prevI] + data[prevI + 1] + data[prevI + 2]) / 3;
-                if (Math.abs(brightness - prevBrightness) > edgeThreshold) {
-                  edgeCount++;
-                }
-                
-                const topI = ((y + dy - 1) * canvas.width + (x + dx)) * 4;
-                const topBrightness = (data[topI] + data[topI + 1] + data[topI + 2]) / 3;
-                if (Math.abs(brightness - topBrightness) > edgeThreshold) {
-                  edgeCount++;
-                }
-              }
-            }
-          }
-          
-          const avgBrightness = totalBrightness / (blockSize * blockSize);
-          const edgeDensity = edgeCount / (blockSize * blockSize);
-          const contrastRatio = (brightPixels + darkPixels) / (blockSize * blockSize);
-          
-          // Device detection heuristics
-          const hasStrongEdges = edgeDensity > 0.1;
-          const hasContrast = contrastRatio > 0.3;
-          const hasDeviceBrightness = (avgBrightness > 100 && avgBrightness < 220);
-          const hasScreenCharacteristics = brightPixels > (blockSize * blockSize * 0.2);
-          
-          if (hasStrongEdges && hasContrast && (hasDeviceBrightness || hasScreenCharacteristics)) {
-            // Refine the bounding box by finding the actual edges
-            let minX = x + blockSize, maxX = x, minY = y + blockSize, maxY = y;
-            
-            for (let dy = 0; dy < blockSize; dy++) {
-              for (let dx = 0; dx < blockSize; dx++) {
-                const i = ((y + dy) * canvas.width + (x + dx)) * 4;
-                const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                
-                // Check if this pixel is part of an edge
-                let isEdge = false;
-                if (dx > 0) {
-                  const leftI = ((y + dy) * canvas.width + (x + dx - 1)) * 4;
-                  const leftBrightness = (data[leftI] + data[leftI + 1] + data[leftI + 2]) / 3;
-                  if (Math.abs(brightness - leftBrightness) > edgeThreshold) isEdge = true;
-                }
-                if (dy > 0) {
-                  const topI = ((y + dy - 1) * canvas.width + (x + dx)) * 4;
-                  const topBrightness = (data[topI] + data[topI + 1] + data[topI + 2]) / 3;
-                  if (Math.abs(brightness - topBrightness) > edgeThreshold) isEdge = true;
-                }
-                
-                if (isEdge) {
-                  minX = Math.min(minX, x + dx);
-                  maxX = Math.max(maxX, x + dx);
-                  minY = Math.min(minY, y + dy);
-                  maxY = Math.max(maxY, y + dy);
-                }
-              }
-            }
-            
-            const width = maxX - minX;
-            const height = maxY - minY;
-            const aspectRatio = width / height;
-            
-            // Determine device type based on aspect ratio and size
-            let deviceType = 'electronic_device';
-            for (const ratio of rectangleAspectRatios) {
-              if (aspectRatio >= ratio.min && aspectRatio <= ratio.max) {
-                deviceType = ratio.type;
-                break;
-              }
-            }
-            
-            // Only add if it's a reasonable size for a device
-            if (width > 40 && height > 40 && width < canvas.width * 0.7 && height < canvas.height * 0.7) {
-              devices.push({
-                type: deviceType,
-                confidence: Math.min(0.9, (edgeDensity * 2 + contrastRatio) * 0.5),
-                box: {
-                  x: minX,
-                  y: minY,
-                  width: width,
-                  height: height
-                }
-              });
-            }
-          }
-        }
-      }
-
-      return devices;
-    } catch (error) {
-      console.error('Error in object detection:', error);
-      return [];
-    }
-  }, [options.detectObjects]);
-
-  // Function to log object violations to database
-  const logObjectViolation = useCallback(async (objects: Array<{type: string, confidence: number, box: any}>, submissionId?: string) => {
-    if (!submissionId || objects.length === 0) return;
-
-    try {
-      const { data: submission, error: fetchError } = await supabase
-        .from('submissions')
-        .select('object_violations')
-        .eq('id', submissionId)
-        .single();
-
-      if (fetchError) {
-        console.error('Error fetching submission for object violations:', fetchError);
-        return;
-      }
-
-      let currentViolations: any[] = [];
-      if (submission && submission.object_violations) {
-        if (Array.isArray(submission.object_violations)) {
-          currentViolations = submission.object_violations as any[];
-        } else {
-          try {
-            const parsed = typeof submission.object_violations === 'string'
-              ? JSON.parse(submission.object_violations)
-              : submission.object_violations;
-            currentViolations = Array.isArray(parsed) ? parsed : [];
-          } catch (e) {
-            console.error('Error parsing object_violations:', e);
-            currentViolations = [];
-          }
-        }
-      }
-
-      const violationEntry = {
-        timestamp: new Date().toISOString(),
-        devices_detected: objects.map(obj => ({
-          type: obj.type,
-          confidence: obj.confidence,
-          position: obj.box
-        })),
-        violation_count: currentViolations.length + 1
-      };
-
-      currentViolations.push(violationEntry);
-
-      const { error: updateError } = await supabase
-        .from('submissions')
-        .update({ 
-          object_violations: currentViolations
-        })
-        .eq('id', submissionId);
-
-      if (updateError) {
-        console.error('Error updating object violations:', updateError);
-      } else {
-        console.log('Object violation logged:', violationEntry);
-      }
-    } catch (err) {
-      console.error('Error logging object violation:', err);
-    }
-  }, []);
-
-  // Detect faces from video with improved object detection integration
+  // Detect faces from video with optimizations
   const detectFaces = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !isModelLoaded || !isCameraReady) {
       return;
@@ -556,12 +317,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
         ? await detectionsPromise.withFaceExpressions()
         : await detectionsPromise;
 
-      // Get face bounding boxes for object detection
-      const faceBoxes = detections.map(detection => detection.detection.box);
-      
-      // Detect objects with improved algorithm
-      const objects = await detectObjects(video, faceBoxes);
-
+      // Clear previous drawings
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -570,14 +326,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
       // Track violations if enabled
       if (options.trackViolations) {
         const now = Date.now();
-        
-        // Check for electronic devices (now properly implemented)
-        if (objects.length > 0) {
-          setViolations(prev => ({
-            ...prev,
-            electronicDeviceDetected: prev.electronicDeviceDetected + 1
-          }));
-        }
         
         if (detections.length === 0) {
           // No face detected
@@ -589,12 +337,12 @@ export function useProctoring(options: ProctoringOptions = {}) {
               ...prev,
               noFaceDetected: prev.noFaceDetected + 1
             }));
-            noFaceCounterRef.current = 0;
+            noFaceCounterRef.current = 0; // Reset counter after recording violation
           }
           
           // Track frequent disappearance
           if (lastFaceDetectionTimeRef.current > 0 && 
-              now - lastFaceDetectionTimeRef.current < 10000) {
+              now - lastFaceDetectionTimeRef.current < 10000) {  // Within 10 seconds
             setViolations(prev => ({
               ...prev,
               frequentDisappearance: prev.frequentDisappearance + 1
@@ -617,93 +365,45 @@ export function useProctoring(options: ProctoringOptions = {}) {
           if (detections.length === 1) {
             const detection = detections[0];
             
-            // Convert FaceExpressions to Record<string, number>
-            const expressions: Record<string, number> = {};
-            if (options.detectExpressions && 'expressions' in detection) {
-              Object.entries(detection.expressions || {}).forEach(([key, value]) => {
-                expressions[key] = value;
-              });
+            // Check if face is centered
+            if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
+              setViolations(prev => ({
+                ...prev,
+                faceNotCentered: prev.faceNotCentered + 1
+              }));
             }
             
-            // Check for specific violations to update status
-            if (options.trackViolations) {
-              if (isFaceCovered(detection)) {
-                setStatus('faceCovered');
-                setDetectionResult({
-                  status: 'faceCovered',
-                  facesCount: 1,
-                  expressions,
-                  objects,
-                  message: 'Face appears to be covered. Please remove any obstructions.'
-                });
-              } else if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
-                setStatus('faceNotCentered');
-                setDetectionResult({
-                  status: 'faceNotCentered',
-                  facesCount: 1,
-                  expressions,
-                  objects,
-                  message: 'Face not centered. Please position yourself in the middle of the frame.'
-                });
-              } else if (checkForRapidMovements(detection.detection.box)) {
-                setStatus('rapidMovement');
-                setDetectionResult({
-                  status: 'rapidMovement',
-                  facesCount: 1,
-                  expressions,
-                  objects,
-                  message: 'Rapid movement detected. Please keep your head still.'
-                });
-              } else {
-                setStatus('faceDetected');
-                setDetectionResult({
-                  status: 'faceDetected',
-                  facesCount: 1,
-                  expressions,
-                  objects,
-                  message: 'Face detected successfully.'
-                });
-              }
-            } else {
-              setStatus('faceDetected');
-              setDetectionResult({
-                status: 'faceDetected',
-                facesCount: 1,
-                expressions,
-                objects,
-                message: 'Face detected successfully.'
-              });
+            // Check if face is covered
+            if (isFaceCovered(detection)) {
+              setViolations(prev => ({
+                ...prev,
+                faceCovered: prev.faceCovered + 1
+              }));
+            }
+            
+            // Check for rapid movements
+            if (checkForRapidMovements(detection.detection.box)) {
+              setViolations(prev => ({
+                ...prev,
+                rapidMovement: prev.rapidMovement + 1
+              }));
             }
           }
         }
       }
 
-      // Update status and log object violations if needed
-      if (objects.length > 0) {
-        setStatus('objectDetected');
-        setDetectionResult({
-          status: 'objectDetected',
-          facesCount: detections.length,
-          objects,
-          message: `${objects.length} electronic device(s) detected: ${objects.map(o => o.type).join(', ')}`
-        });
-        
-        // Log to database if we have submission context
-        const submissionId = (window as any).currentSubmissionId;
-        if (submissionId) {
-          logObjectViolation(objects, submissionId);
-        }
-      } else if (detections.length === 0) {
+      // Update status based on detection
+      if (detections.length === 0) {
         setStatus('noFaceDetected');
         setDetectionResult({
           status: 'noFaceDetected',
           facesCount: 0,
-          objects,
           message: 'No face detected. Please position yourself in front of the camera.'
         });
       } else if (detections.length === 1) {
         const detection = detections[0];
         
+        // Convert FaceExpressions to Record<string, number>
         const expressions: Record<string, number> = {};
         if (options.detectExpressions && 'expressions' in detection) {
           Object.entries(detection.expressions || {}).forEach(([key, value]) => {
@@ -711,6 +411,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
           });
         }
         
+        // Check for specific violations to update status
         if (options.trackViolations) {
           if (isFaceCovered(detection)) {
             setStatus('faceCovered');
@@ -718,7 +419,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
               status: 'faceCovered',
               facesCount: 1,
               expressions,
-              objects,
               message: 'Face appears to be covered. Please remove any obstructions.'
             });
           } else if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
@@ -727,7 +427,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
               status: 'faceNotCentered',
               facesCount: 1,
               expressions,
-              objects,
               message: 'Face not centered. Please position yourself in the middle of the frame.'
             });
           } else if (checkForRapidMovements(detection.detection.box)) {
@@ -736,7 +435,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
               status: 'rapidMovement',
               facesCount: 1,
               expressions,
-              objects,
               message: 'Rapid movement detected. Please keep your head still.'
             });
           } else {
@@ -745,7 +443,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
               status: 'faceDetected',
               facesCount: 1,
               expressions,
-              objects,
               message: 'Face detected successfully.'
             });
           }
@@ -755,7 +452,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
             status: 'faceDetected',
             facesCount: 1,
             expressions,
-            objects,
             message: 'Face detected successfully.'
           });
         }
@@ -764,14 +460,13 @@ export function useProctoring(options: ProctoringOptions = {}) {
         setDetectionResult({
           status: 'multipleFacesDetected',
           facesCount: detections.length,
-          objects,
           message: 'Multiple faces detected. Please ensure only you are visible.'
         });
       }
       
-      // Draw the detections with improved object boxes
-      if (ctx && (detections.length > 0 || objects.length > 0)) {
-        // Draw face detections
+      // Draw the detections
+      if (ctx && detections.length > 0) {
+        // Draw each detected face
         detections.forEach((detection, index) => {
           const box = detection.detection.box;
           
@@ -779,52 +474,56 @@ export function useProctoring(options: ProctoringOptions = {}) {
           const borderColor = 
             detections.length > 1 
               ? "rgb(239, 68, 68)" // red
-              : "rgb(34, 197, 94)"; // green
+              : "rgb(245, 158, 11)"; // amber
           
-          ctx.lineWidth = 3;
-          ctx.strokeStyle = borderColor;
-          ctx.strokeRect(box.x, box.y, box.width, box.height);
+          if (ctx) {
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = borderColor;
+            ctx.strokeRect(box.x, box.y, box.width, box.height);
+          }
           
           // Add corner marks for better visibility
           const cornerLength = Math.min(25, Math.min(box.width, box.height) / 4);
-          ctx.lineWidth = 4;
-          
-          // Draw corner marks (top-left, top-right, bottom-left, bottom-right)
-          // Top-left
-          ctx.beginPath();
-          ctx.moveTo(box.x, box.y + cornerLength);
-          ctx.lineTo(box.x, box.y);
-          ctx.lineTo(box.x + cornerLength, box.y);
-          ctx.stroke();
-          
-          // Top-right
-          ctx.beginPath();
-          ctx.moveTo(box.x + box.width - cornerLength, box.y);
-          ctx.lineTo(box.x + box.width, box.y);
-          ctx.lineTo(box.x + box.width, box.y + cornerLength);
-          ctx.stroke();
-          
-          // Bottom-left
-          ctx.beginPath();
-          ctx.moveTo(box.x, box.y + box.height - cornerLength);
-          ctx.lineTo(box.x, box.y + box.height);
-          ctx.lineTo(box.x + cornerLength, box.y + box.height);
-          ctx.stroke();
-          
-          // Bottom-right
-          ctx.beginPath();
-          ctx.moveTo(box.x + box.width - cornerLength, box.y + box.height);
-          ctx.lineTo(box.x + box.width, box.y + box.height);
-          ctx.lineTo(box.x + box.width, box.y + box.height - cornerLength);
-          ctx.stroke();
+          if (ctx) {
+            ctx.lineWidth = 4;
+            
+            // Draw corner marks (top-left, top-right, bottom-left, bottom-right)
+            // Top-left
+            ctx.beginPath();
+            ctx.moveTo(box.x, box.y + cornerLength);
+            ctx.lineTo(box.x, box.y);
+            ctx.lineTo(box.x + cornerLength, box.y);
+            ctx.stroke();
+            
+            // Top-right
+            ctx.beginPath();
+            ctx.moveTo(box.x + box.width - cornerLength, box.y);
+            ctx.lineTo(box.x + box.width, box.y);
+            ctx.lineTo(box.x + box.width, box.y + cornerLength);
+            ctx.stroke();
+            
+            // Bottom-left
+            ctx.beginPath();
+            ctx.moveTo(box.x, box.y + box.height - cornerLength);
+            ctx.lineTo(box.x, box.y + box.height);
+            ctx.lineTo(box.x + cornerLength, box.y + box.height);
+            ctx.stroke();
+            
+            // Bottom-right
+            ctx.beginPath();
+            ctx.moveTo(box.x + box.width - cornerLength, box.y + box.height);
+            ctx.lineTo(box.x + box.width, box.y + box.height);
+            ctx.lineTo(box.x + box.width, box.y + box.height - cornerLength);
+            ctx.stroke();
+          }
 
           // Optionally draw landmarks
-          if (options.drawLandmarks) {
+          if (options.drawLandmarks && ctx) {
             faceapi.draw.drawFaceLandmarks(canvas, detection);
           }
           
           // Optionally draw expressions
-          if (options.drawExpressions && 'expressions' in detection) {
+          if (options.drawExpressions && ctx && 'expressions' in detection) {
             const expressions = detection.expressions;
             if (expressions) {
               const sorted = Object.entries(expressions)
@@ -844,56 +543,25 @@ export function useProctoring(options: ProctoringOptions = {}) {
             }
           }
         });
-
-        // Draw object detections with improved styling
-        objects.forEach((obj, index) => {
-          const box = obj.box;
-          
-          ctx.lineWidth = 4;
-          ctx.strokeStyle = "rgb(239, 68, 68)"; // red for objects
-          ctx.setLineDash([10, 5]); // Dashed line for objects
-          ctx.strokeRect(box.x, box.y, box.width, box.height);
-          ctx.setLineDash([]); // Reset line dash
-          
-          // Add device type and confidence label
-          const label = `${obj.type} (${Math.round(obj.confidence * 100)}%)`;
-          const labelWidth = ctx.measureText(label).width + 10;
-          
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
-          ctx.fillRect(box.x, box.y - 30, labelWidth, 25);
-          ctx.fillStyle = '#fff';
-          ctx.font = '14px Arial';
-          ctx.fillText(label, box.x + 5, box.y - 10);
-          
-          // Add warning icon
-          ctx.fillStyle = 'rgba(239, 68, 68, 0.3)';
-          ctx.fillRect(box.x, box.y, box.width, box.height);
-        });
         
-        if (options.showDebugInfo) {
+        // Show debug info if enabled
+        if (options.showDebugInfo && ctx) {
           ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-          ctx.fillRect(0, 0, 200, 120);
+          ctx.fillRect(0, 0, 180, 80);
           ctx.font = '14px Arial';
           ctx.fillStyle = '#fff';
           ctx.fillText(`Faces: ${detections.length}`, 10, 20);
-          ctx.fillText(`Objects: ${objects.length}`, 10, 40);
-          ctx.fillText(`Status: ${status}`, 10, 60);
+          ctx.fillText(`Status: ${status}`, 10, 40);
           
           if (options.trackViolations) {
             const totalViolations = Object.values(violations).reduce((sum, val) => sum + val, 0);
-            ctx.fillText(`Violations: ${totalViolations}`, 10, 80);
-          }
-          
-          if (objects.length > 0) {
-            ctx.fillText(`Device Types:`, 10, 100);
-            objects.forEach((obj, i) => {
-              ctx.fillText(`${obj.type}`, 10, 120 + (i * 15));
-            });
+            ctx.fillText(`Violations: ${totalViolations}`, 10, 60);
           }
         }
       }
     } catch (error) {
       console.error('Error in face detection:', error);
+      // Don't update status on transient errors to avoid flickering
     }
 
   }, [
@@ -904,9 +572,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
     options.drawLandmarks, 
     options.drawExpressions,
     options.detectExpressions,
-    options.detectObjects,
-    detectObjects,
-    logObjectViolation,
     isFaceCentered,
     isFaceCovered,
     checkForRapidMovements,
@@ -962,8 +627,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
       faceCovered: 0,
       rapidMovement: 0,
       frequentDisappearance: 0,
-      identityMismatch: 0,
-      electronicDeviceDetected: 0
+      identityMismatch: 0
     });
     
     // Reset face tracking state
