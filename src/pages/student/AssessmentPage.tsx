@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
-import Timer from '@/components/Timer';
+import { Timer } from '@/components/Timer';
 import ProctoringCamera from '@/components/ProctoringCamera';
 import { useFullscreen } from '@/hooks/useFullscreen';
 
@@ -127,20 +128,67 @@ const AssessmentPage: React.FC = () => {
 
       if (assessmentError) throw assessmentError;
 
-      const { data: questionsData, error: questionsError } = await supabase
-        .from('questions')
+      // Fetch MCQ questions
+      const { data: mcqQuestions, error: mcqError } = await supabase
+        .from('mcq_questions')
+        .select(`
+          *,
+          mcq_options (*)
+        `)
+        .eq('assessment_id', assessmentId)
+        .order('order_index');
+
+      if (mcqError) throw mcqError;
+
+      // Fetch coding questions
+      const { data: codingQuestions, error: codingError } = await supabase
+        .from('coding_questions')
         .select('*')
         .eq('assessment_id', assessmentId)
         .order('order_index');
 
-      if (questionsError) throw questionsError;
+      if (codingError) throw codingError;
+
+      // Transform and combine questions
+      const transformedMcqQuestions: Question[] = (mcqQuestions || []).map(q => ({
+        id: q.id,
+        question_text: q.title,
+        question_type: 'mcq' as const,
+        points: q.marks,
+        options: q.mcq_options?.map(opt => opt.text) || [],
+        correct_answer: q.mcq_options?.find(opt => opt.is_correct)?.text
+      }));
+
+      const transformedCodingQuestions: Question[] = (codingQuestions || []).map(q => ({
+        id: q.id,
+        question_text: q.title,
+        question_type: 'coding' as const,
+        points: q.marks
+      }));
+
+      const allQuestions = [...transformedMcqQuestions, ...transformedCodingQuestions]
+        .sort((a, b) => {
+          const aOrder = mcqQuestions?.find(q => q.id === a.id)?.order_index || 
+                        codingQuestions?.find(q => q.id === a.id)?.order_index || 0;
+          const bOrder = mcqQuestions?.find(q => q.id === b.id)?.order_index || 
+                        codingQuestions?.find(q => q.id === b.id)?.order_index || 0;
+          return aOrder - bOrder;
+        });
 
       setAssessment({
-        ...assessmentData,
-        questions: questionsData
+        id: assessmentData.id,
+        title: assessmentData.name,
+        description: assessmentData.instructions,
+        duration: assessmentData.duration_minutes,
+        total_questions: allQuestions.length,
+        passing_score: 70, // Default passing score
+        instructions: assessmentData.instructions,
+        is_proctored: assessmentData.is_ai_proctored,
+        camera_required: assessmentData.is_ai_proctored,
+        questions: allQuestions
       });
 
-      if (assessmentData.camera_required) {
+      if (assessmentData.is_ai_proctored) {
         setShowCamera(true);
       }
 
@@ -160,7 +208,7 @@ const AssessmentPage: React.FC = () => {
     try {
       const { data: submission, error: fetchError } = await supabase
         .from('submissions')
-        .select('violations')
+        .select('fullscreen_violations')
         .eq('id', submissionId)
         .single();
 
@@ -169,7 +217,7 @@ const AssessmentPage: React.FC = () => {
         return;
       }
 
-      const currentViolations = submission.violations || [];
+      const currentViolations = submission.fullscreen_violations || 0;
       const newViolation = {
         type: violationType,
         timestamp: new Date().toISOString()
@@ -178,7 +226,7 @@ const AssessmentPage: React.FC = () => {
       const { error: updateError } = await supabase
         .from('submissions')
         .update({ 
-          violations: [...currentViolations, newViolation]
+          fullscreen_violations: currentViolations + 1
         })
         .eq('id', submissionId);
 
@@ -205,9 +253,8 @@ const AssessmentPage: React.FC = () => {
         .from('submissions')
         .insert({
           assessment_id: assessment.id,
-          student_id: user.id,
-          started_at: new Date().toISOString(),
-          status: 'in_progress'
+          user_id: user.id,
+          started_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -289,10 +336,7 @@ const AssessmentPage: React.FC = () => {
       const { error } = await supabase
         .from('submissions')
         .update({
-          answers: submissionAnswers,
-          score: totalScore,
-          completed_at: new Date().toISOString(),
-          status: 'completed'
+          completed_at: new Date().toISOString()
         })
         .eq('id', submissionId);
 
@@ -466,8 +510,7 @@ const AssessmentPage: React.FC = () => {
             
             <div className="flex items-center gap-4">
               <Timer 
-                initialTime={timeRemaining}
-                onTimeUp={handleTimeUp}
+                value={timeRemaining}
               />
               <Button
                 onClick={submitAssessment}
@@ -492,14 +535,39 @@ const AssessmentPage: React.FC = () => {
               <CardContent className="p-6">
                 {currentQuestion.question_type === 'mcq' ? (
                   <MCQQuestion
-                    question={currentQuestion}
-                    selectedAnswer={answers.find(a => a.questionId === currentQuestion.id)?.answer}
+                    question={{
+                      id: currentQuestion.id,
+                      title: currentQuestion.question_text,
+                      description: currentQuestion.question_text,
+                      type: 'mcq',
+                      options: currentQuestion.options?.map((opt, index) => ({
+                        id: `${currentQuestion.id}_${index}`,
+                        text: opt,
+                        isCorrect: opt === currentQuestion.correct_answer
+                      })) || [],
+                      selectedOption: answers.find(a => a.questionId === currentQuestion.id)?.answer
+                    }}
                     onAnswerSelect={(answer) => handleAnswerChange(currentQuestion.id, answer)}
                   />
                 ) : (
                   <CodeEditor
-                    question={currentQuestion as CodingQuestion}
-                    onTestResults={handleCodeSubmit}
+                    question={{
+                      id: currentQuestion.id,
+                      title: currentQuestion.question_text,
+                      description: currentQuestion.question_text,
+                      assessment_id: assessment.id,
+                      image_url: null,
+                      order_index: currentQuestionIndex,
+                      created_at: new Date().toISOString(),
+                      type: 'code',
+                      examples: [],
+                      constraints: [],
+                      solutionTemplate: {},
+                      userSolution: {},
+                      testCases: [],
+                      marksObtained: 0
+                    }}
+                    onTestResults={(results) => handleCodeSubmit(currentQuestion.id, results.marksObtained || 0)}
                   />
                 )}
               </CardContent>
