@@ -40,32 +40,28 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 p-4">
-      {/* Background decorative elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-red-100 to-red-200 rounded-full opacity-30 blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-blue-100 to-blue-200 rounded-full opacity-30 blur-3xl"></div>
-      </div>
-      
+    <div className="min-h-screen flex items-center justify-center bg-white p-4">
       <div className="relative w-full max-w-md">
-        {/* Logo and branding */}
+        {/* Logo */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-20 h-20 mb-6 bg-gradient-to-br from-astra-red to-red-600 rounded-2xl shadow-xl transform hover:scale-105 transition-transform duration-300">
+          <div className="inline-flex items-center justify-center w-20 h-20 mb-6 bg-red-600 rounded-2xl shadow-xl">
             <img 
               src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" 
               alt="Yudha Logo" 
-              className="w-12 h-12 drop-shadow-sm" 
+              className="w-12 h-12" 
             />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2 tracking-tight">Welcome Back</h1>
-          <p className="text-gray-500 text-lg">Sign in to continue your assessment</p>
         </div>
         
         {/* Login form */}
-        <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+        <Card className="border shadow-lg bg-white">
           <CardHeader className="pb-4">
             <CardTitle className="text-center text-xl font-semibold text-gray-800">
-              Student Portal
+              <img 
+                src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" 
+                alt="Yudha Logo" 
+                className="w-8 h-8 mx-auto" 
+              />
             </CardTitle>
           </CardHeader>
           
@@ -85,7 +81,7 @@ const Login = () => {
                     placeholder="Enter your username" 
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-12 text-base border-gray-200 focus:border-astra-red focus:ring-2 focus:ring-red-100 transition-all"
+                    className="pl-10 h-12 text-base border-gray-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all"
                     required
                   />
                 </div>
@@ -105,7 +101,7 @@ const Login = () => {
                     placeholder="Enter your password" 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-12 h-12 text-base border-gray-200 focus:border-astra-red focus:ring-2 focus:ring-red-100 transition-all"
+                    className="pl-10 pr-12 h-12 text-base border-gray-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all"
                     required
                   />
                   <button
@@ -126,7 +122,7 @@ const Login = () => {
               
               <Button 
                 type="submit" 
-                className="w-full h-12 text-base font-medium bg-gradient-to-r from-astra-red to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200" 
+                className="w-full h-12 text-base font-medium bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200" 
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
