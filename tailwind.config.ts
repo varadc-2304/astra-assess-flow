@@ -120,11 +120,6 @@ export default {
 				pulse: {
 					'0%, 100%': { opacity: '1' },
 					'50%': { opacity: '.5' }
-				},
-				float: {
-					'0%, 100%': { transform: 'translateY(0px) translateX(0px)' },
-					'33%': { transform: 'translateY(-10px) translateX(5px)' },
-					'66%': { transform: 'translateY(5px) translateX(-5px)' }
 				}
 			},
 			animation: {
@@ -132,8 +127,7 @@ export default {
 				'accordion-up': 'accordion-up 0.2s ease-out',
 				gradient: 'gradient 15s ease infinite',
 				'fade-in': 'fadeIn 0.3s ease-out forwards',
-				pulse: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-				float: 'float 6s ease-in-out infinite'
+				pulse: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
 			},
 			boxShadow: {
 				'soft': '0 4px 14px 0 rgba(0,0,0,0.05)',

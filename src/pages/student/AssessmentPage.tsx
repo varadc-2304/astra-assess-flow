@@ -454,31 +454,6 @@ const AssessmentPage = () => {
               </SheetTitle>
             </SheetHeader>
             <div className="py-4 space-y-6">
-              {/* AI Proctoring Camera in Side Panel */}
-              {isAiProctoringEnabled && (
-                <div className="mb-6">
-                  <h4 className="font-medium text-sm mb-3 text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                    <Camera className="h-4 w-4 text-red-500" />
-                    AI Proctoring
-                  </h4>
-                  <Card className="overflow-hidden border border-red-200 bg-red-50/50">
-                    <ProctoringCamera 
-                      showControls={false}
-                      showStatus={false}
-                      trackViolations={true}
-                      assessmentId={assessment.id}
-                      submissionId={submissionId || undefined}
-                      size="small"
-                    />
-                    <div className="p-2 bg-red-100/50 border-t border-red-200">
-                      <p className="text-xs text-red-700 text-center">
-                        AI monitoring active
-                      </p>
-                    </div>
-                  </Card>
-                </div>
-              )}
-              
               <div className="grid grid-cols-5 gap-2">
                 {assessment.questions.map((q, index) => {
                   const status = isCodeQuestion(q) ? getQuestionSubmissionStatus(q) : null;
@@ -657,7 +632,7 @@ const AssessmentPage = () => {
             onTouchStart={handleTouchStart}
           >
             <Card className={cn(
-              "w-[180px] overflow-hidden rounded-lg border-0",
+              "w-[180px] overflow-hidden rounded-lg border-0",  // Reduced width from 240px to 180px
               "bg-black/10 backdrop-blur-sm",
               "transform transition-transform duration-200",
               isDragging ? "scale-105" : "",
@@ -665,7 +640,7 @@ const AssessmentPage = () => {
             )}>
               <div 
                 className={cn(
-                  "flex items-center justify-between px-3 py-1",
+                  "flex items-center justify-between px-3 py-1", // Reduced padding
                   "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
                   "border-b border-white/10",
                   isDragging ? "cursor-grabbing" : "cursor-grab"
@@ -674,12 +649,12 @@ const AssessmentPage = () => {
                 onTouchStart={handleTouchStart}
               >
                 <div className="flex items-center space-x-1">
-                  <Camera className="h-3 w-3 text-white opacity-80" />
-                  <span className="text-xs font-medium text-white opacity-90">Proctoring</span>
+                  <Camera className="h-3 w-3 text-white opacity-80" /> {/* Reduced icon size */}
+                  <span className="text-xs font-medium text-white opacity-90">Proctoring</span> {/* Shorter text */}
                 </div>
                 <div className="flex items-center">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse mr-1"></div>
-                  <GripVertical className="h-3 w-3 text-white opacity-70" />
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse mr-1"></div> {/* Smaller indicator */}
+                  <GripVertical className="h-3 w-3 text-white opacity-70" /> {/* Reduced icon size */}
                 </div>
               </div>
               <ProctoringCamera 
@@ -688,10 +663,10 @@ const AssessmentPage = () => {
                 trackViolations={true}
                 assessmentId={assessment.id}
                 submissionId={submissionId || undefined}
-                size="small"
+                size="small" // Use the small size
               />
               <div className={cn(
-                "text-[9px] text-center py-0.5 text-white/70 opacity-0",
+                "text-[9px] text-center py-0.5 text-white/70 opacity-0", // Smaller text and padding
                 "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
                 "border-t border-white/10",
                 "transition-opacity duration-200",

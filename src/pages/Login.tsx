@@ -4,14 +4,13 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
-import { User, Lock, Eye, EyeOff } from 'lucide-react';
+import { School, Lock, User } from 'lucide-react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState('');
   const { login } = useAuth();
@@ -29,9 +28,11 @@ const Login = () => {
     setLoginError('');
     
     try {
+      // Default to student role since admin tab is removed
       await login(email, password, 'student');
       navigate('/student');
     } catch (error: any) {
+      // Show error message from Auth context
       setLoginError(error?.message || 'Login failed. Please check your credentials.');
       console.error('Login error', error);
     } finally {
@@ -40,112 +41,92 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-4">
-      <div className="relative w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-20 h-20 mb-6 bg-red-600 rounded-2xl shadow-xl">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 px-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="mx-auto w-24 h-24 mb-4 transform hover:scale-105 transition-transform duration-300">
             <img 
               src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" 
               alt="Yudha Logo" 
-              className="w-12 h-12" 
+              className="w-full h-full drop-shadow-md" 
             />
           </div>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Welcome to Yudha</h1>
+          <p className="text-gray-600">Login to access your assessments</p>
         </div>
         
-        {/* Login form */}
-        <Card className="border shadow-lg bg-white">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-center text-xl font-semibold text-gray-800">
-              <img 
-                src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" 
-                alt="Yudha Logo" 
-                className="w-8 h-8 mx-auto" 
-              />
+        <Card className="border-0 shadow-lg overflow-hidden animate-fade-in">
+          <CardHeader className="bg-gradient-to-r from-astra-red to-red-600 text-white">
+            <CardTitle className="flex items-center gap-2">
+              <School className="h-5 w-5" />
+              Student Login
             </CardTitle>
+            <CardDescription className="text-white/80">
+              Enter your credentials to access your assessments.
+            </CardDescription>
           </CardHeader>
           
-          <CardContent className="space-y-6">
-            <form onSubmit={handleLogin} className="space-y-5">
+          <CardContent className="pt-6">
+            <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username" className="text-sm font-medium text-gray-700">
-                  Username
-                </Label>
+                <Label htmlFor="student-email" className="text-gray-700">Username</Label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                    <User className="h-5 w-5 text-gray-400" />
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                    <User className="h-4 w-4" />
                   </div>
                   <Input 
-                    id="username" 
+                    id="student-email" 
                     type="text" 
                     placeholder="Enter your username" 
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-12 text-base border-gray-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all"
+                    className="pl-10 bg-gray-50 border-gray-200 focus:border-astra-red focus:ring focus:ring-red-100"
                     required
                   />
                 </div>
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium text-gray-700">
-                  Password
-                </Label>
+                <Label htmlFor="student-password" className="text-gray-700">Password</Label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                    <Lock className="h-5 w-5 text-gray-400" />
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                    <Lock className="h-4 w-4" />
                   </div>
                   <Input 
-                    id="password" 
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password" 
+                    id="student-password" 
+                    type="password" 
+                    placeholder="••••••••" 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-12 h-12 text-base border-gray-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 transition-all"
+                    className="pl-10 bg-gray-50 border-gray-200 focus:border-astra-red focus:ring focus:ring-red-100"
                     required
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
                 </div>
               </div>
               
               {loginError && (
-                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+                <div className="text-red-500 text-sm bg-red-50 p-2 rounded border border-red-100">
                   {loginError}
                 </div>
               )}
               
               <Button 
                 type="submit" 
-                className="w-full h-12 text-base font-medium bg-red-600 hover:bg-red-700 text-white shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200" 
+                className="w-full bg-astra-red hover:bg-red-600 text-white shadow-md hover:shadow-lg transition-all" 
                 disabled={isSubmitting}
               >
-                {isSubmitting ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Signing in...</span>
-                  </div>
-                ) : (
-                  'Sign In'
-                )}
+                {isSubmitting ? 'Logging in...' : 'Login'}
               </Button>
             </form>
           </CardContent>
+          
+          <CardFooter className="flex flex-col items-center justify-center py-4 bg-gray-50 text-sm text-gray-600">
+            <p>Trouble logging in? Contact your administrator</p>
+          </CardFooter>
         </Card>
         
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-sm text-gray-500">
-            Need help? Contact your administrator
-          </p>
-          <p className="text-xs text-gray-400 mt-4">
-            © {new Date().getFullYear()} Yudha Assessments. All rights reserved.
-          </p>
+        <div className="mt-6 text-center text-sm text-gray-600">
+          <p>© {new Date().getFullYear()} Yudha Assessments. All rights reserved.</p>
         </div>
       </div>
     </div>
