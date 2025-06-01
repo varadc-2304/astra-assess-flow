@@ -8,7 +8,7 @@ import type {
 
 const TOAST_LIMIT = 3
 const TOAST_REMOVE_DELAY = 1000
-const DEFAULT_TOAST_DURATION = 1000 // Changed default toast duration to 1 second
+const DEFAULT_TOAST_DURATION = 3000 // Changed to 3 seconds for better UX
 
 type ToasterToast = ToastProps & {
   id: string
@@ -78,7 +78,7 @@ export const reducer = (state: State, action: Action): State => {
     case "ADD_TOAST":
       return {
         ...state,
-        toasts: [action.toast, ...state.toasts],
+        toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),
       }
 
     case "UPDATE_TOAST":
@@ -142,8 +142,17 @@ type Toast = Omit<ToasterToast, "id">
 function toast({ ...props }: Toast) {
   const id = genId()
 
-  // Apply default duration if not provided
-  const duration = typeof props.duration === 'number' ? props.duration : DEFAULT_TOAST_DURATION
+  // Apply default duration if not provided, with smart defaults based on variant
+  let duration = props.duration;
+  if (typeof duration !== 'number') {
+    if (props.variant === 'destructive') {
+      duration = 5000; // Errors stay longer
+    } else if (props.variant === 'success') {
+      duration = 2000; // Success messages are shorter
+    } else {
+      duration = DEFAULT_TOAST_DURATION;
+    }
+  }
 
   const update = (props: ToasterToast) =>
     dispatch({

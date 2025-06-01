@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,7 +32,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const [isLoadingTemplate, setIsLoadingTemplate] = useState<boolean>(false);
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -46,7 +44,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   // Effect to handle language changes when question changes
   useEffect(() => {
     const fetchTemplate = async () => {
-      setIsLoadingTemplate(true);
       const availableLanguages = Object.keys(question.solutionTemplate);
       if (availableLanguages.length === 0) return;
 
@@ -71,7 +68,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           if (!savedCodeError && savedCode) {
             setCurrentCode(savedCode.code);
             onCodeChange(newLanguage, savedCode.code);
-            setIsLoadingTemplate(false);
             return;
           }
         }
@@ -101,8 +97,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         }
       } catch (err) {
         console.error('Error in template fetch:', err);
-      } finally {
-        setIsLoadingTemplate(false);
       }
     };
 
@@ -111,7 +105,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
 
   const handleLanguageChange = async (language: string) => {
     setSelectedLanguage(language);
-    setIsLoadingTemplate(true);
 
     try {
       // First check if there's a saved code snippet for this question and language
@@ -128,7 +121,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         if (!savedCodeError && savedCode) {
           setCurrentCode(savedCode.code);
           onCodeChange(language, savedCode.code);
-          setIsLoadingTemplate(false);
           return;
         }
       }
@@ -136,7 +128,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       // If no saved code, check if there's a user solution already
       if (question.userSolution[language]) {
         setCurrentCode(question.userSolution[language]);
-        setIsLoadingTemplate(false);
         return;
       }
 
@@ -161,8 +152,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       }
     } catch (err) {
       console.error('Error in template fetch:', err);
-    } finally {
-      setIsLoadingTemplate(false);
     }
   };
 
@@ -618,12 +607,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-between items-center mb-2 gap-2">
-        {isLoadingTemplate && (
-          <div className="text-sm text-muted-foreground ml-2 animate-pulse">
-            Loading template...
-          </div>
-        )}
-
         <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
           <SelectTrigger className="w-fit min-w-[120px] max-w-[200px] flex-shrink-0">
             <SelectValue placeholder="Language" />
@@ -642,7 +625,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             variant="secondary" 
             size="sm"
             onClick={handleRunCode}
-            disabled={isRunning || isSubmitting || isLoadingTemplate}
+            disabled={isRunning || isSubmitting}
             className="whitespace-nowrap"
           >
             {isRunning ? (
@@ -656,7 +639,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             className="bg-astra-red hover:bg-red-600 text-white whitespace-nowrap"
             size="sm"
             onClick={handleSubmitCode}
-            disabled={isRunning || isSubmitting || isLoadingTemplate}
+            disabled={isRunning || isSubmitting}
           >
             {isSubmitting ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -676,24 +659,17 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         <div className="flex-1 flex">
           <TabsContent value="code" className="flex-1 h-full m-0">
             <div className="h-[calc(100vh-280px)] border border-gray-200 rounded-md overflow-hidden">
-              {isLoadingTemplate ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                  <span className="ml-2 text-gray-400">Loading template...</span>
-                </div>
-              ) : (
-                <Editor
-                  height="100%"
-                  defaultLanguage={selectedLanguage}
-                  language={selectedLanguage}
-                  defaultValue={currentCode}
-                  onChange={handleCodeChange}
-                  theme="vs-dark"
-                  options={editorOptions}
-                  className="monaco-editor"
-                  onMount={handleEditorDidMount}
-                />
-              )}
+              <Editor
+                height="100%"
+                defaultLanguage={selectedLanguage}
+                language={selectedLanguage}
+                defaultValue={currentCode}
+                onChange={handleCodeChange}
+                theme="vs-dark"
+                options={editorOptions}
+                className="monaco-editor"
+                onMount={handleEditorDidMount}
+              />
             </div>
           </TabsContent>
           <TabsContent value="output" className="flex-1 h-full m-0">
