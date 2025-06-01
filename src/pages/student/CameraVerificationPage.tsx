@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
@@ -17,17 +16,6 @@ const CameraVerificationPage = () => {
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [isCreatingSubmission, setIsCreatingSubmission] = useState(false);
   const [isCameraActivated, setIsCameraActivated] = useState(false);
-  const [systemInfo, setSystemInfo] = useState<{
-    browserOk: boolean;
-    osOk: boolean;
-    memoryOk: boolean;
-    cpuOk: boolean;
-  }>({
-    browserOk: false,
-    osOk: false,
-    memoryOk: false,
-    cpuOk: false,
-  });
   
   const { assessment, startAssessment, assessmentCode, loading } = useAssessment();
   const navigate = useNavigate();
@@ -87,8 +75,8 @@ const CameraVerificationPage = () => {
         setIsCreatingSubmission(false);
       }
     },
-    retry: 3, // Retry up to 3 times
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000), // Exponential backoff
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
     onSuccess: (data) => {
       if (data) {
         console.log('Submission created/found successfully:', data.id);
@@ -130,61 +118,22 @@ const CameraVerificationPage = () => {
       console.log("Creating submission for assessment", assessment.id);
       createSubmissionMutation.mutate();
     }
-    
-    // Check system requirements
-    const checkSystemRequirements = async () => {
-      // Check browser compatibility
-      const isModernBrowser = 'mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices;
-      
-      // Check operating system
-      const userAgent = navigator.userAgent;
-      const isWindows = userAgent.indexOf("Windows") !== -1;
-      const isMac = userAgent.indexOf("Mac") !== -1;
-      const isLinux = userAgent.indexOf("Linux") !== -1;
-      const isAndroid = userAgent.indexOf("Android") !== -1;
-      const isIOS = /iPad|iPhone|iPod/.test(userAgent);
-      const isSupportedOS = isWindows || isMac || isLinux || isAndroid || isIOS;
-      
-      // Check device memory (if available)
-      // @ts-ignore - navigator.deviceMemory is not in TypeScript defs yet
-      const deviceMemory = navigator.deviceMemory || 4; // Default to 4GB if not available
-      const hasEnoughMemory = deviceMemory >= 2; // Require at least 2GB
-      
-      // Check CPU cores (if available)
-      const cpuCores = navigator.hardwareConcurrency || 2;
-      const hasEnoughCPU = cpuCores >= 2; // Require at least 2 cores
-      
-      setSystemInfo({
-        browserOk: isModernBrowser,
-        osOk: isSupportedOS,
-        memoryOk: hasEnoughMemory,
-        cpuOk: hasEnoughCPU
-      });
-    };
-    
-    checkSystemRequirements();
   }, [assessment, assessmentCode, loading, navigate, toast, user, createSubmissionMutation, submissionId, isCreatingSubmission, startAssessment]);
   
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-lg font-medium">Loading assessment details...</p>
+          <div className="animate-spin h-8 w-8 border-4 border-astra-red border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-lg font-medium text-gray-600">Loading assessment details...</p>
         </div>
       </div>
     );
   }
   
   if (!assessment) {
-    return null; // Don't render anything while redirecting
+    return null;
   }
-  
-  const allSystemChecksOk = 
-    systemInfo.browserOk && 
-    systemInfo.osOk && 
-    systemInfo.memoryOk && 
-    systemInfo.cpuOk;
 
   const handleActivateCamera = () => {
     setIsCameraActivated(true);
@@ -193,7 +142,6 @@ const CameraVerificationPage = () => {
   const handleVerificationComplete = (success: boolean) => {
     setIsVerifying(true);
     
-    // Simulate verification process with a short delay
     setTimeout(() => {
       setIsVerified(success);
       setIsVerifying(false);
@@ -210,7 +158,7 @@ const CameraVerificationPage = () => {
           variant: "destructive",
         });
       }
-    }, 1000); // Reduced delay for better UX
+    }, 1000);
   };
   
   const handleStartAssessment = () => {
@@ -219,50 +167,62 @@ const CameraVerificationPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-12 animate-fade-in">
+    <div className="min-h-screen bg-white py-8">
       <div className="max-w-4xl mx-auto px-4">
-        <header className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 mb-2 animate-scale-in">
-            <img src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" alt="Yudha Logo" className="w-full h-full drop-shadow-md" />
+        {/* Header with Logo */}
+        <header className="text-center mb-12">
+          <div className="mx-auto w-20 h-20 mb-4 relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-astra-red/20 to-red-600/20 rounded-full animate-pulse"></div>
+            <img 
+              src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" 
+              alt="Yudha Logo" 
+              className="w-full h-full relative z-10" 
+            />
           </div>
-          <p className="text-gray-600 dark:text-gray-400 animate-fade-in">{assessment?.name}</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Camera Verification</h1>
+          <p className="text-lg text-gray-600">{assessment?.name}</p>
         </header>
         
-        <div className="grid md:grid-cols-12 gap-6">
-          <div className="md:col-span-8">
-            <Card className="mb-6 shadow-lg border-0 overflow-hidden transform transition-all hover:shadow-xl">
-              <CardHeader className="bg-gradient-to-r from-astra-red to-red-700 text-white">
-                <CardTitle className="text-xl flex items-center">
-                  <Camera className="mr-2 h-5 w-5" />
-                  Camera Verification
-                </CardTitle>
-                <CardDescription className="text-white/90">
-                  Please position yourself in front of the camera for identity verification.
-                  This camera feed will be used for proctoring during your assessment.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-6">
-                {!isCameraActivated ? (
-                  <div className="text-center py-12 animate-fade-in">
-                    <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-red-50 flex items-center justify-center transform hover:scale-105 transition-transform">
-                      <Camera className="h-10 w-10 text-astra-red" />
-                    </div>
-                    <h3 className="text-xl font-semibold mb-2">Camera Access Required</h3>
-                    <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                      For secure assessment proctoring, we need access to your camera. 
-                      Click the button below to enable your camera.
-                    </p>
-                    <Button 
-                      onClick={handleActivateCamera}
-                      className="bg-astra-red hover:bg-red-600 text-white shadow-md hover:shadow-lg transition-all"
-                      size="lg"
-                    >
-                      <Camera className="mr-2 h-4 w-4" />
-                      Activate Camera
-                    </Button>
+        <div className="max-w-3xl mx-auto">
+          <Card className="shadow-xl border-0 overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-astra-red to-red-700 text-white p-8">
+              <div className="flex items-center justify-center mb-4">
+                <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
+                  <Camera className="h-8 w-8 text-white" />
+                </div>
+              </div>
+              <CardTitle className="text-2xl text-center font-bold">
+                Identity Verification Required
+              </CardTitle>
+              <CardDescription className="text-white/90 text-center text-lg mt-2">
+                Please position yourself in front of the camera for identity verification.
+                This ensures the security and integrity of your assessment.
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent className="p-8">
+              {!isCameraActivated ? (
+                <div className="text-center py-16">
+                  <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center shadow-lg">
+                    <Camera className="h-16 w-16 text-astra-red" />
                   </div>
-                ) : (
-                  <div className="animate-fade-in">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-4">Camera Access Required</h3>
+                  <p className="text-gray-600 mb-8 max-w-lg mx-auto leading-relaxed">
+                    For secure assessment proctoring, we need access to your camera. 
+                    Your privacy is protected and the feed is only used for verification and monitoring purposes.
+                  </p>
+                  <Button 
+                    onClick={handleActivateCamera}
+                    className="bg-astra-red hover:bg-red-600 text-white shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
+                    size="lg"
+                  >
+                    <Camera className="mr-3 h-5 w-5" />
+                    Activate Camera
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-6">
                     <ProctoringCamera 
                       onVerificationComplete={handleVerificationComplete}
                       showControls={!isVerified}
@@ -272,105 +232,64 @@ const CameraVerificationPage = () => {
                       submissionId={submissionId || undefined}
                     />
                   </div>
-                )}
-              </CardContent>
-              <CardFooter className="flex-col gap-4 p-6 bg-gray-50 dark:bg-gray-800/50 border-t">
-                {isVerified ? (
-                  <div className="w-full text-center animate-fade-in">
-                    <div className="inline-flex items-center justify-center gap-2 bg-green-100 dark:bg-green-900/30 px-4 py-2 rounded-full text-green-700 dark:text-green-400 mb-4 animate-pulse">
-                      <CheckCircle className="h-5 w-5" />
-                      <span>Verification Complete</span>
-                    </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                      Your camera is properly configured and your identity has been verified.
-                      You can now proceed to the assessment.
-                    </p>
-                    <Button 
-                      onClick={handleStartAssessment}
-                      size="lg" 
-                      className="bg-astra-red hover:bg-red-600 text-white transition-all shadow-md hover:shadow-lg transform hover:scale-105"
-                    >
-                      <ShieldCheck className="mr-2 h-5 w-5" />
-                      Start Assessment
-                    </Button>
+                  
+                  {/* Verification Instructions */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <h4 className="font-semibold text-blue-900 mb-3 flex items-center">
+                      <AlertTriangle className="h-5 w-5 mr-2" />
+                      Verification Guidelines
+                    </h4>
+                    <ul className="text-blue-800 space-y-2 text-sm">
+                      <li>• Ensure your face is clearly visible and well-lit</li>
+                      <li>• Remove any hats, sunglasses, or face coverings</li>
+                      <li>• Look directly at the camera during verification</li>
+                      <li>• Maintain a stable internet connection</li>
+                    </ul>
                   </div>
-                ) : (
-                  <div className="w-full text-center animate-fade-in">
-                    <div className="flex items-center justify-center gap-2 text-amber-600 dark:text-amber-400 mb-3">
-                      <AlertTriangle className="h-5 w-5" />
-                      <span className="font-medium">Please complete verification first</span>
-                    </div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Position your face within the frame and ensure good lighting.
-                      Click "Verify" when ready.
-                    </p>
-                  </div>
-                )}
-              </CardFooter>
-            </Card>
-          </div>
-          
-          <div className="md:col-span-4 space-y-6">
-            <Card className="shadow-lg border-0 transform transition-all hover:shadow-md">
-              <CardHeader className="pb-3 bg-gray-50 dark:bg-gray-800/50">
-                <CardTitle className="text-lg">System Check</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 text-sm">
-                <div className="flex items-center justify-between">
-                  <span>Browser Compatibility</span>
-                  {systemInfo.browserOk ? (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <AlertTriangle className="h-5 w-5 text-amber-500" />
-                  )}
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Operating System</span>
-                  {systemInfo.osOk ? (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <AlertTriangle className="h-5 w-5 text-amber-500" />
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Memory</span>
-                  {systemInfo.memoryOk ? (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <AlertTriangle className="h-5 w-5 text-amber-500" />
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>CPU</span>
-                  {systemInfo.cpuOk ? (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <AlertTriangle className="h-5 w-5 text-amber-500" />
-                  )}
-                </div>
-                
-                {!allSystemChecksOk && (
-                  <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md text-sm text-amber-700 dark:text-amber-400">
-                    <AlertTriangle className="inline-block h-4 w-4 mr-1" />
-                    Some system requirements are not met. You may experience issues during the assessment.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+              )}
+            </CardContent>
             
-            <Card className="shadow-lg border-0 transform transition-all hover:shadow-md">
-              <CardHeader className="pb-3 bg-gray-50 dark:bg-gray-800/50">
-                <CardTitle className="text-lg">Proctoring Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p>• The camera will monitor your presence throughout the assessment.</p>
-                <p>• Please ensure that your face remains visible at all times.</p>
-                <p>• The system will detect if you leave the camera view or if other people appear.</p>
-                <p>• Do not wear sunglasses, hats, or other face-obscuring items.</p>
-                <p>• Ensure you have proper lighting so your face is clearly visible.</p>
-                <p>• If technical issues occur, the system will notify you.</p>
-              </CardContent>
-            </Card>
+            <CardFooter className="p-8 bg-gray-50 border-t">
+              {isVerified ? (
+                <div className="w-full text-center">
+                  <div className="inline-flex items-center justify-center gap-3 bg-green-100 px-6 py-3 rounded-full text-green-700 mb-6">
+                    <CheckCircle className="h-6 w-6" />
+                    <span className="font-semibold text-lg">Verification Complete</span>
+                  </div>
+                  <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                    Your camera is properly configured and your identity has been verified.
+                    You are now ready to begin your assessment.
+                  </p>
+                  <Button 
+                    onClick={handleStartAssessment}
+                    size="lg" 
+                    className="bg-astra-red hover:bg-red-600 text-white transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                  >
+                    <ShieldCheck className="mr-3 h-5 w-5" />
+                    Start Assessment
+                  </Button>
+                </div>
+              ) : (
+                <div className="w-full text-center">
+                  <div className="flex items-center justify-center gap-3 text-amber-600 mb-4">
+                    <AlertTriangle className="h-5 w-5" />
+                    <span className="font-semibold">Verification Required</span>
+                  </div>
+                  <p className="text-gray-600 max-w-md mx-auto">
+                    Please activate your camera and complete the verification process to proceed with your assessment.
+                  </p>
+                </div>
+              )}
+            </CardFooter>
+          </Card>
+          
+          {/* Security Notice */}
+          <div className="mt-8 text-center">
+            <div className="inline-flex items-center gap-2 text-gray-500 text-sm">
+              <ShieldCheck className="h-4 w-4" />
+              <span>Your privacy is protected. Camera feed is encrypted and secure.</span>
+            </div>
           </div>
         </div>
       </div>
