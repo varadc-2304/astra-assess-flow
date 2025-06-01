@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -616,7 +617,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center mb-2">
+      <div className="flex justify-between items-center mb-2 gap-2">
         {isLoadingTemplate && (
           <div className="text-sm text-muted-foreground ml-2 animate-pulse">
             Loading template...
@@ -624,24 +625,25 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         )}
 
         <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-fit min-w-[120px] max-w-[200px] flex-shrink-0">
             <SelectValue placeholder="Language" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-w-[200px]">
             {Object.keys(question.solutionTemplate).map((lang) => (
-              <SelectItem value={lang} key={lang}>
+              <SelectItem value={lang} key={lang} className="truncate">
                 {lang.charAt(0).toUpperCase() + lang.slice(1)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <Button 
             variant="secondary" 
             size="sm"
             onClick={handleRunCode}
             disabled={isRunning || isSubmitting || isLoadingTemplate}
+            className="whitespace-nowrap"
           >
             {isRunning ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -651,7 +653,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             Run
           </Button>
           <Button 
-            className="bg-astra-red hover:bg-red-600 text-white"
+            className="bg-astra-red hover:bg-red-600 text-white whitespace-nowrap"
             size="sm"
             onClick={handleSubmitCode}
             disabled={isRunning || isSubmitting || isLoadingTemplate}
