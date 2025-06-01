@@ -17,7 +17,7 @@ interface ProctoringCameraProps {
   trackViolations?: boolean;
   assessmentId?: string;
   submissionId?: string;
-  size?: 'default' | 'small' | 'large'; // Add size prop
+  size?: 'default' | 'small' | 'large';
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -70,7 +70,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   trackViolations = false,
   assessmentId,
   submissionId,
-  size = 'default' // Default size if not specified
+  size = 'default'
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -121,9 +121,9 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     trackViolations: trackViolations,
     // Improved parameters for more accurate face detection
     detectionOptions: {
-      faceDetectionThreshold: 0.5, // Lower threshold for face detection (was 0.65)
-      faceCenteredTolerance: 0.3, // More tolerance for face not being centered (was 0.25)
-      rapidMovementThreshold: 0.3, // Higher threshold for rapid movement detection (was 0.25)
+      faceDetectionThreshold: 0.5,
+      faceCenteredTolerance: 0.3,
+      rapidMovementThreshold: 0.3,
     }
   });
 
@@ -326,12 +326,15 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   return (
     <div className="proctoring-camera-container">
       <div className={`relative w-full ${containerSizeClass} mx-auto`}>
-        {/* Video feed container with improved aesthetics */}
-        <div className="relative overflow-hidden rounded-lg bg-gray-900 mb-4 border border-gray-700/50 shadow-lg">
+        {/* Enhanced video feed container with modern aesthetics */}
+        <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-black mb-4 border-2 border-gray-600/30 shadow-2xl backdrop-blur-sm">
+          {/* Subtle animated border glow effect */}
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-green-500/20 opacity-50 animate-pulse"></div>
+          
           <video
             ref={videoRef}
             className={cn(
-              "w-full h-full object-cover",
+              "w-full h-full object-cover relative z-10 rounded-xl",
               isCameraReady ? "animate-fade-in" : "opacity-0"
             )}
             autoPlay
@@ -340,79 +343,112 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           />
           <canvas 
             ref={canvasRef} 
-            className="absolute top-0 left-0 w-full h-full pointer-events-none" 
+            className="absolute top-0 left-0 w-full h-full pointer-events-none z-20 rounded-xl" 
           />
           
-          {/* Loading overlay with improved animation */}
+          {/* Enhanced loading overlay */}
           {cameraLoading && (
-            <div className="absolute inset-0 bg-gradient-to-b from-gray-900 to-black bg-opacity-80 flex flex-col items-center justify-center z-10">
+            <div className="absolute inset-0 bg-gradient-to-br from-gray-900/95 via-black/90 to-gray-800/95 backdrop-blur-md flex flex-col items-center justify-center z-30 rounded-xl">
               <div className="text-center">
-                <div className="relative">
-                  <div className="h-10 w-10 rounded-full border-2 border-gray-300 border-opacity-20 border-t-white animate-spin mx-auto mb-2"></div>
-                  <div className="absolute top-0 left-0 right-0 bottom-0 flex items-center justify-center">
-                    <Camera className="h-4 w-4 text-gray-300 animate-pulse" />
+                <div className="relative mb-4">
+                  {/* Outer spinning ring */}
+                  <div className="h-16 w-16 rounded-full border-4 border-gray-600/30 border-t-blue-500 animate-spin mx-auto"></div>
+                  {/* Inner pulsing circle */}
+                  <div className="absolute top-2 left-2 right-2 bottom-2 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 animate-pulse"></div>
+                  {/* Camera icon in center */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Camera className="h-6 w-6 text-blue-400 animate-pulse" />
                   </div>
                 </div>
-                <p className="text-sm font-medium text-gray-100 mt-3">Initializing camera...</p>
-                <p className="text-xs text-gray-400 mt-1">Please allow camera access if prompted</p>
+                <div className="space-y-2">
+                  <p className="text-base font-semibold text-white">Initializing Camera</p>
+                  <p className="text-sm text-gray-300">Please allow camera access if prompted</p>
+                  <div className="flex justify-center space-x-1 mt-3">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Status indicator with animation */}
+          {/* Enhanced status indicator with glassmorphism */}
           {showStatus && isCameraReady && isModelLoaded && (
             <div className={cn(
-              "absolute bottom-0 left-0 right-0 p-2",
-              "bg-gradient-to-t from-gray-900 to-transparent",
-              "transition-opacity duration-300",
-              status === 'faceDetected' ? "opacity-50" : "opacity-90"
+              "absolute bottom-0 left-0 right-0 p-3",
+              "bg-gradient-to-t from-black/80 via-black/60 to-transparent",
+              "transition-all duration-500 ease-in-out",
+              status === 'faceDetected' ? "opacity-70" : "opacity-95"
             )}>
               <div className={cn(
-                "flex items-center px-2 py-1 rounded-md",
-                "backdrop-blur-sm",
-                "transition-colors duration-300",
-                status === 'faceDetected' ? "bg-green-500/20" : 
-                status === 'error' ? "bg-red-500/20" : "bg-amber-500/20"
+                "flex items-center px-3 py-2 rounded-lg backdrop-blur-md border",
+                "transition-all duration-300 ease-in-out transform",
+                "shadow-lg",
+                status === 'faceDetected' 
+                  ? "bg-green-500/10 border-green-400/30 scale-95" 
+                  : status === 'error' 
+                    ? "bg-red-500/10 border-red-400/30" 
+                    : "bg-amber-500/10 border-amber-400/30"
               )}>
+                {/* Status indicator dot with enhanced animation */}
                 <div className={cn(
-                  "w-2 h-2 rounded-full mr-2",
-                  status === 'faceDetected' ? "bg-green-500 animate-pulse" : 
-                  status === 'error' ? "bg-red-500 animate-pulse" : "bg-amber-500 animate-pulse"
-                )}></div>
+                  "w-3 h-3 rounded-full mr-3 relative",
+                  status === 'faceDetected' ? "bg-green-400" : 
+                  status === 'error' ? "bg-red-400" : "bg-amber-400"
+                )}>
+                  <div className={cn(
+                    "absolute inset-0 rounded-full animate-ping",
+                    status === 'faceDetected' ? "bg-green-400" : 
+                    status === 'error' ? "bg-red-400" : "bg-amber-400"
+                  )}></div>
+                </div>
+                
                 <p className={cn(
-                  "text-xs font-medium truncate",
-                  status === 'faceDetected' ? "text-green-300" : 
-                  status === 'error' ? "text-red-300" : "text-amber-300"
+                  "text-sm font-medium truncate flex-1",
+                  status === 'faceDetected' ? "text-green-200" : 
+                  status === 'error' ? "text-red-200" : "text-amber-200"
                 )}>
                   {statusMessages[status]?.message || "Monitoring..."}
                 </p>
               </div>
             </div>
           )}
+
+          {/* Corner accent elements for modern look */}
+          <div className="absolute top-2 left-2 w-4 h-4 border-l-2 border-t-2 border-blue-400/50 rounded-tl-lg"></div>
+          <div className="absolute top-2 right-2 w-4 h-4 border-r-2 border-t-2 border-blue-400/50 rounded-tr-lg"></div>
+          <div className="absolute bottom-2 left-2 w-4 h-4 border-l-2 border-b-2 border-blue-400/50 rounded-bl-lg"></div>
+          <div className="absolute bottom-2 right-2 w-4 h-4 border-r-2 border-b-2 border-blue-400/50 rounded-br-lg"></div>
         </div>
 
-        {/* Controls with improved aesthetics */}
+        {/* Enhanced controls with better styling */}
         {showControls && (
-          <div className="flex justify-between mt-3 gap-2">
+          <div className="flex justify-between items-center mt-4 gap-2">
             <Button
               variant="outline"
               onClick={handleRestartCamera}
               disabled={isInitializing}
               type="button"
               className={cn(
-                "hover:bg-gray-100 dark:hover:bg-gray-700 transition-all",
-                "border-gray-300 dark:border-gray-600",
-                "hover:shadow-md",
-                isInitializing && "opacity-50",
-                size === 'small' ? "text-xs px-2 py-1 h-7" : ""
+                "group relative overflow-hidden",
+                "hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100",
+                "dark:hover:from-gray-800 dark:hover:to-gray-700",
+                "transition-all duration-300 ease-in-out",
+                "border-gray-300/50 dark:border-gray-600/50",
+                "hover:shadow-lg hover:shadow-gray-500/10",
+                "hover:scale-105 transform",
+                isInitializing && "opacity-50 cursor-not-allowed",
+                size === 'small' ? "text-xs px-2 py-1 h-7" : "h-9"
               )}
             >
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <RefreshCw className={cn(
-                "mr-2",
+                "mr-2 relative z-10",
                 size === 'small' ? "h-3 w-3" : "h-4 w-4",
                 isInitializing && "animate-spin"
               )} />
-              Restart
+              <span className="relative z-10">Restart</span>
             </Button>
             
             <Button
@@ -421,38 +457,48 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
               disabled={isInitializing}
               type="button"
               className={cn(
-                "hover:bg-gray-100 dark:hover:bg-gray-700 transition-all",
-                "border-gray-300 dark:border-gray-600",
-                "hover:shadow-md",
-                isInitializing && "opacity-50",
-                size === 'small' ? "text-xs px-2 py-1 h-7" : ""
+                "group relative overflow-hidden",
+                "hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100",
+                "dark:hover:from-gray-800 dark:hover:to-gray-700",
+                "transition-all duration-300 ease-in-out",
+                "border-gray-300/50 dark:border-gray-600/50",
+                "hover:shadow-lg hover:shadow-gray-500/10",
+                "hover:scale-105 transform",
+                isInitializing && "opacity-50 cursor-not-allowed",
+                size === 'small' ? "text-xs px-2 py-1 h-7" : "h-9"
               )}
             >
+              <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <Camera className={cn(
-                "mr-2",
+                "mr-2 relative z-10",
                 size === 'small' ? "h-3 w-3" : "h-4 w-4"
               )} />
-              Switch
+              <span className="relative z-10">Switch</span>
             </Button>
             
             <Button
               onClick={handleVerificationComplete}
               disabled={status !== 'faceDetected' || isInitializing}
               className={cn(
-                "transition-all duration-300",
+                "group relative overflow-hidden",
+                "transition-all duration-300 ease-in-out",
+                "hover:scale-105 transform",
                 status === 'faceDetected' 
-                  ? "bg-green-600 hover:bg-green-700 text-white shadow hover:shadow-md" 
-                  : "bg-gray-400 text-white",
-                size === 'small' ? "text-xs px-2 py-1 h-7" : ""
+                  ? "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-green-500/25" 
+                  : "bg-gray-400 text-white cursor-not-allowed",
+                size === 'small' ? "text-xs px-2 py-1 h-7" : "h-9"
               )}
               type="button"
             >
+              {status === 'faceDetected' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-green-400/20 to-emerald-400/20 animate-pulse"></div>
+              )}
               <CheckCircle2 className={cn(
-                "mr-2",
+                "mr-2 relative z-10",
                 size === 'small' ? "h-3 w-3" : "h-4 w-4",
                 status === 'faceDetected' && "animate-pulse"
               )} />
-              Verify
+              <span className="relative z-10">Verify</span>
             </Button>
           </div>
         )}
