@@ -75,28 +75,18 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         // If no saved code, get the template or use existing solution
         if (question.userSolution[newLanguage]) {
           setCurrentCode(question.userSolution[newLanguage]);
+          onCodeChange(newLanguage, question.userSolution[newLanguage]);
         } else {
-          const { data, error } = await supabase
-            .from('coding_languages')
-            .select('solution_template')
-            .eq('coding_question_id', question.id)
-            .eq('coding_lang', newLanguage)
-            .maybeSingle();
-
-          if (error) {
-            console.error('Error fetching solution template:', error);
-            toast({
-              title: "Error",
-              description: "Failed to load code template",
-              variant: "destructive",
-            });
-          } else if (data) {
-            setCurrentCode(data.solution_template);
-            onCodeChange(newLanguage, data.solution_template);
-          }
+          const templateCode = question.solutionTemplate[newLanguage] || '';
+          setCurrentCode(templateCode);
+          onCodeChange(newLanguage, templateCode);
         }
       } catch (err) {
         console.error('Error in template fetch:', err);
+        // Fallback to template if there's an error
+        const templateCode = question.solutionTemplate[newLanguage] || '';
+        setCurrentCode(templateCode);
+        onCodeChange(newLanguage, templateCode);
       }
     };
 
@@ -128,30 +118,20 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       // If no saved code, check if there's a user solution already
       if (question.userSolution[language]) {
         setCurrentCode(question.userSolution[language]);
+        onCodeChange(language, question.userSolution[language]);
         return;
       }
 
-      // If no user solution, get the template
-      const { data, error } = await supabase
-        .from('coding_languages')
-        .select('solution_template')
-        .eq('coding_question_id', question.id)
-        .eq('coding_lang', language)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error fetching solution template:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load code template",
-          variant: "destructive",
-        });
-      } else if (data) {
-        setCurrentCode(data.solution_template);
-        onCodeChange(language, data.solution_template);
-      }
+      // If no user solution, use the template
+      const templateCode = question.solutionTemplate[language] || '';
+      setCurrentCode(templateCode);
+      onCodeChange(language, templateCode);
     } catch (err) {
       console.error('Error in template fetch:', err);
+      // Fallback to template if there's an error
+      const templateCode = question.solutionTemplate[language] || '';
+      setCurrentCode(templateCode);
+      onCodeChange(language, templateCode);
     }
   };
 
@@ -663,7 +643,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
                 height="100%"
                 defaultLanguage={selectedLanguage}
                 language={selectedLanguage}
-                defaultValue={currentCode}
+                value={currentCode}
                 onChange={handleCodeChange}
                 theme="vs-dark"
                 options={editorOptions}
