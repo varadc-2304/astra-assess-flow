@@ -9,6 +9,47 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      assessment_constraints: {
+        Row: {
+          assessment_id: string
+          created_at: string
+          difficulty: string
+          id: string
+          number_of_questions: number
+          question_type: string
+          topic: string
+          updated_at: string
+        }
+        Insert: {
+          assessment_id: string
+          created_at?: string
+          difficulty: string
+          id?: string
+          number_of_questions: number
+          question_type: string
+          topic: string
+          updated_at?: string
+        }
+        Update: {
+          assessment_id?: string
+          created_at?: string
+          difficulty?: string
+          id?: string
+          number_of_questions?: number
+          question_type?: string
+          topic?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_constraints_assessment_id_fkey"
+            columns: ["assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assessments: {
         Row: {
           code: string
@@ -19,6 +60,7 @@ export type Database = {
           id: string
           instructions: string | null
           is_ai_proctored: boolean
+          is_dynamic: boolean | null
           is_practice: boolean
           name: string
           reattempt: boolean
@@ -34,6 +76,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           is_ai_proctored?: boolean
+          is_dynamic?: boolean | null
           is_practice?: boolean
           name: string
           reattempt?: boolean
@@ -49,6 +92,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           is_ai_proctored?: boolean
+          is_dynamic?: boolean | null
           is_practice?: boolean
           name?: string
           reattempt?: boolean
@@ -261,27 +305,33 @@ export type Database = {
           created_at: string
           created_by: string
           description: string
+          difficulty: string | null
           id: string
           image_url: string | null
           title: string
+          topic: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           created_by: string
           description: string
+          difficulty?: string | null
           id?: string
           image_url?: string | null
           title: string
+          topic?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           created_by?: string
           description?: string
+          difficulty?: string | null
           id?: string
           image_url?: string | null
           title?: string
+          topic?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -410,30 +460,36 @@ export type Database = {
           created_at: string
           created_by: string
           description: string
+          difficulty: string | null
           id: string
           image_url: string | null
           marks: number
           title: string
+          topic: string | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           created_by: string
           description: string
+          difficulty?: string | null
           id?: string
           image_url?: string | null
           marks?: number
           title: string
+          topic?: string | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           created_by?: string
           description?: string
+          difficulty?: string | null
           id?: string
           image_url?: string | null
           marks?: number
           title?: string
+          topic?: string | null
           updated_at?: string
         }
         Relationships: [
