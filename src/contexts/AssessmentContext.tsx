@@ -182,12 +182,13 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           options: mcqQuestion.mcq_options_bank?.map((option: any) => ({
             id: option.id,
             text: option.text,
-            isCorrect: option.is_correct
+            isCorrect: option.is_correct,
+            order_index: option.order_index
           })).sort((a: any, b: any) => a.order_index - b.order_index) || [],
           marks: mcqQuestion.marks
         };
         
-        console.log(`MCQ Question ${mcqQuestion.id} has ${question.options.length} options`);
+        console.log(`MCQ Question ${mcqQuestion.id} has ${question.options.length} options:`, question.options);
         questions.push(question);
       }
     }
