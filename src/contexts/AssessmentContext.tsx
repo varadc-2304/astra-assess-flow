@@ -136,83 +136,73 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     
     // Process MCQ constraints
     const mcqConstraints = constraints.filter(c => c.question_type === 'mcq');
-console.log('MCQ constraints:', mcqConstraints);
-
-for (const constraint of mcqConstraints) {
-  const { data: mcqQuestions, error: mcqError } = await supabase
-    .from('mcq_question_bank')
-    .select('*')
-    .eq('topic', constraint.topic)
-    .eq('difficulty', constraint.difficulty)
-    .limit(constraint.number_of_questions * 2); // Fetch more to randomize
-
-  if (mcqError) {
-    console.error('Error fetching MCQ questions from bank:', mcqError);
-    continue;
-  }
-
-  if (!mcqQuestions || mcqQuestions.length === 0) {
-    console.log(`No MCQ questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
-    continue;
-  }
-
-  const shuffled = mcqQuestions.sort(() => 0.5 - Math.random());
-  const selectedQuestions = shuffled.slice(0, constraint.number_of_questions);
-
-  console.log(`Selected ${selectedQuestions.length} MCQ questions for ${constraint.topic}`);
-
-  const questionIds = selectedQuestions.map(q => q.id);
-
-  // Fetch all options for selected questions
-  const { data: allOptions, error: optionError } = await supabase
-    .from('mcq_options_bank')
-    .select('id, text, is_correct, order_index, mcq_question_bank_id')
-    .in('mcq_question_bank_id', questionIds);
-
-  if (optionError) {
-    console.error('Error fetching MCQ options:', optionError);
-    continue;
-  }
-
-  // Group options by question ID
-  const optionsByQuestionId: Record<string, QuestionOption[]> = {};
-  allOptions?.forEach(option => {
-    const questionId = option.mcq_question_bank_id;
-    if (!optionsByQuestionId[questionId]) {
-      optionsByQuestionId[questionId] = [];
-    }
-    optionsByQuestionId[questionId].push({
-      id: option.id,
-      text: option.text,
-      isCorrect: option.is_correct,
-    });
-  });
-
-  for (const mcqQuestion of selectedQuestions) {
-    totalPossibleMarks += mcqQuestion.marks || 0;
-
-    const sortedOptions = (optionsByQuestionId[mcqQuestion.id] || []).sort(
-      (a, b) => {
-        const oa = allOptions.find(o => o.id === a.id)?.order_index ?? 0;
-        const ob = allOptions.find(o => o.id === b.id)?.order_index ?? 0;
-        return oa - ob;
+    console.log('MCQ constraints:', mcqConstraints);
+    
+    for (const constraint of mcqConstraints) {
+      const { data: mcqQuestions, error: mcqError } = await supabase
+        .from('mcq_question_bank')
+        .select(`
+          *,
+          mcq_options_bank (
+            id,
+            text,
+            is_correct,
+            order_index
+          )
+        `)
+        .eq('topic', constraint.topic)
+        .eq('difficulty', constraint.difficulty)
+        .limit(constraint.number_of_questions * 2); // Fetch more to randomize
+        
+      if (mcqError) {
+        console.error('Error fetching MCQ questions from bank:', mcqError);
+        continue;
       }
-    );
-
-    const question: MCQQuestion = {
-      id: mcqQuestion.id,
-      type: 'mcq',
-      title: mcqQuestion.title,
-      description: mcqQuestion.description,
-      imageUrl: mcqQuestion.image_url,
-      options: sortedOptions,
-      marks: mcqQuestion.marks,
-    };
-
-    console.log(`MCQ Question ${mcqQuestion.id} has ${question.options.length} options`);
-    questions.push(question);
-  }
-}
+      
+      if (!mcqQuestions || mcqQuestions.length === 0) {
+        console.log(`No MCQ questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
+        continue;
+      }
+      
+      // Randomly select questions
+      const shuffled = mcqQuestions.sort(() => 0.5 - Math.random());
+      const selectedQuestions = shuffled.slice(0, constraint.number_of_questions);
+      
+      console.log(`Selected ${selectedQuestions.length} MCQ questions for ${constraint.topic}`);
+      
+      for (const mcqQuestion of selectedQuestions) {
+        totalPossibleMarks += mcqQuestion.marks || 0;
+      
+        // Fetch options for each MCQ question using its ID
+        const { data: options, error: optionsError } = await supabase
+          .from('mcq_options_bank')
+          .select('id, text, is_correct, order_index')
+          .eq('mcq_question_bank_id', mcqQuestion.id)
+          .order('order_index', { ascending: true });
+      
+        if (optionsError) {
+          console.error(`Error fetching options for MCQ ${mcqQuestion.id}:`, optionsError);
+          continue;
+        }
+      
+        const question: MCQQuestion = {
+          id: mcqQuestion.id,
+          type: 'mcq',
+          title: mcqQuestion.title,
+          description: mcqQuestion.description,
+          imageUrl: mcqQuestion.image_url,
+          options: options?.map(option => ({
+            id: option.id,
+            text: option.text,
+            isCorrect: option.is_correct
+          })) || [],
+          marks: mcqQuestion.marks
+        };
+      
+        console.log(`MCQ Question ${mcqQuestion.id} has ${question.options.length} options:`, question.options);
+        questions.push(question);
+      }
+    }
     
     // Process Coding constraints
     const codingConstraints = constraints.filter(c => c.question_type === 'coding');
