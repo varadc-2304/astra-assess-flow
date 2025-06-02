@@ -173,22 +173,28 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       for (const mcqQuestion of selectedQuestions) {
         totalPossibleMarks += mcqQuestion.marks || 0;
         
+        // Randomly assign order indices (1 to 4) to options
+        const optionsWithRandomOrder = mcqQuestion.mcq_options_bank?.map((option: any, index: number) => ({
+          id: option.id,
+          text: option.text,
+          isCorrect: option.is_correct,
+          order_index: Math.floor(Math.random() * 4) + 1 // Random order 1-4
+        })) || [];
+        
+        // Sort by the newly assigned random order
+        optionsWithRandomOrder.sort((a: any, b: any) => a.order_index - b.order_index);
+        
         const question: MCQQuestion = {
           id: mcqQuestion.id,
           type: 'mcq',
           title: mcqQuestion.title,
           description: mcqQuestion.description,
           imageUrl: mcqQuestion.image_url,
-          options: mcqQuestion.mcq_options_bank?.map((option: any) => ({
-            id: option.id,
-            text: option.text,
-            isCorrect: option.is_correct,
-            order_index: option.order_index
-          })).sort((a: any, b: any) => a.order_index - b.order_index) || [],
+          options: optionsWithRandomOrder,
           marks: mcqQuestion.marks
         };
         
-        console.log(`MCQ Question ${mcqQuestion.id} has ${question.options.length} options:`, question.options);
+        console.log(`MCQ Question ${mcqQuestion.id} has ${question.options.length} options with random order:`, question.options);
         questions.push(question);
       }
     }
