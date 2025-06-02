@@ -170,38 +170,42 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       
       console.log(`Selected ${selectedQuestions.length} MCQ questions for ${constraint.topic}`);
       
-      for (const mcqQuestion of selectedQuestions) {
-        totalPossibleMarks += mcqQuestion.marks || 0;
-      
-        // Fetch options for each MCQ question using its ID
-        const { data: options, error: optionsError } = await supabase
-          .from('mcq_options_bank')
-          .select('id, text, is_correct, order_index')
-          .eq('mcq_question_bank_id', mcqQuestion.id)
-          .order('order_index', { ascending: true });
-      
-        if (optionsError) {
-          console.error(`Error fetching options for MCQ ${mcqQuestion.id}:`, optionsError);
-          continue;
-        }
-      
-        const question: MCQQuestion = {
-          id: mcqQuestion.id,
-          type: 'mcq',
-          title: mcqQuestion.title,
-          description: mcqQuestion.description,
-          imageUrl: mcqQuestion.image_url,
-          options: options?.map(option => ({
-            id: option.id,
-            text: option.text,
-            isCorrect: option.is_correct
-          })) || [],
-          marks: mcqQuestion.marks
-        };
-      
-        console.log(`MCQ Question ${mcqQuestion.id} has ${question.options.length} options:`, question.options);
-        questions.push(question);
-      }
+        for (const mcqQuestion of selectedQuestions) {
+                  totalPossibleMarks += mcqQuestion.marks || 0;
+  console.log(`Fetching options for MCQ ID: ${mcqQuestion.id}`);
+
+  const { data: options, error: optionsError } = await supabase
+    .from('mcq_options_bank')
+    .select('id, text, is_correct, order_index')
+    .eq('mcq_question_bank_id', mcqQuestion.id)
+    .order('order_index', { ascending: true });
+
+  if (optionsError) {
+    console.error(`Error fetching options for MCQ ${mcqQuestion.id}:`, optionsError);
+    continue;
+  }
+
+  if (!options || options.length === 0) {
+    console.warn(`No options found for MCQ ${mcqQuestion.id}`);
+  }
+
+  const question: MCQQuestion = {
+    id: mcqQuestion.id,
+    type: 'mcq',
+    title: mcqQuestion.title,
+    description: mcqQuestion.description,
+    imageUrl: mcqQuestion.image_url,
+    options: options?.map(option => ({
+      id: option.id,
+      text: option.text,
+      isCorrect: option.is_correct
+    })) || [],
+    marks: mcqQuestion.marks
+  };
+
+  console.log(`MCQ Question ${mcqQuestion.id} has ${question.options.length} options:`, question.options);
+  questions.push(question);
+}
     }
     
     // Process Coding constraints
