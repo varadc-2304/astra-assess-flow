@@ -143,7 +143,12 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         .from('mcq_question_bank')
         .select(`
           *,
-          mcq_options_bank (*)
+          mcq_options_bank (
+            id,
+            text,
+            is_correct,
+            order_index
+          )
         `)
         .eq('topic', constraint.topic)
         .eq('difficulty', constraint.difficulty)
@@ -178,10 +183,11 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             id: option.id,
             text: option.text,
             isCorrect: option.is_correct
-          })) || [],
+          })).sort((a: any, b: any) => a.order_index - b.order_index) || [],
           marks: mcqQuestion.marks
         };
         
+        console.log(`MCQ Question ${mcqQuestion.id} has ${question.options.length} options`);
         questions.push(question);
       }
     }
