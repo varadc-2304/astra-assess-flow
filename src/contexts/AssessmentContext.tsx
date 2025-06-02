@@ -173,16 +173,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       for (const mcqQuestion of selectedQuestions) {
         totalPossibleMarks += mcqQuestion.marks || 0;
         
-        // Randomly assign order indices (1 to 4) to options
-        const optionsWithRandomOrder = mcqQuestion.mcq_options_bank?.map((option: any, index: number) => ({
-          id: option.id,
-          text: option.text,
-          isCorrect: option.is_correct,
-          order_index: Math.floor(Math.random() * 4) + 1 // Random order 1-4
-        })) || [];
-        
-        // Sort by the newly assigned random order
-        optionsWithRandomOrder.sort((a: any, b: any) => a.order_index - b.order_index);
+        // Use the existing order_index from mcq_options_bank and sort by it
+        const sortedOptions = mcqQuestion.mcq_options_bank?.sort((a: any, b: any) => a.order_index - b.order_index) || [];
         
         const question: MCQQuestion = {
           id: mcqQuestion.id,
@@ -190,11 +182,15 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           title: mcqQuestion.title,
           description: mcqQuestion.description,
           imageUrl: mcqQuestion.image_url,
-          options: optionsWithRandomOrder,
+          options: sortedOptions.map((option: any) => ({
+            id: option.id,
+            text: option.text,
+            isCorrect: option.is_correct
+          })),
           marks: mcqQuestion.marks
         };
         
-        console.log(`MCQ Question ${mcqQuestion.id} has ${question.options.length} options with random order:`, question.options);
+        console.log(`MCQ Question ${mcqQuestion.id} has ${question.options.length} options:`, question.options);
         questions.push(question);
       }
     }
