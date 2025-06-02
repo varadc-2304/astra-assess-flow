@@ -172,24 +172,33 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       
       for (const mcqQuestion of selectedQuestions) {
         totalPossibleMarks += mcqQuestion.marks || 0;
-        
-        // Use the existing order_index from mcq_options_bank and sort by it
-        const sortedOptions = mcqQuestion.mcq_options_bank?.sort((a: any, b: any) => a.order_index - b.order_index) || [];
-        
+      
+        // Fetch options for each MCQ question using its ID
+        const { data: options, error: optionsError } = await supabase
+          .from('mcq_options_bank')
+          .select('id, text, is_correct, order_index')
+          .eq('mcq_question_bank_id', mcqQuestion.id)
+          .order('order_index', { ascending: true });
+      
+        if (optionsError) {
+          console.error(`Error fetching options for MCQ ${mcqQuestion.id}:`, optionsError);
+          continue;
+        }
+      
         const question: MCQQuestion = {
           id: mcqQuestion.id,
           type: 'mcq',
           title: mcqQuestion.title,
           description: mcqQuestion.description,
           imageUrl: mcqQuestion.image_url,
-          options: sortedOptions.map((option: any) => ({
+          options: options?.map(option => ({
             id: option.id,
             text: option.text,
             isCorrect: option.is_correct
-          })),
+          })) || [],
           marks: mcqQuestion.marks
         };
-        
+      
         console.log(`MCQ Question ${mcqQuestion.id} has ${question.options.length} options:`, question.options);
         questions.push(question);
       }
