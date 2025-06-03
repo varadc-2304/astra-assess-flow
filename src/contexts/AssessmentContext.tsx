@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -140,7 +139,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     console.log('MCQ constraints:', mcqConstraints);
     
     for (const constraint of mcqConstraints) {
-      console.log(`Fetching MCQ questions for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
+      console.log(`Processing constraint for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}, questions: ${constraint.number_of_questions}`);
       
       const { data: mcqQuestions, error: mcqError } = await supabase
         .from('mcq_question_bank')
@@ -154,7 +153,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         continue;
       }
       
-      console.log(`Found ${mcqQuestions?.length || 0} MCQ questions in bank for ${constraint.topic}`);
+      console.log(`Found ${mcqQuestions?.length || 0} MCQ questions in bank for topic ${constraint.topic}, difficulty ${constraint.difficulty}`);
       
       if (!mcqQuestions || mcqQuestions.length === 0) {
         console.log(`No MCQ questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
@@ -165,38 +164,66 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       const shuffled = mcqQuestions.sort(() => 0.5 - Math.random());
       const selectedQuestions = shuffled.slice(0, constraint.number_of_questions);
       
-      console.log(`Selected ${selectedQuestions.length} MCQ questions for ${constraint.topic}:`, selectedQuestions.map(q => q.id));
+      console.log(`Selected ${selectedQuestions.length} MCQ questions for ${constraint.topic}:`, selectedQuestions.map(q => ({ id: q.id, title: q.title })));
       
       for (const mcqQuestion of selectedQuestions) {
         totalPossibleMarks += mcqQuestion.marks || 0;
         
-        console.log(`Fetching options for MCQ question ID: ${mcqQuestion.id}`);
+        console.log(`=== Processing MCQ Question ${mcqQuestion.id} (${mcqQuestion.title}) ===`);
+        console.log('Question details:', { id: mcqQuestion.id, title: mcqQuestion.title, marks: mcqQuestion.marks });
       
         // Fetch options for each MCQ question using the correct relationship
+        console.log(`Querying mcq_options_bank where mcq_question_bank_id = '${mcqQuestion.id}'`);
+        
         const { data: options, error: optionsError } = await supabase
           .from('mcq_options_bank')
           .select('id, text, is_correct, order_index')
           .eq('mcq_question_bank_id', mcqQuestion.id)
           .order('order_index', { ascending: true });
       
+        console.log('Options query result:', { 
+          data: options, 
+          error: optionsError, 
+          count: options?.length || 0,
+          questionId: mcqQuestion.id 
+        });
+        
         if (optionsError) {
           console.error(`Error fetching options for MCQ ${mcqQuestion.id}:`, optionsError);
           continue;
         }
       
-        console.log(`MCQ Question ${mcqQuestion.id} fetched ${options?.length || 0} options from mcq_options_bank:`, options);
-        
-        // Double-check the data structure
+        // Additional debugging - let's check if there are ANY options for this question ID with a broader query
         if (!options || options.length === 0) {
-          console.warn(`No options found for MCQ question ${mcqQuestion.id}. Checking if options exist in database...`);
+          console.warn(`No options found for MCQ question ${mcqQuestion.id}. Running debug queries...`);
           
-          // Debug query to see what's in the options table
+          // Check what's actually in the mcq_options_bank table
+          const { data: allOptions, error: allError } = await supabase
+            .from('mcq_options_bank')
+            .select('*')
+            .limit(10);
+            
+          console.log('Sample of ALL options in mcq_options_bank:', allOptions, allError);
+          
+          // Check specifically for this question ID with all columns
           const { data: debugOptions, error: debugError } = await supabase
             .from('mcq_options_bank')
             .select('*')
             .eq('mcq_question_bank_id', mcqQuestion.id);
             
-          console.log(`Debug check for question ${mcqQuestion.id}:`, debugOptions, debugError);
+          console.log(`Comprehensive debug check for question ${mcqQuestion.id}:`, {
+            data: debugOptions,
+            error: debugError,
+            queryUsed: `mcq_question_bank_id = '${mcqQuestion.id}'`
+          });
+          
+          // Also check if this question ID exists in the question bank
+          const { data: questionExists, error: questionExistsError } = await supabase
+            .from('mcq_question_bank')
+            .select('id')
+            .eq('id', mcqQuestion.id);
+            
+          console.log(`Question existence check for ${mcqQuestion.id}:`, questionExists, questionExistsError);
         }
       
         const question: MCQQuestion = {
@@ -213,7 +240,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           marks: mcqQuestion.marks
         };
       
-        console.log(`Final MCQ Question ${mcqQuestion.id} has ${question.options.length} options`);
+        console.log(`Final MCQ Question ${mcqQuestion.id} created with ${question.options.length} options:`, question.options);
         questions.push(question);
       }
     }
