@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -139,6 +140,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     console.log('MCQ constraints:', mcqConstraints);
     
     for (const constraint of mcqConstraints) {
+      console.log(`Fetching MCQ questions for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
+      
       const { data: mcqQuestions, error: mcqError } = await supabase
         .from('mcq_question_bank')
         .select('*')
@@ -151,6 +154,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         continue;
       }
       
+      console.log(`Found ${mcqQuestions?.length || 0} MCQ questions in bank for ${constraint.topic}`);
+      
       if (!mcqQuestions || mcqQuestions.length === 0) {
         console.log(`No MCQ questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
         continue;
@@ -160,10 +165,12 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       const shuffled = mcqQuestions.sort(() => 0.5 - Math.random());
       const selectedQuestions = shuffled.slice(0, constraint.number_of_questions);
       
-      console.log(`Selected ${selectedQuestions.length} MCQ questions for ${constraint.topic}`);
+      console.log(`Selected ${selectedQuestions.length} MCQ questions for ${constraint.topic}:`, selectedQuestions.map(q => q.id));
       
       for (const mcqQuestion of selectedQuestions) {
         totalPossibleMarks += mcqQuestion.marks || 0;
+        
+        console.log(`Fetching options for MCQ question ID: ${mcqQuestion.id}`);
       
         // Fetch options for each MCQ question using the correct relationship
         const { data: options, error: optionsError } = await supabase
@@ -177,7 +184,20 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           continue;
         }
       
-        console.log(`MCQ Question ${mcqQuestion.id} fetched ${options?.length || 0} options:`, options);
+        console.log(`MCQ Question ${mcqQuestion.id} fetched ${options?.length || 0} options from mcq_options_bank:`, options);
+        
+        // Double-check the data structure
+        if (!options || options.length === 0) {
+          console.warn(`No options found for MCQ question ${mcqQuestion.id}. Checking if options exist in database...`);
+          
+          // Debug query to see what's in the options table
+          const { data: debugOptions, error: debugError } = await supabase
+            .from('mcq_options_bank')
+            .select('*')
+            .eq('mcq_question_bank_id', mcqQuestion.id);
+            
+          console.log(`Debug check for question ${mcqQuestion.id}:`, debugOptions, debugError);
+        }
       
         const question: MCQQuestion = {
           id: mcqQuestion.id,
