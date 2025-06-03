@@ -107,6 +107,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const [totalMarksObtained, setTotalMarksObtained] = useState<number>(0);
   const [totalPossibleMarks, setTotalPossibleMarks] = useState<number>(0);
+  const [isDynamicAssessment, setIsDynamicAssessment] = useState<boolean>(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -355,6 +356,9 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       const assessmentData = assessmentsData[0];
       console.log('Selected assessment data:', assessmentData);
       
+      // Set the dynamic assessment flag
+      setIsDynamicAssessment(assessmentData.is_dynamic || false);
+      
       let questions: Question[] = [];
       let totalPossibleMarks = 0;
       
@@ -531,10 +535,9 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       setAssessment(loadedAssessment);
       setTotalPossibleMarks(totalPossibleMarks);
       setTimeRemaining(loadedAssessment.durationMinutes * 60);
-      setCurrentQuestionIndex(0); // Reset to first question on reload
-      setAssessmentEnded(false); // Reset ended status
+      setCurrentQuestionIndex(0);
+      setAssessmentEnded(false);
       
-      // Reset all marks obtained
       setTotalMarksObtained(0);
       
       toast({
@@ -702,7 +705,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       let option: any = null;
       let question: any = null;
       
-      if (assessment.questions[0]?.id && assessment.questions[0].id.includes('bank')) {
+      if (isDynamicAssessment) {
         // This is a dynamic assessment, check mcq_options_bank
         console.log('Checking dynamic assessment option in mcq_options_bank');
         const { data: optionData, error: optionError } = await supabase
