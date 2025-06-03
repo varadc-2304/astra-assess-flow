@@ -141,15 +141,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     for (const constraint of mcqConstraints) {
       const { data: mcqQuestions, error: mcqError } = await supabase
         .from('mcq_question_bank')
-        .select(`
-          *,
-          mcq_options_bank (
-            id,
-            text,
-            is_correct,
-            order_index
-          )
-        `)
+        .select('*')
         .eq('topic', constraint.topic)
         .eq('difficulty', constraint.difficulty)
         .limit(constraint.number_of_questions * 2); // Fetch more to randomize
@@ -173,7 +165,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       for (const mcqQuestion of selectedQuestions) {
         totalPossibleMarks += mcqQuestion.marks || 0;
       
-        // Fetch options for each MCQ question using its ID
+        // Fetch options for each MCQ question using the correct relationship
         const { data: options, error: optionsError } = await supabase
           .from('mcq_options_bank')
           .select('id, text, is_correct, order_index')
@@ -184,6 +176,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           console.error(`Error fetching options for MCQ ${mcqQuestion.id}:`, optionsError);
           continue;
         }
+      
+        console.log(`MCQ Question ${mcqQuestion.id} fetched ${options?.length || 0} options:`, options);
       
         const question: MCQQuestion = {
           id: mcqQuestion.id,
@@ -199,7 +193,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           marks: mcqQuestion.marks
         };
       
-        console.log(`MCQ Question ${mcqQuestion.id} has ${question.options.length} options:`, question.options);
+        console.log(`Final MCQ Question ${mcqQuestion.id} has ${question.options.length} options`);
         questions.push(question);
       }
     }
