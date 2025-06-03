@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -697,37 +698,84 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         submissionId = submissions[0].id;
       }
       
-      // Check if the selected option is correct
-      const { data: option, error: optionError } = await supabase
-        .from('mcq_options')
-        .select('*')
-        .eq('id', optionId)
-        .single();
-        
-      if (optionError) {
-        console.error('Error finding option:', optionError);
-        toast({
-          title: "Error",
-          description: "There was an error processing your answer.",
-          variant: "destructive",
-          duration: 1000,
-        });
-        return;
-      }
+      // Check if the selected option is correct - handle both static and dynamic assessments
+      let option: any = null;
+      let question: any = null;
       
-      // Get the question marks
-      const { data: question, error: questionError } = await supabase
-        .from('mcq_questions')
-        .select('marks')
-        .eq('id', questionId)
-        .single();
+      if (assessment.questions[0]?.id && assessment.questions[0].id.includes('bank')) {
+        // This is a dynamic assessment, check mcq_options_bank
+        console.log('Checking dynamic assessment option in mcq_options_bank');
+        const { data: optionData, error: optionError } = await supabase
+          .from('mcq_options_bank')
+          .select('*')
+          .eq('id', optionId)
+          .single();
+          
+        if (optionError) {
+          console.error('Error finding option in mcq_options_bank:', optionError);
+          toast({
+            title: "Error",
+            description: "There was an error processing your answer.",
+            variant: "destructive",
+            duration: 1000,
+          });
+          return;
+        }
         
-      if (questionError) {
-        console.error('Error finding question marks:', questionError);
-        return;
+        option = optionData;
+        
+        // Get the question marks from mcq_question_bank
+        const { data: questionData, error: questionError } = await supabase
+          .from('mcq_question_bank')
+          .select('marks')
+          .eq('id', questionId)
+          .single();
+          
+        if (questionError) {
+          console.error('Error finding question marks in mcq_question_bank:', questionError);
+          return;
+        }
+        
+        question = questionData;
+      } else {
+        // This is a static assessment, check mcq_options
+        console.log('Checking static assessment option in mcq_options');
+        const { data: optionData, error: optionError } = await supabase
+          .from('mcq_options')
+          .select('*')
+          .eq('id', optionId)
+          .single();
+          
+        if (optionError) {
+          console.error('Error finding option in mcq_options:', optionError);
+          toast({
+            title: "Error",
+            description: "There was an error processing your answer.",
+            variant: "destructive",
+            duration: 1000,
+          });
+          return;
+        }
+        
+        option = optionData;
+        
+        // Get the question marks from mcq_questions
+        const { data: questionData, error: questionError } = await supabase
+          .from('mcq_questions')
+          .select('marks')
+          .eq('id', questionId)
+          .single();
+          
+        if (questionError) {
+          console.error('Error finding question marks in mcq_questions:', questionError);
+          return;
+        }
+        
+        question = questionData;
       }
       
       const marksObtained = option.is_correct ? (question.marks || 0) : 0;
+      console.log(`Option is ${option.is_correct ? 'correct' : 'incorrect'}, marks obtained: ${marksObtained}`);
       
       // Check if there's an existing question submission for this session
       const { data: existingSubmission, error: existingSubmissionError } = await supabase
