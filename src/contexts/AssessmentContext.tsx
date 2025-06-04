@@ -1132,8 +1132,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         })
       });
       
-      // Recalculate total marks for this attempt
-      calculateTotalMarks(assessment);
+      // Recalculate total marks for this attempt using the correct function
+      await calculateAndUpdateTotalMarks(submissions[0].id);
     } catch (error) {
       console.error('Error updating marks:', error);
     }
