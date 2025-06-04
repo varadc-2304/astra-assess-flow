@@ -636,13 +636,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "question_submissions_mcq_option_id_fkey"
-            columns: ["mcq_option_id"]
-            isOneToOne: false
-            referencedRelation: "mcq_options"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "question_submissions_submission_id_fkey"
             columns: ["submission_id"]
             isOneToOne: false

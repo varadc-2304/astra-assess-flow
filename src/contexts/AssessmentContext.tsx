@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -61,8 +60,8 @@ export type Assessment = {
   mcqCount: number;
   codingCount: number;
   durationMinutes: number;
-  startTime: string; // ISO string
-  endTime?: string; // ISO string
+  startTime: string;
+  endTime?: string;
   questions: Question[];
   isAiProctored: boolean;
 };
@@ -115,217 +114,181 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   const generateDynamicQuestions = async (assessmentData: DbAssessment): Promise<Question[]> => {
     console.log('Generating dynamic questions for assessment:', assessmentData.id);
     
-    // Fetch assessment constraints
-    const { data: constraints, error: constraintsError } = await supabase
-      .from('assessment_constraints')
-      .select('*')
-      .eq('assessment_id', assessmentData.id);
-      
-    if (constraintsError) {
-      console.error('Error fetching assessment constraints:', constraintsError);
-      throw new Error(`Failed to fetch assessment constraints: ${constraintsError.message}`);
-    }
-    
-    if (!constraints || constraints.length === 0) {
-      console.log('No constraints found for dynamic assessment');
-      return [];
-    }
-    
-    console.log('Found constraints:', constraints);
-    
-    const questions: Question[] = [];
-    let totalPossibleMarks = 0;
-    
-    // Process MCQ constraints
-    const mcqConstraints = constraints.filter(c => c.question_type === 'mcq');
-    console.log('MCQ constraints:', mcqConstraints);
-    
-    for (const constraint of mcqConstraints) {
-      console.log(`Processing constraint for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}, questions: ${constraint.number_of_questions}`);
-      
-      const { data: mcqQuestions, error: mcqError } = await supabase
-        .from('mcq_question_bank')
+    try {
+      // Fetch assessment constraints
+      const { data: constraints, error: constraintsError } = await supabase
+        .from('assessment_constraints')
         .select('*')
-        .eq('topic', constraint.topic)
-        .eq('difficulty', constraint.difficulty)
-        .limit(constraint.number_of_questions * 2); // Fetch more to randomize
+        .eq('assessment_id', assessmentData.id);
         
-      if (mcqError) {
-        console.error('Error fetching MCQ questions from bank:', mcqError);
-        continue;
+      if (constraintsError) {
+        console.error('Error fetching assessment constraints:', constraintsError);
+        throw new Error(`Failed to fetch assessment constraints: ${constraintsError.message}`);
       }
       
-      console.log(`Found ${mcqQuestions?.length || 0} MCQ questions in bank for topic ${constraint.topic}, difficulty ${constraint.difficulty}`);
-      
-      if (!mcqQuestions || mcqQuestions.length === 0) {
-        console.log(`No MCQ questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
-        continue;
+      if (!constraints || constraints.length === 0) {
+        console.log('No constraints found for dynamic assessment');
+        return [];
       }
       
-      // Randomly select questions
-      const shuffled = mcqQuestions.sort(() => 0.5 - Math.random());
-      const selectedQuestions = shuffled.slice(0, constraint.number_of_questions);
+      console.log('Found constraints:', constraints);
       
-      console.log(`Selected ${selectedQuestions.length} MCQ questions for ${constraint.topic}:`, selectedQuestions.map(q => ({ id: q.id, title: q.title })));
+      const questions: Question[] = [];
       
-      for (const mcqQuestion of selectedQuestions) {
-        totalPossibleMarks += mcqQuestion.marks || 0;
+      // Process MCQ constraints
+      const mcqConstraints = constraints.filter(c => c.question_type === 'mcq');
+      console.log('MCQ constraints:', mcqConstraints);
+      
+      for (const constraint of mcqConstraints) {
+        console.log(`Processing constraint for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}, questions: ${constraint.number_of_questions}`);
         
-        console.log(`=== Processing MCQ Question ${mcqQuestion.id} (${mcqQuestion.title}) ===`);
-        console.log('Question details:', { id: mcqQuestion.id, title: mcqQuestion.title, marks: mcqQuestion.marks });
-      
-        // Fetch options for each MCQ question using the correct relationship
-        console.log(`Querying mcq_options_bank where mcq_question_bank_id = '${mcqQuestion.id}'`);
-        
-        const { data: options, error: optionsError } = await supabase
-          .from('mcq_options_bank')
-          .select('id, text, is_correct, order_index')
-          .eq('mcq_question_bank_id', mcqQuestion.id)
-          .order('order_index', { ascending: true });
-      
-        console.log('Options query result:', { 
-          data: options, 
-          error: optionsError, 
-          count: options?.length || 0,
-          questionId: mcqQuestion.id 
-        });
-        
-        if (optionsError) {
-          console.error(`Error fetching options for MCQ ${mcqQuestion.id}:`, optionsError);
+        const { data: mcqQuestions, error: mcqError } = await supabase
+          .from('mcq_question_bank')
+          .select('*')
+          .eq('topic', constraint.topic)
+          .eq('difficulty', constraint.difficulty)
+          .limit(constraint.number_of_questions * 2);
+          
+        if (mcqError) {
+          console.error('Error fetching MCQ questions from bank:', mcqError);
           continue;
         }
+        
+        console.log(`Found ${mcqQuestions?.length || 0} MCQ questions in bank for topic ${constraint.topic}, difficulty ${constraint.difficulty}`);
+        
+        if (!mcqQuestions || mcqQuestions.length === 0) {
+          console.log(`No MCQ questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
+          continue;
+        }
+        
+        // Randomly select questions
+        const shuffled = mcqQuestions.sort(() => 0.5 - Math.random());
+        const selectedQuestions = shuffled.slice(0, constraint.number_of_questions);
+        
+        console.log(`Selected ${selectedQuestions.length} MCQ questions for ${constraint.topic}`);
+        
+        for (const mcqQuestion of selectedQuestions) {
+          console.log(`Processing MCQ Question ${mcqQuestion.id} (${mcqQuestion.title})`);
+        
+          // Fetch options for each MCQ question
+          const { data: options, error: optionsError } = await supabase
+            .from('mcq_options_bank')
+            .select('id, text, is_correct, order_index')
+            .eq('mcq_question_bank_id', mcqQuestion.id)
+            .order('order_index', { ascending: true });
+        
+          if (optionsError) {
+            console.error(`Error fetching options for MCQ ${mcqQuestion.id}:`, optionsError);
+            continue;
+          }
+
+          if (!options || options.length === 0) {
+            console.warn(`No options found for MCQ question ${mcqQuestion.id}, skipping`);
+            continue;
+          }
+        
+          const question: MCQQuestion = {
+            id: mcqQuestion.id,
+            type: 'mcq',
+            title: mcqQuestion.title,
+            description: mcqQuestion.description,
+            imageUrl: mcqQuestion.image_url,
+            options: options.map(option => ({
+              id: option.id,
+              text: option.text,
+              isCorrect: option.is_correct
+            })),
+            marks: mcqQuestion.marks
+          };
+        
+          console.log(`Final MCQ Question ${mcqQuestion.id} created with ${question.options.length} options`);
+          questions.push(question);
+        }
+      }
       
-        // Additional debugging - let's check if there are ANY options for this question ID with a broader query
-        if (!options || options.length === 0) {
-          console.warn(`No options found for MCQ question ${mcqQuestion.id}. Running debug queries...`);
+      // Process Coding constraints
+      const codingConstraints = constraints.filter(c => c.question_type === 'coding');
+      console.log('Coding constraints:', codingConstraints);
+      
+      for (const constraint of codingConstraints) {
+        const { data: codingQuestions, error: codingError } = await supabase
+          .from('coding_question_bank')
+          .select(`
+            *,
+            coding_languages_bank (*),
+            coding_examples_bank (*),
+            test_cases_bank (*)
+          `)
+          .eq('topic', constraint.topic)
+          .eq('difficulty', constraint.difficulty)
+          .limit(constraint.number_of_questions * 2);
           
-          // Check what's actually in the mcq_options_bank table
-          const { data: allOptions, error: allError } = await supabase
-            .from('mcq_options_bank')
-            .select('*')
-            .limit(10);
-            
-          console.log('Sample of ALL options in mcq_options_bank:', allOptions, allError);
-          
-          // Check specifically for this question ID with all columns
-          const { data: debugOptions, error: debugError } = await supabase
-            .from('mcq_options_bank')
-            .select('*')
-            .eq('mcq_question_bank_id', mcqQuestion.id);
-            
-          console.log(`Comprehensive debug check for question ${mcqQuestion.id}:`, {
-            data: debugOptions,
-            error: debugError,
-            queryUsed: `mcq_question_bank_id = '${mcqQuestion.id}'`
+        if (codingError) {
+          console.error('Error fetching coding questions from bank:', codingError);
+          continue;
+        }
+        
+        if (!codingQuestions || codingQuestions.length === 0) {
+          console.log(`No coding questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
+          continue;
+        }
+        
+        // Randomly select questions
+        const shuffled = codingQuestions.sort(() => 0.5 - Math.random());
+        const selectedQuestions = shuffled.slice(0, constraint.number_of_questions);
+        
+        console.log(`Selected ${selectedQuestions.length} coding questions for ${constraint.topic}`);
+        
+        for (const codingQuestion of selectedQuestions) {
+          // Create solution template object
+          const solutionTemplate: Record<string, string> = {};
+          codingQuestion.coding_languages_bank?.forEach((lang: any) => {
+            solutionTemplate[lang.coding_lang] = lang.solution_template;
           });
           
-          // Also check if this question ID exists in the question bank
-          const { data: questionExists, error: questionExistsError } = await supabase
-            .from('mcq_question_bank')
-            .select('id')
-            .eq('id', mcqQuestion.id);
-            
-          console.log(`Question existence check for ${mcqQuestion.id}:`, questionExists, questionExistsError);
+          // Get constraints from the first language
+          const questionConstraints = codingQuestion.coding_languages_bank && codingQuestion.coding_languages_bank.length > 0 
+            ? codingQuestion.coding_languages_bank[0].constraints || [] 
+            : [];
+
+          // Calculate total marks from test cases
+          const testCaseMarks = codingQuestion.test_cases_bank?.reduce((sum: number, tc: any) => sum + (tc.marks || 0), 0) || 0;
+          
+          const question: CodeQuestion = {
+            id: codingQuestion.id,
+            assessmentId: assessmentData.id,
+            type: 'code',
+            title: codingQuestion.title,
+            description: codingQuestion.description,
+            examples: codingQuestion.coding_examples_bank?.map((example: any) => ({
+              input: example.input,
+              output: example.output,
+              explanation: example.explanation,
+            })) || [],
+            constraints: questionConstraints,
+            solutionTemplate,
+            userSolution: {},
+            testCases: codingQuestion.test_cases_bank?.map((testCase: any) => ({
+              id: testCase.id,
+              input: testCase.input,
+              output: testCase.output,
+              marks: testCase.marks,
+              is_hidden: testCase.is_hidden,
+            })) || [],
+            marks: testCaseMarks,
+          };
+
+          questions.push(question);
         }
-      
-        const question: MCQQuestion = {
-          id: mcqQuestion.id,
-          type: 'mcq',
-          title: mcqQuestion.title,
-          description: mcqQuestion.description,
-          imageUrl: mcqQuestion.image_url,
-          options: options?.map(option => ({
-            id: option.id,
-            text: option.text,
-            isCorrect: option.is_correct
-          })) || [],
-          marks: mcqQuestion.marks
-        };
-      
-        console.log(`Final MCQ Question ${mcqQuestion.id} created with ${question.options.length} options:`, question.options);
-        questions.push(question);
       }
+      
+      console.log(`Generated ${questions.length} dynamic questions`);
+      return questions;
+      
+    } catch (error) {
+      console.error('Error generating dynamic questions:', error);
+      throw error;
     }
-    
-    // Process Coding constraints
-    const codingConstraints = constraints.filter(c => c.question_type === 'coding');
-    console.log('Coding constraints:', codingConstraints);
-    
-    for (const constraint of codingConstraints) {
-      const { data: codingQuestions, error: codingError } = await supabase
-        .from('coding_question_bank')
-        .select(`
-          *,
-          coding_languages_bank (*),
-          coding_examples_bank (*),
-          test_cases_bank (*)
-        `)
-        .eq('topic', constraint.topic)
-        .eq('difficulty', constraint.difficulty)
-        .limit(constraint.number_of_questions * 2); // Fetch more to randomize
-        
-      if (codingError) {
-        console.error('Error fetching coding questions from bank:', codingError);
-        continue;
-      }
-      
-      if (!codingQuestions || codingQuestions.length === 0) {
-        console.log(`No coding questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
-        continue;
-      }
-      
-      // Randomly select questions
-      const shuffled = codingQuestions.sort(() => 0.5 - Math.random());
-      const selectedQuestions = shuffled.slice(0, constraint.number_of_questions);
-      
-      console.log(`Selected ${selectedQuestions.length} coding questions for ${constraint.topic}`);
-      
-      for (const codingQuestion of selectedQuestions) {
-        // Create solution template object
-        const solutionTemplate: Record<string, string> = {};
-        codingQuestion.coding_languages_bank?.forEach((lang: any) => {
-          solutionTemplate[lang.coding_lang] = lang.solution_template;
-        });
-        
-        // Get constraints from the first language
-        const questionConstraints = codingQuestion.coding_languages_bank && codingQuestion.coding_languages_bank.length > 0 
-          ? codingQuestion.coding_languages_bank[0].constraints || [] 
-          : [];
-
-        // Calculate total marks from test cases
-        const testCaseMarks = codingQuestion.test_cases_bank?.reduce((sum: number, tc: any) => sum + (tc.marks || 0), 0) || 0;
-        totalPossibleMarks += testCaseMarks;
-        
-        const question: CodeQuestion = {
-          id: codingQuestion.id,
-          assessmentId: assessmentData.id,
-          type: 'code',
-          title: codingQuestion.title,
-          description: codingQuestion.description,
-          examples: codingQuestion.coding_examples_bank?.map((example: any) => ({
-            input: example.input,
-            output: example.output,
-            explanation: example.explanation,
-          })) || [],
-          constraints: questionConstraints,
-          solutionTemplate,
-          userSolution: {},
-          testCases: codingQuestion.test_cases_bank?.map((testCase: any) => ({
-            id: testCase.id,
-            input: testCase.input,
-            output: testCase.output,
-            marks: testCase.marks,
-            is_hidden: testCase.is_hidden,
-          })) || [],
-          marks: testCaseMarks,
-        };
-
-        questions.push(question);
-      }
-    }
-    
-    console.log(`Generated ${questions.length} dynamic questions with total marks: ${totalPossibleMarks}`);
-    return questions;
   };
 
   const loadAssessment = async (code: string): Promise<boolean> => {
@@ -516,6 +479,10 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       
       console.log(`Total questions processed: ${questions.length}`);
       console.log(`Total possible marks: ${totalPossibleMarks}`);
+      
+      if (questions.length === 0) {
+        throw new Error('No questions found for this assessment. Please contact your administrator.');
+      }
       
       const loadedAssessment: Assessment = {
         id: assessmentData.id,
