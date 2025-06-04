@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { useCameraRecording } from '@/hooks/useCameraRecording';
@@ -25,17 +24,13 @@ interface ProctoringCameraProps {
 // Status messages for different proctoring states
 const statusMessages: Record<ProctoringStatus, { message: string; color: string }> = {
   initializing: { message: "Initializing camera...", color: "amber" },
-  loadingModels: { message: "Loading detection models...", color: "amber" },
-  noCamera: { message: "No camera detected", color: "red" },
-  cameraPermissionDenied: { message: "Camera permission denied", color: "red" },
-  error: { message: "Camera error occurred", color: "red" },
-  ready: { message: "Camera ready", color: "green" },
   noFaceDetected: { message: "No face detected", color: "amber" },
   multipleFacesDetected: { message: "Multiple faces detected", color: "red" },
   faceDetected: { message: "Face detected ✓", color: "green" },
   faceNotCentered: { message: "Please center your face", color: "amber" },
   faceCovered: { message: "Face appears covered", color: "amber" },
   rapidMovement: { message: "Please reduce movement", color: "amber" },
+  error: { message: "Camera error occurred", color: "red" },
   frequentDisappearance: { message: "Face frequently disappearing", color: "red" },
   identityMismatch: { message: "Identity verification failed", color: "red" }
 };
