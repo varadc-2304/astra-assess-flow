@@ -30,9 +30,7 @@ const statusMessages: Record<ProctoringStatus, { message: string; color: string 
   faceNotCentered: { message: "Please center your face", color: "amber" },
   faceCovered: { message: "Face appears covered", color: "amber" },
   rapidMovement: { message: "Please reduce movement", color: "amber" },
-  error: { message: "Camera error occurred", color: "red" },
-  frequentDisappearance: { message: "Face frequently disappearing", color: "red" },
-  identityMismatch: { message: "Identity verification failed", color: "red" }
+  error: { message: "Camera error occurred", color: "red" }
 };
 
 // Define compatible violation timestamp type for JSON storage
@@ -514,9 +512,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
                 "shadow-lg",
                 status === 'faceDetected' 
                   ? "bg-green-500/10 border-green-400/30 scale-95" 
-                  : status === 'error' 
-                    ? "bg-red-500/10 border-red-400/30" 
-                    : "bg-amber-500/10 border-amber-400/30"
+                  : "bg-red-500/10 border-red-400/30"
               )}>
                 {/* Status indicator dot with enhanced animation */}
                 <div className={cn(
