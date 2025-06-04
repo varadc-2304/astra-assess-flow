@@ -196,7 +196,7 @@ const CameraVerificationPage = () => {
               </CardTitle>
               <CardDescription className="text-white/90 text-center text-lg mt-2">
                 Please position yourself in front of the camera for identity verification.
-                This ensures the security and integrity of your assessment.
+                {assessment.isAiProctored && " Your session will be recorded for proctoring purposes."}
               </CardDescription>
             </CardHeader>
             
@@ -209,7 +209,8 @@ const CameraVerificationPage = () => {
                   <h3 className="text-2xl font-bold text-gray-900 mb-4">Camera Access Required</h3>
                   <p className="text-gray-600 mb-8 max-w-lg mx-auto leading-relaxed">
                     For secure assessment proctoring, we need access to your camera. 
-                    Your privacy is protected and the feed is only used for verification and monitoring purposes.
+                    {assessment.isAiProctored && " This assessment includes video recording for integrity monitoring."}
+                    {" "}Your privacy is protected and the feed is only used for verification and monitoring purposes.
                   </p>
                   <Button 
                     onClick={handleActivateCamera}
@@ -230,6 +231,7 @@ const CameraVerificationPage = () => {
                       trackViolations={false}
                       assessmentId={assessment.id}
                       submissionId={submissionId || undefined}
+                      enableRecording={assessment.isAiProctored}
                     />
                   </div>
                   
@@ -244,6 +246,9 @@ const CameraVerificationPage = () => {
                       <li>• Remove any hats, sunglasses, or face coverings</li>
                       <li>• Look directly at the camera during verification</li>
                       <li>• Maintain a stable internet connection</li>
+                      {assessment.isAiProctored && (
+                        <li>• Your session will be recorded for integrity monitoring</li>
+                      )}
                     </ul>
                   </div>
                 </div>
