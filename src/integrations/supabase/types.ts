@@ -551,12 +551,9 @@ export type Database = {
           flagged_actions: Json | null
           id: string
           recording_path: string
-          recording_status: string | null
-          recording_url: string | null
           started_at: string | null
           submission_id: string | null
           user_id: string
-          violation_timestamps: Json | null
         }
         Insert: {
           assessment_id: string
@@ -565,12 +562,9 @@ export type Database = {
           flagged_actions?: Json | null
           id?: string
           recording_path: string
-          recording_status?: string | null
-          recording_url?: string | null
           started_at?: string | null
           submission_id?: string | null
           user_id: string
-          violation_timestamps?: Json | null
         }
         Update: {
           assessment_id?: string
@@ -579,12 +573,9 @@ export type Database = {
           flagged_actions?: Json | null
           id?: string
           recording_path?: string
-          recording_status?: string | null
-          recording_url?: string | null
           started_at?: string | null
           submission_id?: string | null
           user_id?: string
-          violation_timestamps?: Json | null
         }
         Relationships: [
           {
