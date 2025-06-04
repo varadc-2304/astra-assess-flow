@@ -16,8 +16,6 @@ import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, GripVertical, Camera } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -51,7 +49,9 @@ const AssessmentPage = () => {
     updateMarksObtained,
     endAssessment,
     totalMarksObtained,
-    totalPossibleMarks
+    totalPossibleMarks,
+    submissionId,
+    updateSubmissionViolations
   } = useAssessment();
 
   const [showExitDialog, setShowExitDialog] = useState(false);
@@ -69,8 +69,6 @@ const AssessmentPage = () => {
     terminateAssessment
   } = useFullscreen();
   const { toast } = useToast();
-  const { user } = useAuth();
-  const [submissionId, setSubmissionId] = useState<string | null>(null);
   
   // Camera states - only used when AI proctoring is enabled
   const [cameraPosition, setCameraPosition] = useState('bottom-right');
@@ -95,67 +93,14 @@ const AssessmentPage = () => {
     }
   }, [assessmentStarted, isFullscreen, enterFullscreen]);
 
+  // Update submission violations when fullscreen or tab violations occur
   useEffect(() => {
-    const fetchSubmissionRecord = async () => {
-      if (assessment && assessmentStarted && user) {
-        try {
-          const { data: submissions } = await supabase
-            .from('submissions')
-            .select('*')
-            .eq('assessment_id', assessment.id)
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(1);
-            
-          if (submissions && submissions.length > 0) {
-            setSubmissionId(submissions[0].id);
-          }
-        } catch (error) {
-          console.error('Error fetching submission record:', error);
-        }
-      }
-    };
-    
-    fetchSubmissionRecord();
-  }, [assessment, assessmentStarted, user]);
+    if (submissionId && (fullscreenWarnings > 0 || visibilityViolations > 0)) {
+      updateSubmissionViolations('fullscreen', fullscreenWarnings + visibilityViolations);
+    }
+  }, [submissionId, fullscreenWarnings, visibilityViolations, updateSubmissionViolations]);
 
-  useEffect(() => {
-    const createSubmissionRecord = async () => {
-      if (assessment && assessmentStarted && user) {
-        try {
-          const { data: existingSubmissions } = await supabase
-            .from('submissions')
-            .select('*')
-            .eq('assessment_id', assessment.id)
-            .eq('user_id', user.id)
-            .is('completed_at', null);
-            
-          if (existingSubmissions && existingSubmissions.length > 0) {
-            return;
-          }
-          
-          const { data, error } = await supabase
-            .from('submissions')
-            .insert({
-              assessment_id: assessment.id,
-              user_id: user.id,
-              started_at: new Date().toISOString(),
-              fullscreen_violations: 0
-            });
-            
-          if (error) {
-            console.error('Error creating submission record:', error);
-          }
-        } catch (error) {
-          console.error('Error creating submission record:', error);
-        }
-      }
-    };
-    
-    createSubmissionRecord();
-  }, [assessment, assessmentStarted, user]);
-
-  // Only initialize camera-related event handlers if AI proctoring is enabled
+  // Camera drag handlers
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!isAiProctoringEnabled) return;
     
@@ -361,42 +306,7 @@ const AssessmentPage = () => {
     setIsEndingAssessment(true);
     
     try {
-      const { data: submissions, error: submissionError } = await supabase
-        .from('submissions')
-        .select('*')
-        .eq('assessment_id', assessment?.id || '')
-        .eq('user_id', user?.id || '')
-        .order('created_at', { ascending: false })
-        .limit(1);
-      
-      if (submissionError || !submissions || submissions.length === 0) {
-        console.error('Error finding submission to update:', submissionError);
-      } else {
-        const { error: updateError } = await supabase
-          .from('submissions')
-          .update({ 
-            completed_at: new Date().toISOString()
-          })
-          .eq('id', submissions[0].id);
-        
-        if (updateError) {
-          console.error('Error updating submission completion status:', updateError);
-        }
-      }
-      
       await endAssessment();
-      
-      const { error: resultError } = await supabase
-        .from('results')
-        .update({ 
-          contest_name: assessment?.name 
-        } as any)
-        .eq('assessment_id', assessment?.id || '')
-        .eq('user_id', user?.id || '');
-      
-      if (resultError) {
-        console.error('Error updating contest name in results:', resultError);
-      }
       
       toast({
         title: "Assessment Submitted",
@@ -632,7 +542,7 @@ const AssessmentPage = () => {
             onTouchStart={handleTouchStart}
           >
             <Card className={cn(
-              "w-[180px] overflow-hidden rounded-lg border-0",  // Reduced width from 240px to 180px
+              "w-[180px] overflow-hidden rounded-lg border-0",
               "bg-black/10 backdrop-blur-sm",
               "transform transition-transform duration-200",
               isDragging ? "scale-105" : "",
@@ -640,7 +550,7 @@ const AssessmentPage = () => {
             )}>
               <div 
                 className={cn(
-                  "flex items-center justify-between px-3 py-1", // Reduced padding
+                  "flex items-center justify-between px-3 py-1",
                   "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
                   "border-b border-white/10",
                   isDragging ? "cursor-grabbing" : "cursor-grab"
@@ -649,12 +559,12 @@ const AssessmentPage = () => {
                 onTouchStart={handleTouchStart}
               >
                 <div className="flex items-center space-x-1">
-                  <Camera className="h-3 w-3 text-white opacity-80" /> {/* Reduced icon size */}
-                  <span className="text-xs font-medium text-white opacity-90">Proctoring</span> {/* Shorter text */}
+                  <Camera className="h-3 w-3 text-white opacity-80" />
+                  <span className="text-xs font-medium text-white opacity-90">Proctoring</span>
                 </div>
                 <div className="flex items-center">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse mr-1"></div> {/* Smaller indicator */}
-                  <GripVertical className="h-3 w-3 text-white opacity-70" /> {/* Reduced icon size */}
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse mr-1"></div>
+                  <GripVertical className="h-3 w-3 text-white opacity-70" />
                 </div>
               </div>
               <ProctoringCamera 
@@ -663,10 +573,10 @@ const AssessmentPage = () => {
                 trackViolations={true}
                 assessmentId={assessment.id}
                 submissionId={submissionId || undefined}
-                size="small" // Use the small size
+                size="small"
               />
               <div className={cn(
-                "text-[9px] text-center py-0.5 text-white/70 opacity-0", // Smaller text and padding
+                "text-[9px] text-center py-0.5 text-white/70 opacity-0",
                 "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
                 "border-t border-white/10",
                 "transition-opacity duration-200",

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
@@ -6,99 +7,21 @@ import { useAssessment } from '@/contexts/AssessmentContext';
 import { ProctoringCamera } from '@/components/ProctoringCamera';
 import { ShieldCheck, Camera, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { useMutation } from '@tanstack/react-query';
 
 const CameraVerificationPage = () => {
   const [isVerified, setIsVerified] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [submissionId, setSubmissionId] = useState<string | null>(null);
-  const [isCreatingSubmission, setIsCreatingSubmission] = useState(false);
   const [isCameraActivated, setIsCameraActivated] = useState(false);
   
-  const { assessment, startAssessment, assessmentCode, loading } = useAssessment();
+  const { assessment, startAssessment, assessmentCode, loading, submissionId } = useAssessment();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
-  
-  // Create submission record for tracking with retry logic
-  const createSubmissionMutation = useMutation({
-    mutationFn: async () => {
-      if (!user || !assessment) return null;
-      
-      setIsCreatingSubmission(true);
-      
-      try {
-        // First check if there's already an active submission
-        const { data: existingSubmissions, error: fetchError } = await supabase
-          .from('submissions')
-          .select('id')
-          .eq('assessment_id', assessment.id)
-          .eq('user_id', user.id)
-          .is('completed_at', null)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
-        if (fetchError) {
-          console.error('Error checking existing submissions:', fetchError);
-          throw fetchError;
-        }
-        
-        // If there's an active submission, use that
-        if (existingSubmissions && existingSubmissions.length > 0) {
-          console.log('Using existing submission:', existingSubmissions[0]);
-          return existingSubmissions[0];
-        }
-        
-        // Otherwise, create a new submission
-        const { data, error } = await supabase
-          .from('submissions')
-          .insert({
-            assessment_id: assessment.id,
-            user_id: user.id,
-            started_at: new Date().toISOString(),
-            fullscreen_violations: 0,
-            face_violations: []
-          })
-          .select('id')
-          .single();
-          
-        if (error) {
-          console.error('Error creating new submission:', error);
-          throw error;
-        }
-        
-        console.log('Created new submission:', data);
-        return data;
-      } finally {
-        setIsCreatingSubmission(false);
-      }
-    },
-    retry: 3,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
-    onSuccess: (data) => {
-      if (data) {
-        console.log('Submission created/found successfully:', data.id);
-        setSubmissionId(data.id);
-      }
-    },
-    onError: (error) => {
-      console.error('Error creating submission after retries:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create submission record. Please try refreshing the page.",
-        variant: "destructive",
-      });
-    }
-  });
   
   useEffect(() => {
     // Check if assessment requires AI proctoring, if not, redirect to assessment page
     if (!loading && assessment && !assessment.isAiProctored) {
       console.log("Assessment doesn't require AI proctoring, redirecting to assessment page");
-      startAssessment();
-      navigate('/assessment');
+      handleStartAssessment();
       return;
     }
     
@@ -112,13 +35,7 @@ const CameraVerificationPage = () => {
       navigate('/student');
       return;
     }
-    
-    // Only create submission when needed, don't initialize camera yet
-    if (user && assessment && !submissionId && !isCreatingSubmission) {
-      console.log("Creating submission for assessment", assessment.id);
-      createSubmissionMutation.mutate();
-    }
-  }, [assessment, assessmentCode, loading, navigate, toast, user, createSubmissionMutation, submissionId, isCreatingSubmission, startAssessment]);
+  }, [assessment, assessmentCode, loading, navigate, toast]);
   
   if (loading) {
     return (
@@ -161,8 +78,8 @@ const CameraVerificationPage = () => {
     }, 1000);
   };
   
-  const handleStartAssessment = () => {
-    startAssessment();
+  const handleStartAssessment = async () => {
+    await startAssessment();
     navigate('/assessment');
   };
 
