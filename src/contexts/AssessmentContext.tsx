@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -575,58 +576,28 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         console.log('Assessment ended successfully');
         console.log(`Total marks obtained: ${totalMarksObtained}/${totalPossibleMarks}`);
         
-        // Get the current active submission and mark it as completed
-        const { data: submissions, error: submissionError } = await supabase
+        // Always create a new submission for each assessment attempt
+        const { data: newSubmission, error: newSubmissionError } = await supabase
           .from('submissions')
-          .select('*')
-          .eq('assessment_id', assessment.id)
-          .eq('user_id', user.id)
-          .is('completed_at', null)
-          .order('created_at', { ascending: false })
-          .limit(1);
-        
-        let submissionId: string;
-        
-        if (submissions && submissions.length > 0) {
-          // Mark existing submission as completed
-          submissionId = submissions[0].id;
-          const { error: updateError } = await supabase
-            .from('submissions')
-            .update({
-              completed_at: new Date().toISOString(),
-              fullscreen_violations: fullscreenWarnings
-            })
-            .eq('id', submissionId);
+          .insert({
+            assessment_id: assessment.id,
+            user_id: user.id,
+            started_at: new Date().toISOString(),
+            completed_at: new Date().toISOString(),
+            fullscreen_violations: fullscreenWarnings
+          })
+          .select()
+          .single();
             
-          if (updateError) {
-            console.error('Error updating submission:', updateError);
-          }
-        } else {
-          // Create a new submission if none exists
-          const { data: newSubmission, error: newSubmissionError } = await supabase
-            .from('submissions')
-            .insert({
-              assessment_id: assessment.id,
-              user_id: user.id,
-              started_at: new Date().toISOString(),
-              completed_at: new Date().toISOString(),
-              fullscreen_violations: fullscreenWarnings
-            })
-            .select()
-            .single();
-            
-          if (newSubmissionError || !newSubmission) {
-            console.error('Error creating submission:', newSubmissionError);
-            toast({
-              title: "Error",
-              description: "There was an error creating your submission.",
-              variant: "destructive",
-              duration: 1000,
-            });
-            return false;
-          }
-          
-          submissionId = newSubmission.id;
+        if (newSubmissionError || !newSubmission) {
+          console.error('Error creating submission:', newSubmissionError);
+          toast({
+            title: "Error",
+            description: "There was an error creating your submission.",
+            variant: "destructive",
+            duration: 1000,
+          });
+          return false;
         }
         
         const percentage = totalPossibleMarks > 0
@@ -639,7 +610,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           .insert({
             user_id: user.id,
             assessment_id: assessment.id,
-            submission_id: submissionId,
+            submission_id: newSubmission.id,
             total_score: totalMarksObtained,
             total_marks: totalPossibleMarks,
             percentage: percentage,
@@ -684,9 +655,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       console.log(`Answering MCQ question ${questionId} with option ${optionId}`);
-      console.log(`Assessment is dynamic: ${isDynamicAssessment}`);
       
-      // Get or create current submission
+      // Always create a new submission for the current session if not already created
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
@@ -704,6 +674,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       let submissionId: string;
       
       if (!submissions || submissions.length === 0) {
+        // Create a new submission if none exists for this attempt
         const { data: newSubmission, error: newSubmissionError } = await supabase
           .from('submissions')
           .insert({
@@ -726,17 +697,16 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
         
         submissionId = newSubmission.id;
-        console.log('Created new submission:', submissionId);
       } else {
         submissionId = submissions[0].id;
-        console.log('Using existing submission:', submissionId);
       }
       
-      // Check if the selected option is correct
+      // Check if the selected option is correct - handle both static and dynamic assessments
       let option: any = null;
       let question: any = null;
       
       if (isDynamicAssessment) {
+        // This is a dynamic assessment, check mcq_options_bank
         console.log('Checking dynamic assessment option in mcq_options_bank');
         const { data: optionData, error: optionError } = await supabase
           .from('mcq_options_bank')
@@ -756,8 +726,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
         
         option = optionData;
-        console.log('Found dynamic option:', option);
         
+        // Get the question marks from mcq_question_bank
         const { data: questionData, error: questionError } = await supabase
           .from('mcq_question_bank')
           .select('marks')
@@ -770,8 +740,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
         
         question = questionData;
-        console.log('Found dynamic question marks:', question);
       } else {
+        // This is a static assessment, check mcq_options
         console.log('Checking static assessment option in mcq_options');
         const { data: optionData, error: optionError } = await supabase
           .from('mcq_options')
@@ -792,6 +762,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         
         option = optionData;
         
+        // Get the question marks from mcq_questions
         const { data: questionData, error: questionError } = await supabase
           .from('mcq_questions')
           .select('marks')
@@ -809,7 +780,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       const marksObtained = option.is_correct ? (question.marks || 0) : 0;
       console.log(`Option is ${option.is_correct ? 'correct' : 'incorrect'}, marks obtained: ${marksObtained}`);
       
-      // Check if there's an existing question submission
+      // Check if there's an existing question submission for this session
       const { data: existingSubmission, error: existingSubmissionError } = await supabase
         .from('question_submissions')
         .select('*')
@@ -829,8 +800,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       }
       
       if (existingSubmission && existingSubmission.length > 0) {
-        // Update existing submission
-        console.log('Updating existing question submission:', existingSubmission[0].id);
+        // Update existing submission for this attempt
         const { error: updateError } = await supabase
           .from('question_submissions')
           .update({
@@ -851,8 +821,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
       } else {
-        // Create new submission
-        console.log('Creating new question submission');
+        // Create new submission for this attempt
         const { error: insertError } = await supabase
           .from('question_submissions')
           .insert({
@@ -890,8 +859,22 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         })
       });
       
-      // Recalculate and update total marks obtained
-      await calculateAndUpdateTotalMarks(submissionId);
+      // Recalculate total marks obtained
+      const updatedAssessment = {
+        ...assessment,
+        questions: assessment.questions.map(q => {
+          if (q.id === questionId && q.type === 'mcq') {
+            return {
+              ...q,
+              selectedOption: optionId
+            };
+          }
+          return q;
+        })
+      };
+      
+      // Update the total marks obtained in state
+      calculateTotalMarks(updatedAssessment);
       
       toast({
         title: "Answer Recorded",
@@ -909,17 +892,29 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const calculateAndUpdateTotalMarks = async (submissionId: string) => {
-    if (!user || !assessment) return;
+  const calculateTotalMarks = async (currentAssessment: Assessment) => {
+    if (!user || !currentAssessment) return;
     
     try {
-      console.log('Calculating total marks for submission:', submissionId);
+      // Get the current submission
+      const { data: submissions, error: submissionError } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('assessment_id', currentAssessment.id)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+        
+      if (submissionError || !submissions || submissions.length === 0) {
+        console.error('Error finding submission for marks calculation:', submissionError);
+        return;
+      }
       
-      // Get all question submissions for this submission
+      // Get all question submissions
       const { data: questionSubmissions, error: questionsError } = await supabase
         .from('question_submissions')
-        .select('marks_obtained')
-        .eq('submission_id', submissionId);
+        .select('*')
+        .eq('submission_id', submissions[0].id);
         
       if (questionsError) {
         console.error('Error fetching question submissions:', questionsError);
@@ -928,15 +923,9 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       
       // Calculate total marks obtained
       const total = questionSubmissions?.reduce((sum, qs) => sum + (qs.marks_obtained || 0), 0) || 0;
-      console.log(`Total marks calculated from submissions: ${total} (from ${questionSubmissions?.length || 0} submissions)`);
+      console.log(`Total marks calculated from submissions: ${total}`);
       
       setTotalMarksObtained(total);
-      
-      // Also log the individual submissions for debugging
-      questionSubmissions?.forEach((qs, index) => {
-        console.log(`Submission ${index + 1}: ${qs.marks_obtained} marks`);
-      });
-      
     } catch (error) {
       console.error('Error calculating marks:', error);
     }
@@ -1132,8 +1121,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         })
       });
       
-      // Recalculate total marks for this attempt using the correct function
-      await calculateAndUpdateTotalMarks(submissions[0].id);
+      // Recalculate total marks for this attempt
+      calculateTotalMarks(assessment);
     } catch (error) {
       console.error('Error updating marks:', error);
     }
