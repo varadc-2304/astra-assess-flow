@@ -55,12 +55,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
 
       try {
         // First check if there's a saved code snippet for this question and language
-        if (user && question.assessmentId) {
+        if (user && question.assessment_id) {
           const { data: savedCode, error: savedCodeError } = await supabase
             .from('user_code_snippets')
             .select('code')
             .eq('user_id', user.id)
-            .eq('assessment_id', question.assessmentId)
+            .eq('assessment_id', question.assessment_id)
             .eq('question_id', question.id)
             .eq('language', newLanguage)
             .maybeSingle();
@@ -91,19 +91,19 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     };
 
     fetchTemplate();
-  }, [question.id, question.assessmentId, user]);
+  }, [question.id, question.assessment_id, user]);
 
   const handleLanguageChange = async (language: string) => {
     setSelectedLanguage(language);
 
     try {
       // First check if there's a saved code snippet for this question and language
-      if (user && question.assessmentId) {
+      if (user && question.assessment_id) {
         const { data: savedCode, error: savedCodeError } = await supabase
           .from('user_code_snippets')
           .select('code')
           .eq('user_id', user.id)
-          .eq('assessment_id', question.assessmentId)
+          .eq('assessment_id', question.assessment_id)
           .eq('question_id', question.id)
           .eq('language', language)
           .maybeSingle();
@@ -142,13 +142,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       onCodeChange(selectedLanguage, value);
       
       // Save code to database
-      if (user && question.assessmentId) {
+      if (user && question.assessment_id) {
         try {
           const { data, error } = await supabase
             .from('user_code_snippets')
             .select('id')
             .eq('user_id', user.id)
-            .eq('assessment_id', question.assessmentId)
+            .eq('assessment_id', question.assessment_id)
             .eq('question_id', question.id)
             .eq('language', selectedLanguage);
 
@@ -172,7 +172,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
               .from('user_code_snippets')
               .insert({
                 user_id: user.id,
-                assessment_id: question.assessmentId,
+                assessment_id: question.assessment_id,
                 question_id: question.id,
                 language: selectedLanguage,
                 code: value
@@ -433,7 +433,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           const { data: submissions, error: submissionError } = await supabase
             .from('submissions')
             .select('*')
-            .eq('assessment_id', question.assessmentId || '')
+            .eq('assessment_id', question.assessment_id || '')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
             .limit(1);
@@ -448,7 +448,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             const { data: newSubmission, error: submissionError } = await supabase
               .from('submissions')
               .insert({
-                assessment_id: question.assessmentId || '',
+                assessment_id: question.assessment_id || '',
                 user_id: user.id,
                 started_at: new Date().toISOString()
               })

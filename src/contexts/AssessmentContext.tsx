@@ -1,10 +1,15 @@
-
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Assessment, MCQQuestion as DBMCQQuestion, CodingQuestion as DBCodingQuestion, QuestionOption } from '@/types/database';
+import { Assessment } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
+
+export interface QuestionOption {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+}
 
 export interface MCQQuestion {
   id: string;
@@ -202,7 +207,14 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             return { ...question, options: [] };
           }
 
-          return { ...question, type: 'mcq', options: options } as MCQQuestion;
+          // Map database options to frontend format
+          const mappedOptions: QuestionOption[] = options.map(option => ({
+            id: option.id,
+            text: option.text,
+            isCorrect: option.is_correct
+          }));
+
+          return { ...question, type: 'mcq' as const, options: mappedOptions } as MCQQuestion;
         })
       );
 
@@ -271,7 +283,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
           return {
             ...question,
-            type: 'code',
+            type: 'code' as const,
             examples: examples || [],
             solutionTemplate: solutionTemplate,
             userSolution: Object.keys(solutionTemplate).reduce((acc: any, key: string) => {
@@ -455,7 +467,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!prevAssessment) return prevAssessment;
 
       const updatedQuestions = prevAssessment.questions.map(question => {
-        if (question.id === questionId && question.type === 'mcq') {
+        if (question.id === questionId && isMCQQuestion(question)) {
           return { ...question, selectedOption: optionId };
         }
         return question;
@@ -473,7 +485,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!prevAssessment) return prevAssessment;
 
       const updatedQuestions = prevAssessment.questions.map(question => {
-        if (question.id === questionId && question.type === 'code') {
+        if (question.id === questionId && isCodeQuestion(question)) {
           return {
             ...question,
             userSolution: {
@@ -502,7 +514,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (!prevAssessment) return prevAssessment;
 
       const updatedQuestions = prevAssessment.questions.map(question => {
-        if (question.id === questionId && question.type === 'code') {
+        if (question.id === questionId && isCodeQuestion(question)) {
           return { ...question, marksObtained: marks };
         }
         return question;

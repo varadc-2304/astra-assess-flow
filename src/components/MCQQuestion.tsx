@@ -57,10 +57,10 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
             )}
           </div>
           
-          {question.imageUrl && (
+          {question.image_url && (
             <div className="relative rounded-lg overflow-hidden border border-gray-200">
               <img 
-                src={question.imageUrl} 
+                src={question.image_url} 
                 alt="Question image" 
                 className="max-w-full rounded-md object-contain max-h-64"
               />
