@@ -140,7 +140,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       console.log('MCQ constraints:', mcqConstraints);
       
       for (const constraint of mcqConstraints) {
-        console.log(`Processing constraint for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}, questions: ${constraint.number_of_questions}`);
+        console.log(`Processing MCQ constraint for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}, questions: ${constraint.number_of_questions}`);
         
         // Get all available serial numbers for this topic and difficulty
         const { data: serialData, error: serialError } = await supabase
@@ -148,8 +148,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           .select('serial')
           .eq('topic', constraint.topic)
           .eq('difficulty', constraint.difficulty)
-          .not('serial', 'is', null)
-          .order('serial', { ascending: true });
+          .not('serial', 'is', null);
           
         if (serialError) {
           console.error('Error fetching MCQ serial numbers:', serialError);
@@ -256,8 +255,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           .select('serial')
           .eq('topic', constraint.topic)
           .eq('difficulty', constraint.difficulty)
-          .not('serial', 'is', null)
-          .order('serial', { ascending: true });
+          .not('serial', 'is', null);
           
         if (serialError) {
           console.error('Error fetching coding serial numbers:', serialError);
@@ -292,14 +290,17 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         
         console.log(`Selected random coding serials for ${constraint.topic}:`, randomSerials);
         
-        // Fetch coding questions using the random serial numbers
+        // Fetch coding questions using the random serial numbers with related data
         const { data: codingQuestions, error: codingError } = await supabase
           .from('coding_question_bank')
           .select(`
-            *,
-            coding_languages_bank (*),
-            coding_examples_bank (*),
-            test_cases_bank (*)
+            id,
+            title,
+            description,
+            image_url,
+            topic,
+            difficulty,
+            serial
           `)
           .eq('topic', constraint.topic)
           .eq('difficulty', constraint.difficulty)
@@ -318,19 +319,58 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
         
         for (const codingQuestion of codingQuestions) {
+          console.log(`Processing Coding Question ${codingQuestion.id} (${codingQuestion.title})`);
+          
+          // Fetch coding languages for this question
+          const { data: languagesData, error: languagesError } = await supabase
+            .from('coding_languages_bank')
+            .select('*')
+            .eq('coding_question_bank_id', codingQuestion.id);
+
+          if (languagesError) {
+            console.error(`Error fetching languages for coding question ${codingQuestion.id}:`, languagesError);
+            continue;
+          }
+          
+          // Fetch coding examples for this question
+          const { data: examplesData, error: examplesError } = await supabase
+            .from('coding_examples_bank')
+            .select('*')
+            .eq('coding_question_bank_id', codingQuestion.id)
+            .order('order_index', { ascending: true });
+
+          if (examplesError) {
+            console.error(`Error fetching examples for coding question ${codingQuestion.id}:`, examplesError);
+            continue;
+          }
+
+          // Fetch test cases for this question
+          const { data: testCasesData, error: testCasesError } = await supabase
+            .from('test_cases_bank')
+            .select('*')
+            .eq('coding_question_bank_id', codingQuestion.id)
+            .order('order_index', { ascending: true });
+
+          if (testCasesError) {
+            console.error(`Error fetching test cases for coding question ${codingQuestion.id}:`, testCasesError);
+            continue;
+          }
+
+          console.log(`Found ${languagesData?.length || 0} languages, ${examplesData?.length || 0} examples, ${testCasesData?.length || 0} test cases for coding question ${codingQuestion.id}`);
+
           // Create solution template object
           const solutionTemplate: Record<string, string> = {};
-          codingQuestion.coding_languages_bank?.forEach((lang: any) => {
+          languagesData?.forEach((lang: any) => {
             solutionTemplate[lang.coding_lang] = lang.solution_template;
           });
           
           // Get constraints from the first language
-          const questionConstraints = codingQuestion.coding_languages_bank && codingQuestion.coding_languages_bank.length > 0 
-            ? codingQuestion.coding_languages_bank[0].constraints ? [codingQuestion.coding_languages_bank[0].constraints] : []
+          const questionConstraints = languagesData && languagesData.length > 0 
+            ? languagesData[0].constraints ? [languagesData[0].constraints] : []
             : [];
 
           // Calculate total marks from test cases
-          const testCaseMarks = codingQuestion.test_cases_bank?.reduce((sum: number, tc: any) => sum + (tc.marks || 0), 0) || 0;
+          const testCaseMarks = testCasesData?.reduce((sum: number, tc: any) => sum + (tc.marks || 0), 0) || 0;
           
           const question: CodeQuestion = {
             id: codingQuestion.id,
@@ -338,7 +378,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             type: 'code',
             title: codingQuestion.title,
             description: codingQuestion.description,
-            examples: codingQuestion.coding_examples_bank?.map((example: any) => ({
+            examples: examplesData?.map((example: any) => ({
               input: example.input,
               output: example.output,
               explanation: example.explanation,
@@ -346,7 +386,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             constraints: questionConstraints,
             solutionTemplate,
             userSolution: {},
-            testCases: codingQuestion.test_cases_bank?.map((testCase: any) => ({
+            testCases: testCasesData?.map((testCase: any) => ({
               id: testCase.id,
               input: testCase.input,
               output: testCase.output,
@@ -356,11 +396,12 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             marks: testCaseMarks,
           };
 
+          console.log(`Final Coding Question ${codingQuestion.id} created with ${question.testCases.length} test cases and ${testCaseMarks} total marks`);
           questions.push(question);
         }
       }
       
-      console.log(`Generated ${questions.length} dynamic questions`);
+      console.log(`Generated ${questions.length} dynamic questions total`);
       return questions;
       
     } catch (error) {
