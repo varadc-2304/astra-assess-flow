@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { LogOut, Search } from 'lucide-react';
+import { LogOut, Search, Shield, BookOpen } from 'lucide-react';
 import AssessmentCodeInput from '@/components/AssessmentCodeInput';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -122,76 +122,110 @@ const StudentDashboard = () => {
     const result = results.find(result => result.assessment_id === assessmentId);
     return result ? result.total_score : 0;
   };
-    const getTotalMarks = (assessmentId: string) => {
+
+  const getTotalMarks = (assessmentId: string) => {
     // Find the most recent result for this assessment and get total_marks
     const result = results.find(result => result.assessment_id === assessmentId);
     return result ? result.total_marks : 0;
   };
 
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Student Dashboard</h1>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">
-            {user?.name || user?.email}
-          </span>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={handleLogout}
-            className="flex items-center gap-2"
-          >
-            <LogOut size={16} />
-            Logout
-          </Button>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="container mx-auto py-8 px-4">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-12">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-astra-red/10 to-astra-red/5 rounded-full flex items-center justify-center">
+              <Shield className="h-6 w-6 text-astra-red" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Student Portal</h1>
+              <p className="text-gray-600">Assessment Management Dashboard</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-sm font-medium text-gray-900">{user?.name || user?.email}</p>
+              <p className="text-xs text-gray-500">Student Account</p>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleLogout}
+              className="flex items-center gap-2 border-gray-200 hover:bg-gray-50"
+            >
+              <LogOut size={16} />
+              Sign Out
+            </Button>
+          </div>
         </div>
-      </div>
-      
-      <div className="mb-8">
-        <h2 className="text-lg font-semibold mb-4">Enter Assessment Code</h2>
-        <AssessmentCodeInput />
-      </div>
-
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Practice Assessments</h2>
-          <div className="relative w-64">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search practice assessments..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8"
-            />
+        
+        {/* Assessment Code Input Section */}
+        <div className="mb-12">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-2">Enter Assessment Code</h2>
+            <p className="text-gray-600">Enter your unique assessment code to begin your examination</p>
+          </div>
+          <div className="flex justify-center">
+            <AssessmentCodeInput />
           </div>
         </div>
 
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-48 bg-gray-100 rounded-md animate-pulse"></div>
-            ))}
-          </div>
-        ) : filteredAssessments.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredAssessments.map((assessment) => (
-              <PracticeAssessmentCard 
-                key={assessment.id}
-                assessment={assessment}
-                isSolved={isAssessmentSolved(assessment.id)}
-                marksObtained={getMarksObtained(assessment.id)}
-                totalMarks={getTotalMarks(assessment.id)}
+        {/* Practice Assessments Section */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full flex items-center justify-center">
+                <BookOpen className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900">Practice Assessments</h2>
+                <p className="text-gray-600">Enhance your skills with our practice examinations</p>
+              </div>
+            </div>
+            <div className="relative w-80">
+              <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+              <Input
+                placeholder="Search practice assessments..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-100"
               />
-            ))}
+            </div>
           </div>
-        ) : (
-          <div className="text-center py-10 bg-gray-50 rounded-lg">
-            <p className="text-gray-500">
-              {searchQuery ? 'No matching practice assessments found' : 'No practice assessments available'}
-            </p>
-          </div>
-        )}
+
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-64 bg-white/50 rounded-xl animate-pulse shadow-sm"></div>
+              ))}
+            </div>
+          ) : filteredAssessments.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredAssessments.map((assessment) => (
+                <PracticeAssessmentCard 
+                  key={assessment.id}
+                  assessment={assessment}
+                  isSolved={isAssessmentSolved(assessment.id)}
+                  marksObtained={getMarksObtained(assessment.id)}
+                  totalMarks={getTotalMarks(assessment.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16 bg-white/50 rounded-xl shadow-sm">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="h-8 w-8 text-gray-400" />
+              </div>
+              <p className="text-gray-500 text-lg">
+                {searchQuery ? 'No matching practice assessments found' : 'No practice assessments available'}
+              </p>
+              {searchQuery && (
+                <p className="text-gray-400 text-sm mt-2">Try adjusting your search terms</p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { supabase } from '@/integrations/supabase/client';
+import { Shield } from 'lucide-react';
 
 const AssessmentCodeInput = () => {
   const [code, setCode] = useState('');
@@ -91,10 +92,13 @@ const AssessmentCodeInput = () => {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle>Enter Assessment Code</CardTitle>
-        <CardDescription>
+    <Card className="w-full max-w-md mx-auto shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
+      <CardHeader className="text-center pb-6">
+        <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-astra-red/10 to-astra-red/5 rounded-full flex items-center justify-center">
+          <Shield className="h-8 w-8 text-astra-red" />
+        </div>
+        <CardTitle className="text-xl font-semibold text-gray-900">Enter Assessment Code</CardTitle>
+        <CardDescription className="text-gray-600">
           Please enter your assessment code to begin
         </CardDescription>
       </CardHeader>
@@ -104,10 +108,14 @@ const AssessmentCodeInput = () => {
             placeholder="Enter code..."
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            className="uppercase"
+            className="uppercase text-center text-lg font-mono tracking-wider bg-gray-50 border-gray-200 focus:border-astra-red focus:ring-red-100"
             disabled={loading}
           />
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button 
+            type="submit" 
+            className="w-full bg-astra-red hover:bg-red-600 text-white font-medium py-3 shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5" 
+            disabled={loading}
+          >
             {loading ? "Verifying..." : "Start Assessment"}
           </Button>
         </form>
