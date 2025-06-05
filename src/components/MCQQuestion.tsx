@@ -28,29 +28,25 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
   };
 
   return (
-    <Card className={`border shadow-lg transition-all duration-300 ${
-      isWarningActive 
-        ? 'border-red-500 shadow-red-100 bg-red-50/30' 
-        : 'border-gray-200 hover:border-gray-300 bg-white/90 backdrop-blur-sm hover:shadow-xl'
-    }`}>
+    <Card className={`border ${isWarningActive ? 'border-red-500 shadow-red-100' : 'border-gray-200'} shadow-sm hover:shadow-md transition-shadow duration-200`}>
       {isWarningActive && (
-        <div className="bg-red-100 border-b border-red-200 p-4 flex items-center gap-3">
-          <AlertTriangle className="h-6 w-6 text-red-600" />
-          <span className="text-sm font-medium text-red-800">
+        <div className="bg-red-50 p-2 flex items-center gap-2 border-b border-red-200">
+          <AlertTriangle className="h-5 w-5 text-red-500" />
+          <span className="text-sm font-medium text-red-700">
             Anti-cheating warning active - please return to assessment conditions
           </span>
         </div>
       )}
-      <CardContent className="p-8 space-y-8">
-        <div className="space-y-4">
-          <div className="flex items-start justify-between gap-4">
-            <h3 className="text-2xl font-semibold text-gray-900 leading-relaxed">{question.title}</h3>
+      <CardContent className="p-6 space-y-6">
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="text-xl font-semibold text-gray-800">{question.title}</h3>
             {question.description && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button className="inline-flex items-center text-gray-500 hover:text-gray-700 transition-colors">
-                      <HelpCircle className="h-6 w-6" />
+                    <button className="inline-flex items-center text-gray-500 hover:text-gray-700">
+                      <HelpCircle className="h-5 w-5" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
@@ -62,11 +58,11 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
           </div>
           
           {question.imageUrl && (
-            <div className="relative rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+            <div className="relative rounded-lg overflow-hidden border border-gray-200">
               <img 
                 src={question.imageUrl} 
                 alt="Question image" 
-                className="max-w-full rounded-xl object-contain max-h-80 mx-auto"
+                className="max-w-full rounded-md object-contain max-h-64"
               />
             </div>
           )}
@@ -80,20 +76,20 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
           {question.options.map((option) => (
             <div
               key={option.id}
-              className={`flex items-center gap-4 p-6 rounded-xl border-2 transition-all duration-200 cursor-pointer ${
+              className={`flex items-center gap-3 p-4 rounded-lg border ${
                 question.selectedOption === option.id
-                  ? 'border-astra-red bg-red-50 shadow-md'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm'
-              }`}
+                  ? 'border-astra-red bg-red-50'
+                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              } transition-all duration-200`}
             >
               <RadioGroupItem
                 value={option.id}
                 id={`option-${question.id}-${option.id}`}
-                className="border-2 w-5 h-5"
+                className="border-2"
               />
               <Label 
                 htmlFor={`option-${question.id}-${option.id}`}
-                className={`flex-grow text-lg cursor-pointer leading-relaxed ${
+                className={`flex-grow text-base ${
                   question.selectedOption === option.id
                     ? 'text-gray-900 font-medium'
                     : 'text-gray-700'
@@ -102,7 +98,7 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
                 {option.text}
               </Label>
               {question.selectedOption === option.id && (
-                <Check className="h-6 w-6 text-astra-red" />
+                <Check className="h-5 w-5 text-astra-red" />
               )}
             </div>
           ))}

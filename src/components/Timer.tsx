@@ -80,10 +80,10 @@ export const Timer: React.FC<TimerProps> = ({
   // Calculate warning thresholds
   const getColorClass = (): string => {
     if (variant === 'assessment') {
-      if (timeRemaining <= 300) return 'text-red-600'; // Last 5 minutes
+      if (timeRemaining <= 300) return 'text-red-500'; // Last 5 minutes
       if (timeRemaining <= 600) return 'text-orange-500'; // Last 10 minutes
     }
-    return 'text-gray-700';
+    return 'text-astra-darkGray';
   };
   
   // Determine what time to display
@@ -92,8 +92,8 @@ export const Timer: React.FC<TimerProps> = ({
     : value !== undefined ? formatTime(value) : formatTime(timeRemaining);
   
   return (
-    <div className={`flex items-center gap-3 font-mono text-2xl font-bold ${getColorClass()} bg-white/80 px-4 py-2 rounded-lg shadow-sm`}>
-      <Clock className="h-6 w-6" />
+    <div className={`flex items-center gap-2 font-mono text-lg font-bold ${getColorClass()}`}>
+      <Clock className="h-5 w-5" />
       <span>{displayTime}</span>
     </div>
   );
