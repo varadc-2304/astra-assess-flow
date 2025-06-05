@@ -5,54 +5,6 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 
-export interface QuestionOption {
-  id: string;
-  text: string;
-  isCorrect: boolean;
-}
-
-export interface MCQQuestion {
-  id: string;
-  assessment_id: string;
-  title: string;
-  description: string;
-  image_url: string | null;
-  marks: number;
-  order_index: number;
-  created_at: string;
-  type: 'mcq';
-  options: Array<QuestionOption>;
-  selectedOption?: string;
-}
-
-export interface CodeQuestion {
-  id: string;
-  assessment_id: string;
-  title: string;
-  description: string;
-  image_url: string | null;
-  marks: number;
-  order_index: number;
-  created_at: string;
-  type: 'code';
-  examples: Array<{
-    input: string;
-    output: string;
-    explanation?: string;
-  }>;
-  constraints: string[];
-  solutionTemplate: Record<string, string>;
-  userSolution: Record<string, string>;
-  testCases: Array<{
-    id: string;
-    input: string;
-    output: string;
-    marks?: number;
-    is_hidden?: boolean;
-  }>;
-  marksObtained?: number;
-}
-
 interface AssessmentContextType {
   assessment: Assessment | null;
   assessmentCode: string;
@@ -193,7 +145,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
 
       // Fetch options for each MCQ question
-      const mcqQuestionsWithOptions = await Promise.all(
+      const mcqQuestionsWithOptions: MCQQuestion[] = await Promise.all(
         mcqQuestions.map(async (question) => {
           const { data: options, error: optionsError } = await supabase
             .from('mcq_options')
@@ -203,7 +155,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
           if (optionsError) {
             console.error('Error fetching options for MCQ question:', optionsError);
-            return { ...question, options: [] };
+            return { ...question, type: 'mcq' as const, options: [] };
           }
 
           const mappedOptions: QuestionOption[] = options.map(option => ({
@@ -212,7 +164,11 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             isCorrect: option.is_correct
           }));
 
-          return { ...question, type: 'mcq' as const, options: mappedOptions } as MCQQuestion;
+          return { 
+            ...question, 
+            type: 'mcq' as const, 
+            options: mappedOptions 
+          } as MCQQuestion;
         })
       );
 
@@ -235,7 +191,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
 
       // Fetch examples and test cases for each coding question
-      const codingQuestionsWithExamples = await Promise.all(
+      const codingQuestionsWithExamples: CodeQuestion[] = await Promise.all(
         codingQuestions.map(async (question) => {
           const { data: examples, error: examplesError } = await supabase
             .from('coding_examples')
@@ -291,7 +247,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         })
       );
 
-      const questions = [...mcqQuestionsWithOptions, ...codingQuestionsWithExamples].sort((a, b) => a.order_index - b.order_index);
+      const questions: (MCQQuestion | CodeQuestion)[] = [...mcqQuestionsWithOptions, ...codingQuestionsWithExamples].sort((a, b) => a.order_index - b.order_index);
 
       setAssessment({
         ...assessments,
@@ -610,6 +566,3 @@ export const useAssessment = () => {
   }
   return context;
 };
-
-// Re-export types for convenience
-export type { MCQQuestion, CodeQuestion };
