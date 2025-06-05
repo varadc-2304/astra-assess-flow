@@ -225,16 +225,20 @@ const AssessmentPage = () => {
     return null;
   }
   
-  const currentQuestion = assessment.questions[currentQuestionIndex];
+  const currentQuestion = assessment.questions?.[currentQuestionIndex];
   
-  const questionStatus = assessment.questions.map(q => {
+  if (!currentQuestion) {
+    return null;
+  }
+  
+  const questionStatus = assessment.questions?.map(q => {
     if (isMCQQuestion(q)) {
       return !!q.selectedOption;
     } else if (isCodeQuestion(q)) {
       return Object.values(q.userSolution).some(solution => solution && typeof solution === 'string' && solution.trim() !== '');
     }
     return false;
-  });
+  }) || [];
 
   const getQuestionSubmissionStatus = (question: MCQQuestionType | CodeQuestion) => {
     if (!isCodeQuestion(question)) return null;
@@ -284,7 +288,7 @@ const AssessmentPage = () => {
   };
   
   const handleNextQuestion = () => {
-    if (currentQuestionIndex < assessment.questions.length - 1) {
+    if (assessment.questions && currentQuestionIndex < assessment.questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     }
   };
@@ -356,7 +360,7 @@ const AssessmentPage = () => {
             </SheetHeader>
             <div className="py-4 space-y-6">
               <div className="grid grid-cols-5 gap-2">
-                {assessment.questions.map((q, index) => {
+                {assessment.questions?.map((q, index) => {
                   const status = isCodeQuestion(q) ? getQuestionSubmissionStatus(q) : null;
                   return (
                     <Button
@@ -384,7 +388,7 @@ const AssessmentPage = () => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
                     <span className="text-gray-600 dark:text-gray-300">Total Questions:</span>
-                    <span className="font-medium">{assessment.questions.length}</span>
+                    <span className="font-medium">{assessment.questions?.length}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
                     <span className="text-gray-600 dark:text-gray-300">Answered:</span>
@@ -525,12 +529,11 @@ const AssessmentPage = () => {
               isAnimating ? "animate-pulse" : ""
             )}
             style={{
-              ...getCameraPositionStyles(),
+              bottom: '4rem',
+              right: '1rem',
               transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
               filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))'
             }}
-            onMouseDown={handleMouseDown}
-            onTouchStart={handleTouchStart}
           >
             <Card className={cn(
               "w-[180px] overflow-hidden rounded-lg border-0",
@@ -546,8 +549,6 @@ const AssessmentPage = () => {
                   "border-b border-white/10",
                   isDragging ? "cursor-grabbing" : "cursor-grab"
                 )}
-                onMouseDown={handleMouseDown}
-                onTouchStart={handleTouchStart}
               >
                 <div className="flex items-center space-x-1">
                   <Camera className="h-3 w-3 text-white opacity-80" />
@@ -566,15 +567,6 @@ const AssessmentPage = () => {
                 submissionId={submissionId || undefined}
                 size="small"
               />
-              <div className={cn(
-                "text-[9px] text-center py-0.5 text-white/70 opacity-0",
-                "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
-                "border-t border-white/10",
-                "transition-opacity duration-200",
-                isDragging ? "opacity-100" : "group-hover:opacity-100"
-              )}>
-                Drag to reposition
-              </div>
             </Card>
           </div>
         )}
@@ -591,7 +583,7 @@ const AssessmentPage = () => {
         </Button>
         
         <div className="flex items-center gap-2">
-          {assessment.questions.map((_, index) => (
+          {assessment.questions?.map((_, index) => (
             <div 
               key={index} 
               className={`h-2 w-2 rounded-full transition-all duration-200 ${
@@ -606,7 +598,7 @@ const AssessmentPage = () => {
         </div>
         
         <div className="flex gap-2">
-          {currentQuestionIndex === assessment.questions.length - 1 ? (
+          {assessment.questions && currentQuestionIndex === assessment.questions.length - 1 ? (
             <Button
               className="bg-primary hover:bg-red-600 text-white nav-button shadow-sm hover:shadow-md"
               onClick={handleEndAssessment}

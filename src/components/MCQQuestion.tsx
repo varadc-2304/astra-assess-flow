@@ -10,7 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
+import { MCQQuestion as MCQQuestionType } from '@/types/database';
 
 interface MCQQuestionProps {
   question: MCQQuestionType;

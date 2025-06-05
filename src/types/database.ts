@@ -1,4 +1,3 @@
-
 export interface Auth {
   id: string;
   email: string;
@@ -13,6 +12,54 @@ export interface Auth {
   created_at: string;
 }
 
+export interface QuestionOption {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+}
+
+export interface MCQQuestion {
+  id: string;
+  assessment_id: string;
+  title: string;
+  description: string;
+  image_url: string | null;
+  marks: number;
+  order_index: number;
+  created_at: string;
+  type: 'mcq';
+  options: Array<QuestionOption>;
+  selectedOption?: string;
+}
+
+export interface CodeQuestion {
+  id: string;
+  assessment_id: string;
+  title: string;
+  description: string;
+  image_url: string | null;
+  marks: number;
+  order_index: number;
+  created_at: string;
+  type: 'code';
+  examples: Array<{
+    input: string;
+    output: string;
+    explanation?: string;
+  }>;
+  constraints: string[];
+  solutionTemplate: Record<string, string>;
+  userSolution: Record<string, string>;
+  testCases: Array<{
+    id: string;
+    input: string;
+    output: string;
+    marks?: number;
+    is_hidden?: boolean;
+  }>;
+  marksObtained?: number;
+}
+
 export interface Assessment {
   id: string;
   code: string;
@@ -25,16 +72,17 @@ export interface Assessment {
   reattempt: boolean;
   status: string | null;
   created_at: string | null;
-  mcqCount?: number;   // Add frontend properties
+  mcqCount?: number;
   codingCount?: number;
   durationMinutes?: number;
   startTime?: string;
-  isAiProctored?: boolean; // Add missing property
-  questions?: Array<MCQQuestion | CodingQuestion>; 
-  contest_name?: string; // Add this to support the contest_name field in results
+  isAiProctored?: boolean;
+  questions?: Array<MCQQuestion | CodeQuestion>; 
+  contest_name?: string;
 }
 
-export interface MCQQuestion {
+// Database table interfaces (keeping original structure for DB operations)
+export interface MCQQuestionDB {
   id: string;
   assessment_id: string;
   title: string;
@@ -43,9 +91,6 @@ export interface MCQQuestion {
   marks: number;
   order_index: number;
   created_at: string;
-  type?: 'mcq';  // Add frontend property
-  options?: Array<QuestionOption>; // Add frontend property
-  selectedOption?: string; // Add frontend property
 }
 
 export interface MCQOption {
@@ -66,23 +111,6 @@ export interface CodingQuestion {
   marks: number;
   order_index: number;
   created_at: string;
-  type?: 'code';  // Add frontend property
-  examples?: Array<{
-    input: string;
-    output: string;
-    explanation?: string;
-  }>;
-  constraints?: string[];
-  solutionTemplate?: Record<string, string>;
-  userSolution?: Record<string, string>;
-  testCases?: Array<{
-    id: string;
-    input: string;
-    output: string;
-    marks?: number;
-    is_hidden?: boolean;
-  }>;
-  marksObtained?: number;
 }
 
 export interface CodingLanguage {
@@ -136,7 +164,7 @@ export interface QuestionSubmission {
   language?: string | null;
   marks_obtained: number;
   is_correct: boolean | null;
-  test_results?: Json | null; // This should be Json type, not TestResult[]
+  test_results?: Json | null;
   created_at?: string;
 }
 
@@ -151,24 +179,15 @@ export interface Result {
   is_cheated: boolean | null;
   completed_at: string;
   created_at: string;
-  contest_name?: string; // Add this field to match the AssessmentPage.tsx usage
+  contest_name?: string;
 }
 
-// Define Json type for consistency with Supabase
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
-// Define TestResult type to be compatible with Json
 export interface TestResult {
   passed: boolean;
   actualOutput?: string;
   marks?: number;
   isHidden?: boolean;
-  [key: string]: Json | undefined; // Add this to make TestResult compatible with Json
-}
-
-// Define QuestionOption type for frontend
-export interface QuestionOption {
-  id: string;
-  text: string;
-  isCorrect: boolean;
+  [key: string]: Json | undefined;
 }

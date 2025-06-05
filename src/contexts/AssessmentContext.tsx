@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Assessment } from '@/types/database';
+import { Assessment, MCQQuestion, CodeQuestion, QuestionOption } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
@@ -110,7 +110,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       let totalObtained = 0;
       let totalPossible = 0;
 
-      assessment.questions.forEach(question => {
+      assessment.questions?.forEach(question => {
         totalPossible += question.marks;
 
         if (question.type === 'code' && question.marksObtained !== undefined) {
@@ -126,7 +126,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setTotalMarksObtained(totalObtained);
       setTotalPossibleMarks(totalPossible);
       
-      // Set initial time remaining
       if (assessment.durationMinutes && timeRemaining === 0) {
         setTimeRemaining(assessment.durationMinutes * 60);
       }
@@ -207,7 +206,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             return { ...question, options: [] };
           }
 
-          // Map database options to frontend format
           const mappedOptions: QuestionOption[] = options.map(option => ({
             id: option.id,
             text: option.text,
@@ -250,7 +248,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             return { ...question, examples: [] };
           }
 
-          // Fetch test cases for each coding question
           const { data: testCases, error: testCasesError } = await supabase
             .from('test_cases')
             .select('*')
@@ -262,7 +259,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             return { ...question, testCases: [] };
           }
 
-          // Fetch coding languages for solution template
           const { data: languages, error: languagesError } = await supabase
             .from('coding_languages')
             .select('*')
@@ -275,7 +271,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             languages.forEach(lang => {
               solutionTemplate[lang.coding_lang] = lang.solution_template || '';
             });
-            // Use constraints from first language entry if available
             if (languages[0].constraints) {
               constraints = Array.isArray(languages[0].constraints) ? languages[0].constraints : [];
             }
@@ -327,7 +322,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     try {
-      // Check if there's already an active submission for this assessment
       const { data: existingSubmissions, error: fetchError } = await supabase
         .from('submissions')
         .select('id')
@@ -344,12 +338,10 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       let currentSubmissionId: string;
 
-      // If there's an active submission, use that
       if (existingSubmissions && existingSubmissions.length > 0) {
         currentSubmissionId = existingSubmissions[0].id;
         console.log('Using existing submission:', currentSubmissionId);
       } else {
-        // Create a new submission record
         const { data: newSubmission, error: createError } = await supabase
           .from('submissions')
           .insert({
@@ -415,7 +407,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     try {
-      // Check if an answer already exists for this question
       const { data: existingSubmission, error: fetchError } = await supabase
         .from('question_submissions')
         .select('id')
@@ -438,7 +429,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       };
 
       if (existingSubmission && !fetchError) {
-        // Update existing submission
         const { error: updateError } = await supabase
           .from('question_submissions')
           .update(submissionData)
@@ -448,7 +438,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           console.error('Error updating question submission:', updateError);
         }
       } else {
-        // Create new submission
         const { error: insertError } = await supabase
           .from('question_submissions')
           .insert(submissionData);
@@ -466,7 +455,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setAssessment(prevAssessment => {
       if (!prevAssessment) return prevAssessment;
 
-      const updatedQuestions = prevAssessment.questions.map(question => {
+      const updatedQuestions = prevAssessment.questions?.map(question => {
         if (question.id === questionId && isMCQQuestion(question)) {
           return { ...question, selectedOption: optionId };
         }
@@ -476,7 +465,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return { ...prevAssessment, questions: updatedQuestions };
     });
     
-    // Submit the answer to database
     await submitAnswer(questionId, { optionId, isCorrect: false, marks: 0 }, 'mcq');
   };
 
@@ -484,7 +472,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setAssessment(prevAssessment => {
       if (!prevAssessment) return prevAssessment;
 
-      const updatedQuestions = prevAssessment.questions.map(question => {
+      const updatedQuestions = prevAssessment.questions?.map(question => {
         if (question.id === questionId && isCodeQuestion(question)) {
           return {
             ...question,
@@ -500,7 +488,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return { ...prevAssessment, questions: updatedQuestions };
     });
     
-    // Auto-save the code solution
     await submitAnswer(questionId, { 
       solution: code, 
       language, 
@@ -513,7 +500,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setAssessment(prevAssessment => {
       if (!prevAssessment) return prevAssessment;
 
-      const updatedQuestions = prevAssessment.questions.map(question => {
+      const updatedQuestions = prevAssessment.questions?.map(question => {
         if (question.id === questionId && isCodeQuestion(question)) {
           return { ...question, marksObtained: marks };
         }
@@ -523,7 +510,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return { ...prevAssessment, questions: updatedQuestions };
     });
     
-    const question = assessment?.questions.find(q => q.id === questionId);
+    const question = assessment?.questions?.find(q => q.id === questionId);
     if (question && isCodeQuestion(question)) {
       await submitAnswer(questionId, {
         solution: question.userSolution[Object.keys(question.userSolution)[0]] || '',
@@ -541,7 +528,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     try {
-      // Mark submission as completed
       const { error: submissionError } = await supabase
         .from('submissions')
         .update({ completed_at: new Date().toISOString() })
@@ -551,7 +537,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         console.error('Error updating submission completion:', submissionError);
       }
 
-      // Calculate total score and create result record
       const totalScore = totalMarksObtained;
       const totalMarks = totalPossibleMarks;
       const percentage = totalMarks > 0 ? (totalScore / totalMarks) * 100 : 0;
@@ -573,7 +558,6 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         console.error('Error creating result record:', resultError);
       }
 
-      // Reset assessment state
       setAssessmentStarted(false);
       setSubmissionId(null);
       setCurrentQuestionIndex(0);
@@ -626,3 +610,6 @@ export const useAssessment = () => {
   }
   return context;
 };
+
+// Re-export types for convenience
+export type { MCQQuestion, CodeQuestion };
