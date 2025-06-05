@@ -1,11 +1,12 @@
+
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Assessment, MCQQuestion, CodingQuestion, QuestionOption } from '@/types/database';
+import { Assessment, MCQQuestion as DBMCQQuestion, CodingQuestion as DBCodingQuestion, QuestionOption } from '@/types/database';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 
-interface MCQQuestion {
+export interface MCQQuestion {
   id: string;
   assessment_id: string;
   title: string;
@@ -14,12 +15,12 @@ interface MCQQuestion {
   marks: number;
   order_index: number;
   created_at: string;
-  type?: 'mcq';
-  options?: Array<QuestionOption>;
+  type: 'mcq';
+  options: Array<QuestionOption>;
   selectedOption?: string;
 }
 
-interface CodeQuestion {
+export interface CodeQuestion {
   id: string;
   assessment_id: string;
   title: string;
@@ -28,16 +29,16 @@ interface CodeQuestion {
   marks: number;
   order_index: number;
   created_at: string;
-  type?: 'code';
-  examples?: Array<{
+  type: 'code';
+  examples: Array<{
     input: string;
     output: string;
     explanation?: string;
   }>;
-  constraints?: string[];
-  solutionTemplate?: Record<string, string>;
-  userSolution?: Record<string, string>;
-  testCases?: Array<{
+  constraints: string[];
+  solutionTemplate: Record<string, string>;
+  userSolution: Record<string, string>;
+  testCases: Array<{
     id: string;
     input: string;
     output: string;
@@ -68,9 +69,21 @@ interface AssessmentContextType {
   totalPossibleMarks: number;
   submissionId: string | null;
   updateSubmissionViolations: (violationType: string, violationData: any) => Promise<void>;
+  timeRemaining: number;
+  setTimeRemaining: (time: number) => void;
+  fullscreenWarnings: number;
+  addFullscreenWarning: () => void;
 }
 
 const AssessmentContext = createContext<AssessmentContextType | undefined>(undefined);
+
+export const isCodeQuestion = (question: MCQQuestion | CodeQuestion): question is CodeQuestion => {
+  return question.type === 'code';
+};
+
+export const isMCQQuestion = (question: MCQQuestion | CodeQuestion): question is MCQQuestion => {
+  return question.type === 'mcq';
+};
 
 export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [assessment, setAssessment] = useState<Assessment | null>(null);
@@ -82,6 +95,8 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [endTime, setEndTime] = useState<number | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  const [fullscreenWarnings, setFullscreenWarnings] = useState<number>(0);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -105,11 +120,20 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       setTotalMarksObtained(totalObtained);
       setTotalPossibleMarks(totalPossible);
+      
+      // Set initial time remaining
+      if (assessment.durationMinutes && timeRemaining === 0) {
+        setTimeRemaining(assessment.durationMinutes * 60);
+      }
     }
-  }, [assessment]);
+  }, [assessment, timeRemaining]);
 
   const [totalMarksObtained, setTotalMarksObtained] = useState<number>(0);
   const [totalPossibleMarks, setTotalPossibleMarks] = useState<number>(0);
+
+  const addFullscreenWarning = () => {
+    setFullscreenWarnings(prev => prev + 1);
+  };
 
   const fetchAssessment = async (code: string) => {
     setLoading(true);
@@ -178,7 +202,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             return { ...question, options: [] };
           }
 
-          return { ...question, type: 'mcq', options: options };
+          return { ...question, type: 'mcq', options: options } as MCQQuestion;
         })
       );
 
@@ -200,7 +224,7 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return;
       }
 
-      // Fetch examples for each coding question
+      // Fetch examples and test cases for each coding question
       const codingQuestionsWithExamples = await Promise.all(
         codingQuestions.map(async (question) => {
           const { data: examples, error: examplesError } = await supabase
@@ -226,32 +250,37 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             return { ...question, testCases: [] };
           }
 
-          try {
-            const solutionTemplate = JSON.parse(question.solution_template || '{}');
-            return {
-              ...question,
-              type: 'code',
-              examples: examples,
-              solutionTemplate: solutionTemplate,
-              userSolution: Object.keys(solutionTemplate).reduce((acc: any, key: string) => {
-                acc[key] = '';
-                return acc;
-              }, {}),
-              constraints: question.constraints ? JSON.parse(question.constraints) : [],
-              testCases: testCases
-            };
-          } catch (parseError) {
-            console.error('Error parsing solution template or constraints:', parseError);
-            return {
-              ...question,
-              type: 'code',
-              examples: examples,
-              solutionTemplate: {},
-              userSolution: {},
-              constraints: [],
-              testCases: testCases
-            };
+          // Fetch coding languages for solution template
+          const { data: languages, error: languagesError } = await supabase
+            .from('coding_languages')
+            .select('*')
+            .eq('coding_question_id', question.id);
+
+          let solutionTemplate: Record<string, string> = {};
+          let constraints: string[] = [];
+
+          if (!languagesError && languages && languages.length > 0) {
+            languages.forEach(lang => {
+              solutionTemplate[lang.coding_lang] = lang.solution_template || '';
+            });
+            // Use constraints from first language entry if available
+            if (languages[0].constraints) {
+              constraints = Array.isArray(languages[0].constraints) ? languages[0].constraints : [];
+            }
           }
+
+          return {
+            ...question,
+            type: 'code',
+            examples: examples || [],
+            solutionTemplate: solutionTemplate,
+            userSolution: Object.keys(solutionTemplate).reduce((acc: any, key: string) => {
+              acc[key] = '';
+              return acc;
+            }, {}),
+            constraints: constraints,
+            testCases: testCases || []
+          } as CodeQuestion;
         })
       );
 
@@ -565,6 +594,10 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     totalPossibleMarks,
     submissionId,
     updateSubmissionViolations,
+    timeRemaining,
+    setTimeRemaining,
+    fullscreenWarnings,
+    addFullscreenWarning,
   };
 
   return (

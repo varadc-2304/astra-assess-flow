@@ -8,7 +8,7 @@ import {
   SheetTitle,
   SheetTrigger
 } from '@/components/ui/sheet';
-import { useAssessment } from '@/contexts/AssessmentContext';
+import { useAssessment, MCQQuestion as MCQQuestionType, CodeQuestion, isCodeQuestion, isMCQQuestion } from '@/contexts/AssessmentContext';
 import { useFullscreen, MAX_WARNINGS } from '@/hooks/useFullscreen';
 import { Timer } from '@/components/Timer';
 import MCQQuestion from '@/components/MCQQuestion';
@@ -16,20 +16,11 @@ import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, GripVertical, Camera } from 'lucide-react';
-import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import ProctoringCamera from '@/components/ProctoringCamera';
 import { cn } from '@/lib/utils';
-
-function isMCQQuestion(question: any): question is MCQQuestionType {
-  return question.type === 'mcq';
-}
-
-function isCodeQuestion(question: any): question is CodeQuestion {
-  return question.type === 'code';
-}
 
 interface TestCaseStatus {
   [questionId: string]: { 
@@ -245,7 +236,7 @@ const AssessmentPage = () => {
     return false;
   });
 
-  const getQuestionSubmissionStatus = (question: any) => {
+  const getQuestionSubmissionStatus = (question: MCQQuestionType | CodeQuestion) => {
     if (!isCodeQuestion(question)) return null;
     
     const status = testCaseStatus[question.id];
