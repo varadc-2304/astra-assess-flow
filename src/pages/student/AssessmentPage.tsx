@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -10,7 +9,7 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet';
 import { useAssessment, isCodeQuestion, isMCQQuestion } from '@/contexts/AssessmentContext';
-import { MCQQuestion, CodeQuestion } from '@/types/database';
+import { MCQQuestion as MCQQuestionType, CodeQuestion } from '@/types/database';
 import { useFullscreen, MAX_WARNINGS } from '@/hooks/useFullscreen';
 import { Timer } from '@/components/Timer';
 import MCQQuestion from '@/components/MCQQuestion';
