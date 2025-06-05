@@ -142,44 +142,30 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       for (const constraint of mcqConstraints) {
         console.log(`Processing constraint for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}, questions: ${constraint.number_of_questions}`);
         
-        // First, get the total count of questions for this topic and difficulty
-        const { data: countData, error: countError } = await supabase
-          .from('mcq_question_bank')
-          .select('serial', { count: 'exact', head: true })
-          .eq('topic', constraint.topic)
-          .eq('difficulty', constraint.difficulty);
-          
-        if (countError) {
-          console.error('Error counting MCQ questions:', countError);
-          continue;
-        }
-        
-        const totalQuestions = countData?.length || 0;
-        console.log(`Found ${totalQuestions} MCQ questions for topic ${constraint.topic}, difficulty ${constraint.difficulty}`);
-        
-        if (totalQuestions === 0) {
-          console.log(`No MCQ questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
-          continue;
-        }
-        
-        // Get the actual serial numbers available
+        // Get all available serial numbers for this topic and difficulty
         const { data: serialData, error: serialError } = await supabase
           .from('mcq_question_bank')
           .select('serial')
           .eq('topic', constraint.topic)
           .eq('difficulty', constraint.difficulty)
+          .not('serial', 'is', null)
           .order('serial', { ascending: true });
           
-        if (serialError || !serialData || serialData.length === 0) {
-          console.error('Error fetching serial numbers:', serialError);
+        if (serialError) {
+          console.error('Error fetching MCQ serial numbers:', serialError);
+          continue;
+        }
+        
+        if (!serialData || serialData.length === 0) {
+          console.log(`No MCQ questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
           continue;
         }
         
         const availableSerials = serialData.map(item => item.serial).filter(serial => serial !== null);
-        console.log(`Available serials for ${constraint.topic}:`, availableSerials);
+        console.log(`Available MCQ serials for ${constraint.topic} (${constraint.difficulty}):`, availableSerials);
         
         if (availableSerials.length === 0) {
-          console.log(`No valid serial numbers found for topic: ${constraint.topic}`);
+          console.log(`No valid serial numbers found for MCQ topic: ${constraint.topic}`);
           continue;
         }
         
@@ -196,7 +182,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         
-        console.log(`Selected random serials for ${constraint.topic}:`, randomSerials);
+        console.log(`Selected random MCQ serials for ${constraint.topic}:`, randomSerials);
         
         // Fetch questions using the random serial numbers
         const { data: mcqQuestions, error: mcqError } = await supabase
@@ -264,41 +250,27 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       for (const constraint of codingConstraints) {
         console.log(`Processing coding constraint for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}, questions: ${constraint.number_of_questions}`);
         
-        // First, get the total count of coding questions for this topic and difficulty
-        const { data: countData, error: countError } = await supabase
-          .from('coding_question_bank')
-          .select('serial', { count: 'exact', head: true })
-          .eq('topic', constraint.topic)
-          .eq('difficulty', constraint.difficulty);
-          
-        if (countError) {
-          console.error('Error counting coding questions:', countError);
-          continue;
-        }
-        
-        const totalQuestions = countData?.length || 0;
-        console.log(`Found ${totalQuestions} coding questions for topic ${constraint.topic}, difficulty ${constraint.difficulty}`);
-        
-        if (totalQuestions === 0) {
-          console.log(`No coding questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
-          continue;
-        }
-        
-        // Get the actual serial numbers available
+        // Get all available serial numbers for this topic and difficulty
         const { data: serialData, error: serialError } = await supabase
           .from('coding_question_bank')
           .select('serial')
           .eq('topic', constraint.topic)
           .eq('difficulty', constraint.difficulty)
+          .not('serial', 'is', null)
           .order('serial', { ascending: true });
           
-        if (serialError || !serialData || serialData.length === 0) {
+        if (serialError) {
           console.error('Error fetching coding serial numbers:', serialError);
           continue;
         }
         
+        if (!serialData || serialData.length === 0) {
+          console.log(`No coding questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
+          continue;
+        }
+        
         const availableSerials = serialData.map(item => item.serial).filter(serial => serial !== null);
-        console.log(`Available coding serials for ${constraint.topic}:`, availableSerials);
+        console.log(`Available coding serials for ${constraint.topic} (${constraint.difficulty}):`, availableSerials);
         
         if (availableSerials.length === 0) {
           console.log(`No valid serial numbers found for coding topic: ${constraint.topic}`);
