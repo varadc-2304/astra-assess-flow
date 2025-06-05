@@ -290,18 +290,10 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         
         console.log(`Selected random coding serials for ${constraint.topic}:`, randomSerials);
         
-        // Fetch coding questions using the random serial numbers with related data
+        // Fetch coding questions using the random serial numbers
         const { data: codingQuestions, error: codingError } = await supabase
           .from('coding_question_bank')
-          .select(`
-            id,
-            title,
-            description,
-            image_url,
-            topic,
-            difficulty,
-            serial
-          `)
+          .select('*')
           .eq('topic', constraint.topic)
           .eq('difficulty', constraint.difficulty)
           .in('serial', randomSerials);
@@ -332,6 +324,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
           
+          console.log(`Found ${languagesData?.length || 0} languages for coding question ${codingQuestion.id}`);
+          
           // Fetch coding examples for this question
           const { data: examplesData, error: examplesError } = await supabase
             .from('coding_examples_bank')
@@ -343,6 +337,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             console.error(`Error fetching examples for coding question ${codingQuestion.id}:`, examplesError);
             continue;
           }
+
+          console.log(`Found ${examplesData?.length || 0} examples for coding question ${codingQuestion.id}`);
 
           // Fetch test cases for this question
           const { data: testCasesData, error: testCasesError } = await supabase
@@ -356,7 +352,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
 
-          console.log(`Found ${languagesData?.length || 0} languages, ${examplesData?.length || 0} examples, ${testCasesData?.length || 0} test cases for coding question ${codingQuestion.id}`);
+          console.log(`Found ${testCasesData?.length || 0} test cases for coding question ${codingQuestion.id}`);
 
           // Create solution template object
           const solutionTemplate: Record<string, string> = {};
