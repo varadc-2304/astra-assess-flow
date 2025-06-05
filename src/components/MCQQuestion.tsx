@@ -10,7 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { MCQQuestion as MCQQuestionType } from '@/types/database';
+import { MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
 
 interface MCQQuestionProps {
   question: MCQQuestionType;
@@ -57,10 +57,10 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
             )}
           </div>
           
-          {question.image_url && (
+          {question.imageUrl && (
             <div className="relative rounded-lg overflow-hidden border border-gray-200">
               <img 
-                src={question.image_url} 
+                src={question.imageUrl} 
                 alt="Question image" 
                 className="max-w-full rounded-md object-contain max-h-64"
               />

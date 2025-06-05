@@ -8,8 +8,7 @@ import {
   SheetTitle,
   SheetTrigger
 } from '@/components/ui/sheet';
-import { useAssessment, isCodeQuestion, isMCQQuestion } from '@/contexts/AssessmentContext';
-import { MCQQuestion as MCQQuestionType, CodeQuestion } from '@/types/database';
+import { useAssessment } from '@/contexts/AssessmentContext';
 import { useFullscreen, MAX_WARNINGS } from '@/hooks/useFullscreen';
 import { Timer } from '@/components/Timer';
 import MCQQuestion from '@/components/MCQQuestion';
@@ -17,11 +16,22 @@ import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, GripVertical, Camera } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import ProctoringCamera from '@/components/ProctoringCamera';
 import { cn } from '@/lib/utils';
+
+function isMCQQuestion(question: any): question is MCQQuestionType {
+  return question.type === 'mcq';
+}
+
+function isCodeQuestion(question: any): question is CodeQuestion {
+  return question.type === 'code';
+}
 
 interface TestCaseStatus {
   [questionId: string]: { 
@@ -41,9 +51,7 @@ const AssessmentPage = () => {
     updateMarksObtained,
     endAssessment,
     totalMarksObtained,
-    totalPossibleMarks,
-    submissionId,
-    updateSubmissionViolations
+    totalPossibleMarks
   } = useAssessment();
 
   const [showExitDialog, setShowExitDialog] = useState(false);
@@ -61,6 +69,8 @@ const AssessmentPage = () => {
     terminateAssessment
   } = useFullscreen();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
   
   // Camera states - only used when AI proctoring is enabled
   const [cameraPosition, setCameraPosition] = useState('bottom-right');
@@ -85,14 +95,67 @@ const AssessmentPage = () => {
     }
   }, [assessmentStarted, isFullscreen, enterFullscreen]);
 
-  // Update submission violations when fullscreen or tab violations occur
   useEffect(() => {
-    if (submissionId && (fullscreenWarnings > 0 || visibilityViolations > 0)) {
-      updateSubmissionViolations('fullscreen', fullscreenWarnings + visibilityViolations);
-    }
-  }, [submissionId, fullscreenWarnings, visibilityViolations, updateSubmissionViolations]);
+    const fetchSubmissionRecord = async () => {
+      if (assessment && assessmentStarted && user) {
+        try {
+          const { data: submissions } = await supabase
+            .from('submissions')
+            .select('*')
+            .eq('assessment_id', assessment.id)
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+            
+          if (submissions && submissions.length > 0) {
+            setSubmissionId(submissions[0].id);
+          }
+        } catch (error) {
+          console.error('Error fetching submission record:', error);
+        }
+      }
+    };
+    
+    fetchSubmissionRecord();
+  }, [assessment, assessmentStarted, user]);
 
-  // Camera drag handlers
+  useEffect(() => {
+    const createSubmissionRecord = async () => {
+      if (assessment && assessmentStarted && user) {
+        try {
+          const { data: existingSubmissions } = await supabase
+            .from('submissions')
+            .select('*')
+            .eq('assessment_id', assessment.id)
+            .eq('user_id', user.id)
+            .is('completed_at', null);
+            
+          if (existingSubmissions && existingSubmissions.length > 0) {
+            return;
+          }
+          
+          const { data, error } = await supabase
+            .from('submissions')
+            .insert({
+              assessment_id: assessment.id,
+              user_id: user.id,
+              started_at: new Date().toISOString(),
+              fullscreen_violations: 0
+            });
+            
+          if (error) {
+            console.error('Error creating submission record:', error);
+          }
+        } catch (error) {
+          console.error('Error creating submission record:', error);
+        }
+      }
+    };
+    
+    createSubmissionRecord();
+  }, [assessment, assessmentStarted, user]);
+
+  // Only initialize camera-related event handlers if AI proctoring is enabled
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!isAiProctoringEnabled) return;
     
@@ -226,22 +289,18 @@ const AssessmentPage = () => {
     return null;
   }
   
-  const currentQuestion = assessment.questions?.[currentQuestionIndex];
+  const currentQuestion = assessment.questions[currentQuestionIndex];
   
-  if (!currentQuestion) {
-    return null;
-  }
-  
-  const questionStatus = assessment.questions?.map(q => {
+  const questionStatus = assessment.questions.map(q => {
     if (isMCQQuestion(q)) {
       return !!q.selectedOption;
     } else if (isCodeQuestion(q)) {
       return Object.values(q.userSolution).some(solution => solution && typeof solution === 'string' && solution.trim() !== '');
     }
     return false;
-  }) || [];
+  });
 
-  const getQuestionSubmissionStatus = (question: MCQQuestionType | CodeQuestion) => {
+  const getQuestionSubmissionStatus = (question: any) => {
     if (!isCodeQuestion(question)) return null;
     
     const status = testCaseStatus[question.id];
@@ -289,7 +348,7 @@ const AssessmentPage = () => {
   };
   
   const handleNextQuestion = () => {
-    if (assessment.questions && currentQuestionIndex < assessment.questions.length - 1) {
+    if (currentQuestionIndex < assessment.questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     }
   };
@@ -302,7 +361,42 @@ const AssessmentPage = () => {
     setIsEndingAssessment(true);
     
     try {
+      const { data: submissions, error: submissionError } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('assessment_id', assessment?.id || '')
+        .eq('user_id', user?.id || '')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (submissionError || !submissions || submissions.length === 0) {
+        console.error('Error finding submission to update:', submissionError);
+      } else {
+        const { error: updateError } = await supabase
+          .from('submissions')
+          .update({ 
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', submissions[0].id);
+        
+        if (updateError) {
+          console.error('Error updating submission completion status:', updateError);
+        }
+      }
+      
       await endAssessment();
+      
+      const { error: resultError } = await supabase
+        .from('results')
+        .update({ 
+          contest_name: assessment?.name 
+        } as any)
+        .eq('assessment_id', assessment?.id || '')
+        .eq('user_id', user?.id || '');
+      
+      if (resultError) {
+        console.error('Error updating contest name in results:', resultError);
+      }
       
       toast({
         title: "Assessment Submitted",
@@ -361,7 +455,7 @@ const AssessmentPage = () => {
             </SheetHeader>
             <div className="py-4 space-y-6">
               <div className="grid grid-cols-5 gap-2">
-                {assessment.questions?.map((q, index) => {
+                {assessment.questions.map((q, index) => {
                   const status = isCodeQuestion(q) ? getQuestionSubmissionStatus(q) : null;
                   return (
                     <Button
@@ -389,7 +483,7 @@ const AssessmentPage = () => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
                     <span className="text-gray-600 dark:text-gray-300">Total Questions:</span>
-                    <span className="font-medium">{assessment.questions?.length}</span>
+                    <span className="font-medium">{assessment.questions.length}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
                     <span className="text-gray-600 dark:text-gray-300">Answered:</span>
@@ -530,14 +624,15 @@ const AssessmentPage = () => {
               isAnimating ? "animate-pulse" : ""
             )}
             style={{
-              bottom: '4rem',
-              right: '1rem',
+              ...getCameraPositionStyles(),
               transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
               filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))'
             }}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
           >
             <Card className={cn(
-              "w-[180px] overflow-hidden rounded-lg border-0",
+              "w-[180px] overflow-hidden rounded-lg border-0",  // Reduced width from 240px to 180px
               "bg-black/10 backdrop-blur-sm",
               "transform transition-transform duration-200",
               isDragging ? "scale-105" : "",
@@ -545,19 +640,21 @@ const AssessmentPage = () => {
             )}>
               <div 
                 className={cn(
-                  "flex items-center justify-between px-3 py-1",
+                  "flex items-center justify-between px-3 py-1", // Reduced padding
                   "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
                   "border-b border-white/10",
                   isDragging ? "cursor-grabbing" : "cursor-grab"
                 )}
+                onMouseDown={handleMouseDown}
+                onTouchStart={handleTouchStart}
               >
                 <div className="flex items-center space-x-1">
-                  <Camera className="h-3 w-3 text-white opacity-80" />
-                  <span className="text-xs font-medium text-white opacity-90">Proctoring</span>
+                  <Camera className="h-3 w-3 text-white opacity-80" /> {/* Reduced icon size */}
+                  <span className="text-xs font-medium text-white opacity-90">Proctoring</span> {/* Shorter text */}
                 </div>
                 <div className="flex items-center">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse mr-1"></div>
-                  <GripVertical className="h-3 w-3 text-white opacity-70" />
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse mr-1"></div> {/* Smaller indicator */}
+                  <GripVertical className="h-3 w-3 text-white opacity-70" /> {/* Reduced icon size */}
                 </div>
               </div>
               <ProctoringCamera 
@@ -566,8 +663,17 @@ const AssessmentPage = () => {
                 trackViolations={true}
                 assessmentId={assessment.id}
                 submissionId={submissionId || undefined}
-                size="small"
+                size="small" // Use the small size
               />
+              <div className={cn(
+                "text-[9px] text-center py-0.5 text-white/70 opacity-0", // Smaller text and padding
+                "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
+                "border-t border-white/10",
+                "transition-opacity duration-200",
+                isDragging ? "opacity-100" : "group-hover:opacity-100"
+              )}>
+                Drag to reposition
+              </div>
             </Card>
           </div>
         )}
@@ -584,7 +690,7 @@ const AssessmentPage = () => {
         </Button>
         
         <div className="flex items-center gap-2">
-          {assessment.questions?.map((_, index) => (
+          {assessment.questions.map((_, index) => (
             <div 
               key={index} 
               className={`h-2 w-2 rounded-full transition-all duration-200 ${
@@ -599,7 +705,7 @@ const AssessmentPage = () => {
         </div>
         
         <div className="flex gap-2">
-          {assessment.questions && currentQuestionIndex === assessment.questions.length - 1 ? (
+          {currentQuestionIndex === assessment.questions.length - 1 ? (
             <Button
               className="bg-primary hover:bg-red-600 text-white nav-button shadow-sm hover:shadow-md"
               onClick={handleEndAssessment}
