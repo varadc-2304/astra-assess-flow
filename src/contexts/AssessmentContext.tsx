@@ -201,7 +201,15 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
           if (examplesError) {
             console.error('Error fetching examples for coding question:', examplesError);
-            return { ...question, examples: [] };
+            return { 
+              ...question, 
+              type: 'code' as const,
+              examples: [],
+              solutionTemplate: {},
+              userSolution: {},
+              constraints: [],
+              testCases: []
+            };
           }
 
           const { data: testCases, error: testCasesError } = await supabase
@@ -212,7 +220,15 @@ export const AssessmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
           if (testCasesError) {
             console.error('Error fetching test cases for coding question:', testCasesError);
-            return { ...question, testCases: [] };
+            return { 
+              ...question, 
+              type: 'code' as const,
+              examples: examples || [],
+              solutionTemplate: {},
+              userSolution: {},
+              constraints: [],
+              testCases: []
+            };
           }
 
           const { data: languages, error: languagesError } = await supabase
