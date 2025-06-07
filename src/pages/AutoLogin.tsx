@@ -112,14 +112,10 @@ const AutoLogin = () => {
       }
     };
 
-    // If user is already logged in, redirect them
-    if (user) {
-      navigate(user.role === 'admin' ? '/admin' : '/student');
-      return;
-    }
-
+    // Don't redirect if user is already logged in - let auto-login process complete
+    // This allows external clients to use auto-login even if there's an existing session
     handleAutoLogin();
-  }, [searchParams, navigate, user]);
+  }, [searchParams, navigate]);
 
   const getIcon = () => {
     switch (status) {
