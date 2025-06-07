@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -96,14 +95,11 @@ const AutoLogin = () => {
         setStatus('success');
         setMessage('Auto-login successful! Redirecting...');
 
-        // Redirect based on user role
+        // Force immediate redirect to student dashboard - no role checking needed
+        // External clients should always go to student dashboard regardless
         setTimeout(() => {
-          if (userData.role === 'admin') {
-            navigate('/admin');
-          } else {
-            navigate('/student');
-          }
-        }, 1500);
+          navigate('/student', { replace: true });
+        }, 500); // Reduced delay for faster redirect
 
       } catch (error) {
         console.error('Auto-login error:', error);
