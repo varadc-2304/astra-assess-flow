@@ -18,6 +18,7 @@ import ResultsPage from "./pages/admin/ResultsPage";
 import AssessmentForm from "@/components/admin/AssessmentForm";
 import AssessmentDetail from "@/pages/admin/AssessmentDetail";
 import QuestionForm from "@/components/admin/QuestionForm";
+import AutoLogin from "./pages/AutoLogin";
 import { Toaster } from "@/components/ui/toaster";
 import { useIsMobile } from "./hooks/use-mobile";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
@@ -112,6 +113,7 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/" element={<AuthRoute><Login /></AuthRoute>} />
+      <Route path="/auto-login" element={<AutoLogin />} />
       
       {/* Student Routes - strictly enforce student role */}
       <Route path="/student" element={<ProtectedRoute requiredRole="student"><StudentDashboard /></ProtectedRoute>} />

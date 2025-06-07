@@ -1,1 +1,5 @@
+
 project_id = "tafvjwurzgpugcfidbfv"
+
+[functions.yudha-auto-login]
+verify_jwt = false
