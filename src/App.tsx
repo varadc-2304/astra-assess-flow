@@ -6,18 +6,12 @@ import { useEffect } from "react";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { AssessmentProvider } from "./contexts/AssessmentContext";
 import { runMigrations } from "./migrations/implementMigrations"; 
-import Login from "./pages/Login";
 import StudentDashboard from "./pages/student/Dashboard";
-import AdminDashboard from "./pages/admin/Dashboard";
 import InstructionsPage from "./pages/student/InstructionsPage";
 import CameraVerificationPage from "./pages/student/CameraVerificationPage";
 import AssessmentPage from "./pages/student/AssessmentPage";
 import SummaryPage from "./pages/student/SummaryPage";
 import NotFound from "./pages/NotFound";
-import ResultsPage from "./pages/admin/ResultsPage";
-import AssessmentForm from "@/components/admin/AssessmentForm";
-import AssessmentDetail from "@/pages/admin/AssessmentDetail";
-import QuestionForm from "@/components/admin/QuestionForm";
 import AutoLogin from "./pages/AutoLogin";
 import { Toaster } from "@/components/ui/toaster";
 import { useIsMobile } from "./hooks/use-mobile";
@@ -36,34 +30,16 @@ const queryClient = new QueryClient({
   }
 });
 
-// Enhanced protected route component with strict role checking
-const ProtectedRoute = ({ children, requiredRole }: { children: React.ReactNode; requiredRole?: 'student' | 'admin' }) => {
+// Protected route component for student routes only
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
 
-  // If no user, redirect to login
+  // If no user, redirect to auto-login page
   if (!user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/auto-login" replace />;
   }
 
-  // If role is required and doesn't match user's role, redirect to appropriate dashboard
-  if (requiredRole && user.role !== requiredRole) {
-    // Show unauthorized message and redirect to login page
-    console.log(`Access denied: User role ${user.role} doesn't match required role ${requiredRole}`);
-    return <Navigate to="/" replace />;
-  }
-
-  // User is authenticated and has the correct role
-  return <>{children}</>;
-};
-
-// Auth route redirects logged in users to their dashboard
-const AuthRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user } = useAuth();
-
-  if (user) {
-    return <Navigate to={user.role === 'admin' ? '/admin' : '/student'} replace />;
-  }
-
+  // User is authenticated
   return <>{children}</>;
 };
 
@@ -112,20 +88,16 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route path="/" element={<AuthRoute><Login /></AuthRoute>} />
+      {/* Default route redirects to auto-login */}
+      <Route path="/" element={<Navigate to="/auto-login" replace />} />
       <Route path="/auto-login" element={<AutoLogin />} />
       
-      {/* Student Routes - strictly enforce student role */}
-      <Route path="/student" element={<ProtectedRoute requiredRole="student"><StudentDashboard /></ProtectedRoute>} />
-      <Route path="/instructions" element={<ProtectedRoute requiredRole="student"><InstructionsPage /></ProtectedRoute>} />
-      <Route path="/camera-verification" element={<ProtectedRoute requiredRole="student"><CameraVerificationPage /></ProtectedRoute>} />
-      <Route path="/assessment" element={<ProtectedRoute requiredRole="student"><AssessmentPage /></ProtectedRoute>} />
-      <Route path="/summary" element={<ProtectedRoute requiredRole="student"><SummaryPage /></ProtectedRoute>} />
-      
-      {/* Admin Routes - strictly enforce admin role */}
-      <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
-      <Route path="/admin/results" element={<ProtectedRoute requiredRole="admin"><ResultsPage /></ProtectedRoute>} />
-      <Route path="/admin/assessments/:id" element={<ProtectedRoute requiredRole="admin"><AssessmentDetail /></ProtectedRoute>} />
+      {/* Student Routes */}
+      <Route path="/student" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
+      <Route path="/instructions" element={<ProtectedRoute><InstructionsPage /></ProtectedRoute>} />
+      <Route path="/camera-verification" element={<ProtectedRoute><CameraVerificationPage /></ProtectedRoute>} />
+      <Route path="/assessment" element={<ProtectedRoute><AssessmentPage /></ProtectedRoute>} />
+      <Route path="/summary" element={<ProtectedRoute><SummaryPage /></ProtectedRoute>} />
       
       {/* 404 Route */}
       <Route path="*" element={<NotFound />} />
@@ -144,8 +116,6 @@ function App() {
         console.log('Database migrations completed successfully');
       } else {
         console.error('Database migrations failed - face_violations column may not be properly set up');
-        // Don't show this error toast to users as it might be confusing and isn't critical
-        // for them to know about database migrations
       }
     }).catch(error => {
       console.error('Error running migrations:', error);

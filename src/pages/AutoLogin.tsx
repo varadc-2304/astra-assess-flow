@@ -1,16 +1,15 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 
 const AutoLogin = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
-  const [message, setMessage] = useState('Processing auto-login...');
+  const [message, setMessage] = useState('Please use the auto-login link provided by your application...');
 
   useEffect(() => {
     const handleAutoLogin = async () => {
@@ -77,12 +76,12 @@ const AutoLogin = () => {
 
         console.log('Auto-login successful for user:', userData.email);
 
-        // Store user data in localStorage (matching the login function format)
+        // Store user data in localStorage
         const userDataObj = {
           id: userData.id,
           name: userData.name || '',
           email: userData.email,
-          role: userData.role,
+          role: 'student' as const,
           prn: userData.prn || undefined,
           year: userData.year || undefined,
           department: userData.department || undefined,
@@ -93,13 +92,12 @@ const AutoLogin = () => {
         localStorage.setItem('user', JSON.stringify(userDataObj));
 
         setStatus('success');
-        setMessage('Auto-login successful! Redirecting...');
+        setMessage('Auto-login successful! Redirecting to student dashboard...');
 
-        // Force immediate redirect to student dashboard - no role checking needed
-        // External clients should always go to student dashboard regardless
+        // Redirect to student dashboard
         setTimeout(() => {
           navigate('/student', { replace: true });
-        }, 500); // Reduced delay for faster redirect
+        }, 500);
 
       } catch (error) {
         console.error('Auto-login error:', error);
@@ -108,8 +106,6 @@ const AutoLogin = () => {
       }
     };
 
-    // Don't redirect if user is already logged in - let auto-login process complete
-    // This allows external clients to use auto-login even if there's an existing session
     handleAutoLogin();
   }, [searchParams, navigate]);
 
@@ -147,7 +143,7 @@ const AutoLogin = () => {
             />
           </div>
           <CardTitle className={`text-xl ${getStatusColor()}`}>
-            Auto Login
+            Yudha Assessment Platform
           </CardTitle>
         </CardHeader>
         <CardContent className="text-center space-y-4">
@@ -157,12 +153,9 @@ const AutoLogin = () => {
           <p className="text-gray-600">{message}</p>
           {status === 'error' && (
             <div className="pt-4">
-              <button 
-                onClick={() => navigate('/')}
-                className="bg-astra-red hover:bg-red-600 text-white px-4 py-2 rounded transition-colors"
-              >
-                Go to Login Page
-              </button>
+              <p className="text-sm text-gray-500">
+                Please contact your administrator for a new auto-login link.
+              </p>
             </div>
           )}
         </CardContent>

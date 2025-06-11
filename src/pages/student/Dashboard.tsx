@@ -118,18 +118,29 @@ const StudentDashboard = () => {
   };
 
   const getMarksObtained = (assessmentId: string) => {
-    // Find the most recent result for this assessment
     const result = results.find(result => result.assessment_id === assessmentId);
     return result ? result.total_score : 0;
   };
-    const getTotalMarks = (assessmentId: string) => {
-    // Find the most recent result for this assessment and get total_marks
+
+  const getTotalMarks = (assessmentId: string) => {
     const result = results.find(result => result.assessment_id === assessmentId);
     return result ? result.total_marks : 0;
   };
 
   return (
     <div className="container mx-auto py-8">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-2xl font-bold">Student Dashboard</h1>
+          {user && (
+            <p className="text-gray-600">Welcome, {user.name || user.email}</p>
+          )}
+        </div>
+        <Button onClick={handleLogout} variant="outline" className="flex items-center gap-2">
+          <LogOut className="h-4 w-4" />
+          Logout
+        </Button>
+      </div>
       
       <div className="mb-8">
         <h2 className="text-lg font-semibold mb-4">Enter Assessment Code</h2>

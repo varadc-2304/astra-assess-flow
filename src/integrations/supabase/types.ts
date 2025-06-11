@@ -9,6 +9,44 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      achievements: {
+        Row: {
+          achievement_title: string
+          created_at: string
+          date_achieved: string | null
+          description: string | null
+          id: string
+          issuing_organization: string | null
+          user_id: string
+        }
+        Insert: {
+          achievement_title: string
+          created_at?: string
+          date_achieved?: string | null
+          description?: string | null
+          id?: string
+          issuing_organization?: string | null
+          user_id: string
+        }
+        Update: {
+          achievement_title?: string
+          created_at?: string
+          date_achieved?: string | null
+          description?: string | null
+          id?: string
+          issuing_organization?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "achievements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "auth"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       articles: {
         Row: {
           content: string | null
@@ -19,7 +57,7 @@ export type Database = {
         }
         Insert: {
           content?: string | null
-          created_at?: string
+          created_at: string
           id?: string
           question_id?: string | null
           updated_at?: string | null
@@ -143,6 +181,7 @@ export type Database = {
       }
       auth: {
         Row: {
+          assigned_assessments: string[] | null
           assigned_learning_paths: string[] | null
           batch: string | null
           course: string | null
@@ -154,6 +193,7 @@ export type Database = {
           id: string
           name: string | null
           organization: string | null
+          organization_id: string | null
           password: string
           prn: string | null
           role: string
@@ -162,6 +202,7 @@ export type Database = {
           year: string | null
         }
         Insert: {
+          assigned_assessments?: string[] | null
           assigned_learning_paths?: string[] | null
           batch?: string | null
           course?: string | null
@@ -173,6 +214,7 @@ export type Database = {
           id?: string
           name?: string | null
           organization?: string | null
+          organization_id?: string | null
           password: string
           prn?: string | null
           role?: string
@@ -181,6 +223,7 @@ export type Database = {
           year?: string | null
         }
         Update: {
+          assigned_assessments?: string[] | null
           assigned_learning_paths?: string[] | null
           batch?: string | null
           course?: string | null
@@ -192,6 +235,7 @@ export type Database = {
           id?: string
           name?: string | null
           organization?: string | null
+          organization_id?: string | null
           password?: string
           prn?: string | null
           role?: string
@@ -199,7 +243,15 @@ export type Database = {
           username?: string | null
           year?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "auth_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       auto_login_tokens: {
         Row: {
@@ -522,13 +574,255 @@ export type Database = {
         }
         Relationships: []
       }
+      education: {
+        Row: {
+          created_at: string
+          degree: string
+          description: string | null
+          end_date: string | null
+          field_of_study: string | null
+          gpa: number | null
+          id: string
+          institution_name: string
+          start_date: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          degree: string
+          description?: string | null
+          end_date?: string | null
+          field_of_study?: string | null
+          gpa?: number | null
+          id?: string
+          institution_name: string
+          start_date?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          degree?: string
+          description?: string | null
+          end_date?: string | null
+          field_of_study?: string | null
+          gpa?: number | null
+          id?: string
+          institution_name?: string
+          start_date?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "education_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "auth"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hobbies_activities: {
+        Row: {
+          activity_name: string
+          created_at: string
+          description: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          activity_name: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          activity_name?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hobbies_activities_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "auth"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_questions: {
+        Row: {
+          created_at: string
+          evaluation_feedback: string | null
+          evaluation_score: number | null
+          id: string
+          improvements: string[] | null
+          interview_id: string
+          performance_level: string | null
+          question_number: number
+          question_text: string
+          recommendation: string | null
+          response_language: string | null
+          strengths: string[] | null
+          user_code_response: string | null
+          user_response: string | null
+          user_text_response: string | null
+        }
+        Insert: {
+          created_at?: string
+          evaluation_feedback?: string | null
+          evaluation_score?: number | null
+          id?: string
+          improvements?: string[] | null
+          interview_id: string
+          performance_level?: string | null
+          question_number: number
+          question_text: string
+          recommendation?: string | null
+          response_language?: string | null
+          strengths?: string[] | null
+          user_code_response?: string | null
+          user_response?: string | null
+          user_text_response?: string | null
+        }
+        Update: {
+          created_at?: string
+          evaluation_feedback?: string | null
+          evaluation_score?: number | null
+          id?: string
+          improvements?: string[] | null
+          interview_id?: string
+          performance_level?: string | null
+          question_number?: number
+          question_text?: string
+          recommendation?: string | null
+          response_language?: string | null
+          strengths?: string[] | null
+          user_code_response?: string | null
+          user_response?: string | null
+          user_text_response?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_questions_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_results: {
+        Row: {
+          average_score: number
+          created_at: string | null
+          duration_minutes: number | null
+          id: string
+          interview_id: string
+          overall_recommendation: string
+          overall_score: number
+          performance_level: string
+          questions_answered: number
+          total_questions: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          average_score?: number
+          created_at?: string | null
+          duration_minutes?: number | null
+          id?: string
+          interview_id: string
+          overall_recommendation?: string
+          overall_score?: number
+          performance_level?: string
+          questions_answered?: number
+          total_questions?: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          average_score?: number
+          created_at?: string | null
+          duration_minutes?: number | null
+          id?: string
+          interview_id?: string
+          overall_recommendation?: string
+          overall_score?: number
+          performance_level?: string
+          questions_answered?: number
+          total_questions?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_results_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: true
+            referencedRelation: "interviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interviews: {
+        Row: {
+          additional_constraints: string | null
+          completed_at: string | null
+          created_at: string
+          current_question: number
+          domain: string
+          experience: string
+          id: string
+          job_role: string
+          question_type: string
+          status: string
+          total_questions: number
+          user_id: string
+        }
+        Insert: {
+          additional_constraints?: string | null
+          completed_at?: string | null
+          created_at?: string
+          current_question?: number
+          domain: string
+          experience: string
+          id?: string
+          job_role: string
+          question_type: string
+          status?: string
+          total_questions?: number
+          user_id: string
+        }
+        Update: {
+          additional_constraints?: string | null
+          completed_at?: string | null
+          created_at?: string
+          current_question?: number
+          domain?: string
+          experience?: string
+          id?: string
+          job_role?: string
+          question_type?: string
+          status?: string
+          total_questions?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       learning_paths: {
         Row: {
           created_at: string | null
           description: string | null
           difficulty: string | null
           id: string
-          sr: string | null
+          sr: number | null
           title: string | null
           updated_at: string | null
         }
@@ -537,7 +831,7 @@ export type Database = {
           description?: string | null
           difficulty?: string | null
           id: string
-          sr?: string | null
+          sr?: number | null
           title?: string | null
           updated_at?: string | null
         }
@@ -546,7 +840,7 @@ export type Database = {
           description?: string | null
           difficulty?: string | null
           id?: string
-          sr?: string | null
+          sr?: number | null
           title?: string | null
           updated_at?: string | null
         }
@@ -713,6 +1007,130 @@ export type Database = {
           },
         ]
       }
+      organizations: {
+        Row: {
+          assigned_assessments_code: string[] | null
+          assigned_learning_paths: string[] | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_assessments_code?: string[] | null
+          assigned_learning_paths?: string[] | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_assessments_code?: string[] | null
+          assigned_learning_paths?: string[] | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      personal_info: {
+        Row: {
+          address: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          github_url: string | null
+          id: string
+          linkedin_url: string | null
+          phone: string | null
+          portfolio_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          github_url?: string | null
+          id?: string
+          linkedin_url?: string | null
+          phone?: string | null
+          portfolio_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          github_url?: string | null
+          id?: string
+          linkedin_url?: string | null
+          phone?: string | null
+          portfolio_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personal_info_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "auth"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      positions_of_responsibility: {
+        Row: {
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          organization: string
+          position_title: string
+          start_date: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          organization: string
+          position_title: string
+          start_date?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          organization?: string
+          position_title?: string
+          start_date?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "positions_of_responsibility_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "auth"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       proctoring_sessions: {
         Row: {
           assessment_id: string
@@ -832,6 +1250,56 @@ export type Database = {
           },
         ]
       }
+      projects: {
+        Row: {
+          created_at: string
+          description: string | null
+          end_date: string | null
+          github_url: string | null
+          id: string
+          project_name: string
+          project_url: string | null
+          start_date: string | null
+          technologies_used: string[] | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          github_url?: string | null
+          id?: string
+          project_name: string
+          project_url?: string | null
+          start_date?: string | null
+          technologies_used?: string[] | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          github_url?: string | null
+          id?: string
+          project_name?: string
+          project_url?: string | null
+          start_date?: string | null
+          technologies_used?: string[] | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "auth"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       question_submissions: {
         Row: {
           code_solution: string | null
@@ -888,7 +1356,7 @@ export type Database = {
           difficulty: string | null
           id: string
           practice_link: string | null
-          questionid: string | null
+          question_id: string | null
           solution_link: string | null
           title: string | null
           topic_id: string | null
@@ -899,7 +1367,7 @@ export type Database = {
           difficulty?: string | null
           id: string
           practice_link?: string | null
-          questionid?: string | null
+          question_id?: string | null
           solution_link?: string | null
           title?: string | null
           topic_id?: string | null
@@ -910,7 +1378,7 @@ export type Database = {
           difficulty?: string | null
           id?: string
           practice_link?: string | null
-          questionid?: string | null
+          question_id?: string | null
           solution_link?: string | null
           title?: string | null
           topic_id?: string | null
@@ -980,6 +1448,73 @@ export type Database = {
           },
           {
             foreignKeyName: "results_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "auth"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resume_skills: {
+        Row: {
+          created_at: string
+          id: string
+          proficiency_level: string | null
+          skill_category: string | null
+          skill_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          proficiency_level?: string | null
+          skill_category?: string | null
+          skill_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          proficiency_level?: string | null
+          skill_category?: string | null
+          skill_name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resume_skills_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "auth"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      resume_summary: {
+        Row: {
+          created_at: string
+          id: string
+          summary_text: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          summary_text: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          summary_text?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resume_summary_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "auth"
@@ -1198,6 +1733,7 @@ export type Database = {
           created_at: string | null
           id: string
           language: string
+          last_submitted_at: string | null
           question_id: string
           updated_at: string | null
           user_id: string
@@ -1208,6 +1744,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           language: string
+          last_submitted_at?: string | null
           question_id: string
           updated_at?: string | null
           user_id: string
@@ -1218,6 +1755,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           language?: string
+          last_submitted_at?: string | null
           question_id?: string
           updated_at?: string | null
           user_id?: string
@@ -1348,6 +1886,56 @@ export type Database = {
         }
         Relationships: []
       }
+      work_experience: {
+        Row: {
+          company_name: string
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          is_current: boolean | null
+          location: string | null
+          position: string
+          start_date: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_name: string
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_current?: boolean | null
+          location?: string | null
+          position: string
+          start_date?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_name?: string
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          is_current?: boolean | null
+          location?: string | null
+          position?: string
+          start_date?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_experience_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "auth"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       assessment_results_view: {
@@ -1386,6 +1974,10 @@ export type Database = {
         Args: { question_id: string }
         Returns: number
       }
+      calculate_interview_results: {
+        Args: { p_interview_id: string }
+        Returns: string
+      }
       calculate_mcq_question_marks: {
         Args: { question_id: string }
         Returns: number
@@ -1403,6 +1995,20 @@ export type Database = {
           p_examples: Json[]
           p_test_cases: Json[]
         }
+        Returns: undefined
+      }
+      save_user_code: {
+        Args: {
+          p_user_id: string
+          p_assessment_id: string
+          p_question_id: string
+          p_language: string
+          p_code: string
+        }
+        Returns: undefined
+      }
+      update_user_progress_on_success: {
+        Args: { p_user_id: string; p_question_id: string }
         Returns: undefined
       }
     }

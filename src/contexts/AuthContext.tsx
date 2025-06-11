@@ -1,15 +1,12 @@
+
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { Auth } from '@/types/database';
-
-type UserRole = 'student' | 'admin';
 
 type UserData = {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
+  role: 'student';
   prn?: string;
   year?: string;
   department?: string;
@@ -19,10 +16,8 @@ type UserData = {
 
 interface AuthContextType {
   user: UserData | null;
-  login: (email: string, password: string, role: UserRole) => Promise<void>;
   logout: () => Promise<void>;
   isLoading: boolean;
-  register?: (email: string, password: string, userData: Partial<UserData>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,81 +47,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     checkAuth();
   }, []);
 
-  // Login function
-  const login = async (email: string, password: string, role: UserRole) => {
-    setIsLoading(true);
-    
-    try {
-      // Check if user exists
-      const { data: existingUsers, error: checkError } = await supabase
-        .from('auth')
-        .select('*')
-        .eq('email', email);
-        
-      if (checkError) throw checkError;
-      
-      let userId: string;
-      
-      if (!existingUsers || existingUsers.length === 0) {
-        throw new Error("No account found.");
-      } else {
-        const user = existingUsers[0];
-        
-        // Verify password (simple comparison for demo)
-        if (user.password !== password) {
-          throw new Error('Invalid email or password');
-        }
-        
-        // Check role - strict validation to ensure the role matches exactly
-        if (user.role !== role) {
-          throw new Error(`This account is not registered as a ${role}`);
-        }
-        
-        userId = user.id;
-      }
-      
-      // Get user data to set in state
-      const { data: userData, error: fetchError } = await supabase
-        .from('auth')
-        .select('*')
-        .eq('id', userId)
-        .single();
-        
-      if (fetchError) throw fetchError;
-      
-      const userDataObj: UserData = {
-        id: userData.id,
-        name: userData.name || '',
-        email: userData.email,
-        role: userData.role as UserRole,
-        prn: userData.prn || undefined,
-        year: userData.year || undefined,
-        department: userData.department || undefined,
-        division: userData.division || undefined,
-        batch: userData.batch || undefined,
-      };
-      
-      // Store user in localStorage
-      localStorage.setItem('user', JSON.stringify(userDataObj));
-      setUser(userDataObj);
-      
-      toast({
-        title: "Login successful",
-        description: `Welcome back, ${userData.name || userData.email}!`,
-      });
-    } catch (error: any) {
-      console.error("Login error:", error);
-      toast({
-        title: "Login failed",
-        description: error.message || "Invalid email or password",
-        variant: "destructive",
-      });
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Logout function
   const logout = async () => {
     setIsLoading(true);
@@ -150,7 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
