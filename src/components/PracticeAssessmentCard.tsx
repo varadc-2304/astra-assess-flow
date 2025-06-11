@@ -22,11 +22,10 @@ const PracticeAssessmentCard: React.FC<PracticeAssessmentCardProps> = ({
   totalMarks
 }) => {
   const navigate = useNavigate();
-  const { setAssessmentCode, setAssessment } = useAssessment();
+  const { setAssessmentCode } = useAssessment();
 
   const handleStartPractice = () => {
     setAssessmentCode(assessment.code);
-    setAssessment(assessment);
     navigate('/instructions');
   };
 
@@ -121,7 +120,7 @@ const PracticeAssessmentCard: React.FC<PracticeAssessmentCardProps> = ({
               <Target className="h-4 w-4" />
               <span>Total Marks</span>
             </div>
-            <span className="font-semibold text-gray-900">{assessment.marks || 0}</span>
+            <span className="font-semibold text-gray-900">{totalMarks || 0}</span>
           </div>
         </div>
 
