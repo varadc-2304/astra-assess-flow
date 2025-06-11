@@ -45,25 +45,43 @@ Deno.serve(async (req) => {
 
     console.log('Validating user_id:', user_id);
 
-    // Validate user exists in auth table
-    const { data: user, error: userError } = await supabase
+    // First try to validate user exists in auth table
+    let user = null;
+    let userError = null;
+
+    const { data: authUser, error: authError } = await supabase
       .from('auth')
       .select('id, email, name')
       .eq('id', user_id)
       .single();
 
-    if (userError || !user) {
-      console.log('User validation failed:', userError?.message || 'User not found');
-      return new Response(
-        JSON.stringify({ error: 'Invalid user_id' }),
-        { 
-          status: 401, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
+    if (authError || !authUser) {
+      console.log('User not found in auth table, trying users table:', authError?.message);
+      
+      // Try users table as fallback
+      const { data: usersUser, error: usersError } = await supabase
+        .from('users')
+        .select('id, email, username')
+        .eq('id', user_id)
+        .single();
 
-    console.log('User validated successfully:', user.email);
+      if (usersError || !usersUser) {
+        console.log('User not found in users table either:', usersError?.message);
+        return new Response(
+          JSON.stringify({ error: 'Invalid user_id - user not found in any table' }),
+          { 
+            status: 401, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+      
+      user = usersUser;
+      console.log('User found in users table:', usersUser.email || usersUser.username);
+    } else {
+      user = authUser;
+      console.log('User found in auth table:', authUser.email);
+    }
 
     // Generate a secure token
     const token = crypto.randomUUID();
@@ -89,7 +107,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('Auto-login token generated successfully for user:', user.email);
+    console.log('Auto-login token generated successfully for user:', user.email || user.username);
 
     // Return the auto-login URL
     const baseUrl = req.headers.get('origin') || Deno.env.get('SUPABASE_URL')?.replace('//', '//').replace('supabase.co', 'lovable.app') || 'http://localhost:3000';

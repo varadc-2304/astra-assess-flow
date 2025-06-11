@@ -34,6 +34,8 @@ const AutoLogin = () => {
           return;
         }
 
+        console.log('Token data received:', tokenData);
+
         // Check if token is expired
         if (new Date(tokenData.expires_at) < new Date()) {
           console.log('Token expired');
@@ -54,6 +56,8 @@ const AutoLogin = () => {
           .update({ used: true })
           .eq('token', token);
 
+        console.log('Looking for user with ID:', tokenData.user_id);
+
         // Get user data from auth table
         const { data: userData, error: userError } = await supabase
           .from('auth')
@@ -63,7 +67,38 @@ const AutoLogin = () => {
 
         if (userError || !userData) {
           console.error('User data fetch failed:', userError);
-          window.location.href = 'https://ikshvaku-innovations.in';
+          console.error('Failed to find user with ID:', tokenData.user_id);
+          
+          // Try to get user data from users table as fallback
+          const { data: fallbackUserData, error: fallbackError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', tokenData.user_id)
+            .single();
+          
+          if (fallbackError || !fallbackUserData) {
+            console.error('Fallback user data fetch also failed:', fallbackError);
+            window.location.href = 'https://ikshvaku-innovations.in';
+            return;
+          }
+          
+          console.log('Using fallback user data:', fallbackUserData);
+          
+          // Store fallback user data in localStorage
+          const userDataObj = {
+            id: fallbackUserData.id,
+            name: fallbackUserData.username || fallbackUserData.email?.split('@')[0] || '',
+            email: fallbackUserData.email,
+            role: 'student' as const,
+            prn: fallbackUserData.prn || undefined,
+            year: undefined,
+            department: fallbackUserData.department || undefined,
+            division: undefined,
+            batch: undefined,
+          };
+
+          localStorage.setItem('user', JSON.stringify(userDataObj));
+          navigate('/student', { replace: true });
           return;
         }
 
@@ -72,7 +107,7 @@ const AutoLogin = () => {
         // Store user data in localStorage
         const userDataObj = {
           id: userData.id,
-          name: userData.name || '',
+          name: userData.name || userData.username || userData.email?.split('@')[0] || '',
           email: userData.email,
           role: 'student' as const,
           prn: userData.prn || undefined,
