@@ -11,14 +11,14 @@ import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
 import QuestionCard from '@/components/QuestionCard';
 import Editor from "@monaco-editor/react";
 import { useFaceDetection } from '@/hooks/use-face-detection';
-import { Fullscreen, FullscreenExit } from 'lucide-react';
+import { Fullscreen } from 'lucide-react';
 
 const AssessmentPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { assessment: contextAssessment, setAssessment: setContextAssessment } = useAssessment();
+  const { assessment: contextAssessment } = useAssessment();
   const [searchParams] = useSearchParams();
   const assessmentCode = searchParams.get('assessmentCode');
 
@@ -107,7 +107,6 @@ const AssessmentPage = () => {
       }
 
       setAssessment(assessmentData);
-      setContextAssessment(assessmentData);
 
       // Fetch questions
       const { data: mcqQuestions, error: mcqError } = await supabase
@@ -136,13 +135,13 @@ const AssessmentPage = () => {
       // Add type and options to mcq questions
       const mcqQuestionsWithType = (mcqQuestions || []).map(question => ({
         ...question,
-        type: 'mcq',
+        type: 'mcq' as const,
       }));
 
       // Add type to coding questions
       const codingQuestionsWithType = (codingQuestions || []).map(question => ({
         ...question,
-        type: 'code',
+        type: 'code' as const,
       }));
 
       const allQuestions = [...mcqQuestionsWithType, ...codingQuestionsWithType].sort((a, b) => {
@@ -170,7 +169,7 @@ const AssessmentPage = () => {
       });
       navigate('/student');
     }
-  }, [assessmentCode, navigate, setContextAssessment, toast]);
+  }, [assessmentCode, navigate, toast]);
 
   const startAssessment = useCallback(async () => {
     if (!user || !assessment) return;
