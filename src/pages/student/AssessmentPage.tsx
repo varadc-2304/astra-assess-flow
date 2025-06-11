@@ -1,706 +1,803 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useSearchParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Assessment, MCQQuestion, CodingQuestion, QuestionSubmission } from '@/types/database';
-import { useAuth } from '@/contexts/AuthContext';
-import { useAssessment } from '@/contexts/AssessmentContext';
+import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { 
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger
+} from '@/components/ui/sheet';
+import { useAssessment } from '@/contexts/AssessmentContext';
+import { useFullscreen, MAX_WARNINGS } from '@/hooks/useFullscreen';
+import { Timer } from '@/components/Timer';
+import MCQQuestion from '@/components/MCQQuestion';
+import CodeEditor from '@/components/CodeEditor';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogFooter, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog"
-import QuestionCard from '@/components/QuestionCard';
-import Editor from "@monaco-editor/react";
-import { useFaceDetection } from '@/hooks/use-face-detection';
-import { Fullscreen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, GripVertical, Camera } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card } from '@/components/ui/card';
+import ProctoringCamera from '@/components/ProctoringCamera';
+import { cn } from '@/lib/utils';
+
+function isMCQQuestion(question: any): question is MCQQuestionType {
+  return question.type === 'mcq';
+}
+
+function isCodeQuestion(question: any): question is CodeQuestion {
+  return question.type === 'code';
+}
+
+interface TestCaseStatus {
+  [questionId: string]: { 
+    totalTests: number;
+    passedTests: number;
+  }  
+}
 
 const AssessmentPage = () => {
+  const { 
+    assessment, 
+    assessmentStarted,
+    currentQuestionIndex, 
+    setCurrentQuestionIndex,
+    answerMCQ,
+    updateCodeSolution,
+    updateMarksObtained,
+    endAssessment,
+    totalMarksObtained,
+    totalPossibleMarks
+  } = useAssessment();
+
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [isEndingAssessment, setIsEndingAssessment] = useState(false);
+  const [testCaseStatus, setTestCaseStatus] = useState<TestCaseStatus>({});
   const navigate = useNavigate();
-  const location = useLocation();
-  const { user } = useAuth();
+  const { 
+    enterFullscreen, 
+    isFullscreen, 
+    showExitWarning, 
+    tabSwitchWarning,
+    fullscreenWarnings,
+    visibilityViolations,
+    terminateAssessment
+  } = useFullscreen();
   const { toast } = useToast();
-  const { assessment: contextAssessment } = useAssessment();
-  const [searchParams] = useSearchParams();
-  const assessmentCode = searchParams.get('assessmentCode');
-
-  const [assessment, setAssessment] = useState<Assessment | null>(null);
-  const [questions, setQuestions] = useState<Array<MCQQuestion | CodingQuestion>>([]);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [codeSolution, setCodeSolution] = useState<string>("");
-  const [marksObtained, setMarksObtained] = useState(0);
-  const [totalMarks, setTotalMarks] = useState(0);
+  const { user } = useAuth();
   const [submissionId, setSubmissionId] = useState<string | null>(null);
-  const [isAssessmentEnded, setIsAssessmentEnded] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isAlertOpen, setIsAlertOpen] = useState(false);
-  const [language, setLanguage] = useState("python");
-  const [isFullScreen, setIsFullScreen] = useState(false);
-  const [startTime, setStartTime] = useState<Date | null>(null);
-  const [timeRemaining, setTimeRemaining] = useState(0);
-  const timerIdRef = useRef<NodeJS.Timeout | null>(null);
-  const [isTimeUp, setIsTimeUp] = useState(false);
-
-  const {
-    startDetection,
-    stopDetection,
-    faceDetected,
-    isFullScreenMode,
-    enterFullScreen,
-    exitFullScreen,
-    violations,
-    setViolations,
-    faceViolations,
-    setFaceViolations,
-  } = useFaceDetection();
-
-  const currentQuestion = questions[currentQuestionIndex];
-  const editorRef = useRef<any>(null);
-
-  const handleEditorWillMount = (monaco: any) => {
-    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-      jsx: "react",
-    });
-  }
-
-  const handleEditorDidMount = (editor: any, monaco: any) => {
-    editorRef.current = editor;
-  }
-
-  const handleFullScreen = () => {
-    if (!isFullScreenMode) {
-      enterFullScreen();
-      setIsFullScreen(true);
-    } else {
-      exitFullScreen();
-      setIsFullScreen(false);
-    }
-  };
-
-  const fetchAssessment = useCallback(async () => {
-    if (!assessmentCode) {
-      toast({
-        title: "Error",
-        description: "Assessment code is missing",
-        variant: "destructive",
-      });
-      navigate('/student');
-      return;
-    }
-
-    try {
-      // Fetch assessment details
-      const { data: assessmentData, error: assessmentError } = await supabase
-        .from('assessments')
-        .select('*')
-        .eq('code', assessmentCode)
-        .single();
-
-      if (assessmentError || !assessmentData) {
-        console.error('Error fetching assessment:', assessmentError);
-        toast({
-          title: "Error",
-          description: "Failed to fetch assessment details",
-          variant: "destructive",
-        });
-        navigate('/student');
-        return;
-      }
-
-      setAssessment(assessmentData);
-
-      // Fetch questions
-      const { data: mcqQuestions, error: mcqError } = await supabase
-        .from('mcq_questions')
-        .select('*')
-        .eq('assessment_id', assessmentData.id)
-        .order('order_index', { ascending: true });
-
-      const { data: codingQuestions, error: codingError } = await supabase
-        .from('coding_questions')
-        .select('*')
-        .eq('assessment_id', assessmentData.id)
-        .order('order_index', { ascending: true });
-
-      if (mcqError || codingError) {
-        console.error('Error fetching questions:', mcqError || codingError);
-        toast({
-          title: "Error",
-          description: "Failed to fetch assessment questions",
-          variant: "destructive",
-        });
-        navigate('/student');
-        return;
-      }
-
-      // Add type and options to mcq questions
-      const mcqQuestionsWithType = (mcqQuestions || []).map(question => ({
-        ...question,
-        type: 'mcq' as const,
-      }));
-
-      // Add type to coding questions
-      const codingQuestionsWithType = (codingQuestions || []).map(question => ({
-        ...question,
-        type: 'code' as const,
-      }));
-
-      const allQuestions = [...mcqQuestionsWithType, ...codingQuestionsWithType].sort((a, b) => {
-        return (a.order_index || 0) - (b.order_index || 0);
-      });
-
-      setQuestions(allQuestions);
-
-      // Calculate total marks
-      const totalMarksValue = allQuestions.reduce((acc, question) => acc + question.marks, 0);
-      setTotalMarks(totalMarksValue);
-
-      // Set initial code solution if it's a coding question
-      if (allQuestions.length > 0 && allQuestions[0].type === 'code') {
-        const codingQuestion = allQuestions[0] as CodingQuestion;
-        setCodeSolution(codingQuestion.solutionTemplate?.[language] || '');
-      }
-
-    } catch (error) {
-      console.error('Unexpected error:', error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred",
-        variant: "destructive",
-      });
+  
+  // Camera states - only used when AI proctoring is enabled
+  const [cameraPosition, setCameraPosition] = useState('bottom-right');
+  const [isDragging, setIsDragging] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  const cameraRef = useRef<HTMLDivElement>(null);
+  
+  // Check if AI proctoring is enabled
+  const isAiProctoringEnabled = assessment?.isAiProctored === true;
+  
+  useEffect(() => {
+    if (!assessment || !assessmentStarted) {
       navigate('/student');
     }
-  }, [assessmentCode, navigate, toast]);
-
-  const startAssessment = useCallback(async () => {
-    if (!user || !assessment) return;
-
-    try {
-      // Create a new submission
-      const { data: submissionData, error: submissionError } = await supabase
-        .from('submissions')
-        .insert({
-          user_id: user.id,
-          assessment_id: assessment.id,
-          started_at: new Date().toISOString(),
-          is_terminated: false,
-          fullscreen_violations: 0,
-          face_violations: 0,
-        })
-        .select()
-        .single();
-
-      if (submissionError) {
-        console.error('Error creating submission:', submissionError);
-        toast({
-          title: "Error",
-          description: "Failed to start assessment",
-          variant: "destructive",
-        });
-        navigate('/student');
-        return;
-      }
-
-      setSubmissionId(submissionData.id);
-      setStartTime(new Date());
-
-      // Start face detection
-      if (assessment.isAiProctored) {
-        startDetection();
-      }
-
-      toast({
-        title: "Assessment Started",
-        description: "The assessment has started",
-      });
-    } catch (error) {
-      console.error('Error starting assessment:', error);
-      toast({
-        title: "Error",
-        description: "Failed to start assessment",
-        variant: "destructive",
-      });
-      navigate('/student');
-    }
-  }, [assessment, navigate, startDetection, toast, user]);
+  }, [assessment, assessmentStarted, navigate]);
 
   useEffect(() => {
-    const setupAssessment = async () => {
-      await fetchAssessment();
+    if (assessmentStarted && !isFullscreen) {
+      console.log("Assessment started but not in fullscreen - entering fullscreen");
+      enterFullscreen();
+    }
+  }, [assessmentStarted, isFullscreen, enterFullscreen]);
+
+  useEffect(() => {
+    const fetchSubmissionRecord = async () => {
+      if (assessment && assessmentStarted && user) {
+        try {
+          const { data: submissions } = await supabase
+            .from('submissions')
+            .select('*')
+            .eq('assessment_id', assessment.id)
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+            
+          if (submissions && submissions.length > 0) {
+            setSubmissionId(submissions[0].id);
+          }
+        } catch (error) {
+          console.error('Error fetching submission record:', error);
+        }
+      }
     };
-
-    setupAssessment();
-  }, [fetchAssessment]);
-
-  useEffect(() => {
-    if (assessment && questions.length > 0 && user) {
-      startAssessment();
-    }
-  }, [assessment, questions, user, startAssessment]);
+    
+    fetchSubmissionRecord();
+  }, [assessment, assessmentStarted, user]);
 
   useEffect(() => {
-    if (assessment && startTime) {
-      const durationInSeconds = assessment.duration_minutes * 60;
-      const endTime = new Date(startTime.getTime() + durationInSeconds * 1000);
-
-      const calculateTimeRemaining = () => {
-        const now = new Date();
-        const difference = endTime.getTime() - now.getTime();
-
-        if (difference <= 0) {
-          setTimeRemaining(0);
-          setIsTimeUp(true);
-          setIsAlertOpen(true);
-          clearInterval(timerIdRef.current as NodeJS.Timeout);
-        } else {
-          setTimeRemaining(Math.round(difference / 1000));
+    const createSubmissionRecord = async () => {
+      if (assessment && assessmentStarted && user) {
+        try {
+          const { data: existingSubmissions } = await supabase
+            .from('submissions')
+            .select('*')
+            .eq('assessment_id', assessment.id)
+            .eq('user_id', user.id)
+            .is('completed_at', null);
+            
+          if (existingSubmissions && existingSubmissions.length > 0) {
+            return;
+          }
+          
+          const { data, error } = await supabase
+            .from('submissions')
+            .insert({
+              assessment_id: assessment.id,
+              user_id: user.id,
+              started_at: new Date().toISOString(),
+              fullscreen_violations: 0
+            });
+            
+          if (error) {
+            console.error('Error creating submission record:', error);
+          }
+        } catch (error) {
+          console.error('Error creating submission record:', error);
         }
+      }
+    };
+    
+    createSubmissionRecord();
+  }, [assessment, assessmentStarted, user]);
+
+  // Only initialize camera-related event handlers if AI proctoring is enabled
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!isAiProctoringEnabled) return;
+    
+    if (cameraRef.current) {
+      setIsDragging(true);
+      setIsAnimating(true);
+      dragStartPos.current = {
+        x: e.clientX,
+        y: e.clientY
       };
-
-      calculateTimeRemaining();
-      timerIdRef.current = setInterval(calculateTimeRemaining, 1000);
-
-      return () => clearInterval(timerIdRef.current as NodeJS.Timeout);
-    }
-  }, [assessment, startTime]);
-
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    const formattedMinutes = String(minutes).padStart(2, '0');
-    const formattedSeconds = String(remainingSeconds).padStart(2, '0');
-    return `${formattedMinutes}:${formattedSeconds}`;
-  };
-
-  const handleOptionChange = (optionId: string) => {
-    setSelectedOption(optionId);
-  };
-
-  const handleCodeChange = (value: string) => {
-    setCodeSolution(value);
-  };
-
-  const submitAnswer = async () => {
-    if (!user || !currentQuestion || !submissionId) return;
-
-    setIsSubmitting(true);
-
-    try {
-      let isCorrect = null;
-      let marks = 0;
-      let testResults = null;
-      let mcq_option_id = null;
-      let code_solution = null;
-
-      if (currentQuestion.type === 'mcq') {
-        // For MCQ questions
-        mcq_option_id = selectedOption || null;
-
-        // Fetch the correct option for the question
-        const { data: correctOption, error: correctOptionError } = await supabase
-          .from('mcq_options')
-          .select('is_correct')
-          .eq('id', mcq_option_id)
-          .single();
-
-        if (correctOptionError) {
-          console.error('Error fetching correct option:', correctOptionError);
-          toast({
-            title: "Error",
-            description: "Failed to verify answer",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        isCorrect = correctOption?.is_correct || false;
-        marks = isCorrect ? currentQuestion.marks : 0;
-
-      } else if (currentQuestion.type === 'code') {
-        // For coding questions
-        code_solution = codeSolution;
-
-        // Run test cases and evaluate the solution
-        const { data, error } = await supabase.functions.invoke('run-tests', {
-          body: {
-            code: codeSolution,
-            language: language,
-            questionId: currentQuestion.id,
-            testCases: (currentQuestion as CodingQuestion).testCases,
-          },
-        });
-
-        if (error) {
-          console.error('Function invocation error:', error);
-          toast({
-            title: "Error",
-            description: "Failed to run code",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        testResults = data;
-
-        // Calculate marks based on passed test cases
-        marks = (testResults as any[]).reduce((acc, test) => acc + (test.passed ? test.marks : 0), 0);
-        isCorrect = marks === currentQuestion.marks;
-      }
-
-      // Insert the question submission
-      const { error: submissionError } = await supabase
-        .from('question_submissions')
-        .insert({
-          submission_id: submissionId,
-          question_type: currentQuestion.type,
-          question_id: currentQuestion.id,
-          mcq_option_id: mcq_option_id,
-          code_solution: code_solution,
-          language: language,
-          marks_obtained: marks,
-          is_correct: isCorrect,
-          test_results: testResults,
-        });
-
-      if (submissionError) {
-        console.error('Error inserting submission:', submissionError);
-        toast({
-          title: "Error",
-          description: "Failed to save answer",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Update total marks obtained
-      setMarksObtained(prevMarks => prevMarks + marks);
-
-      toast({
-        title: "Answer Submitted",
-        description: "Your answer has been saved",
-      });
-
-      // Move to the next question
-      goToNextQuestion();
-
-    } catch (error) {
-      console.error('Unexpected error:', error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
+      e.preventDefault();
     }
   };
 
-  const goToNextQuestion = () => {
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-      setSelectedOption(null);
-
-      // If the next question is a coding question, set the initial code solution
-      if (questions[currentQuestionIndex + 1].type === 'code') {
-        const codingQuestion = questions[currentQuestionIndex + 1] as CodingQuestion;
-        setCodeSolution(codingQuestion.solutionTemplate?.[language] || '');
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isAiProctoringEnabled || !isDragging) return;
+    
+    const windowHeight = window.innerHeight;
+    const windowWidth = window.innerWidth;
+    const x = e.clientX;
+    const y = e.clientY;
+    
+    // Determine which corner is closest
+    if (y < windowHeight / 2) {
+      // Top half
+      if (x < windowWidth / 2) {
+        setCameraPosition('top-left');
+      } else {
+        setCameraPosition('top-right');
       }
     } else {
-      setIsAlertOpen(true);
+      // Bottom half
+      if (x < windowWidth / 2) {
+        setCameraPosition('bottom-left');
+      } else {
+        setCameraPosition('bottom-right');
+      }
     }
   };
 
+  const handleMouseUp = () => {
+    if (!isAiProctoringEnabled) return;
+    
+    setIsDragging(false);
+    setTimeout(() => {
+      setIsAnimating(false);
+    }, 300);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isAiProctoringEnabled) return;
+    
+    if (cameraRef.current && e.touches.length === 1) {
+      setIsDragging(true);
+      setIsAnimating(true);
+      const touch = e.touches[0];
+      dragStartPos.current = {
+        x: touch.clientX,
+        y: touch.clientY
+      };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isAiProctoringEnabled || !isDragging || !e.touches[0]) return;
+    
+    const windowHeight = window.innerHeight;
+    const windowWidth = window.innerWidth;
+    const x = e.touches[0].clientX;
+    const y = e.touches[0].clientY;
+    
+    // Determine which corner is closest
+    if (y < windowHeight / 2) {
+      // Top half
+      if (x < windowWidth / 2) {
+        setCameraPosition('top-left');
+      } else {
+        setCameraPosition('top-right');
+      }
+    } else {
+      // Bottom half
+      if (x < windowWidth / 2) {
+        setCameraPosition('bottom-left');
+      } else {
+        setCameraPosition('bottom-right');
+      }
+    }
+    
+    e.preventDefault();
+  };
+
+  const handleTouchEnd = () => {
+    if (!isAiProctoringEnabled) return;
+    
+    setIsDragging(false);
+    setTimeout(() => {
+      setIsAnimating(false);
+    }, 300);
+  };
+
+  // Only add event listeners if AI proctoring is enabled
+  useEffect(() => {
+    if (!isAiProctoringEnabled) return;
+    
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove as unknown as EventListener);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleTouchMove as unknown as EventListener, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove as unknown as EventListener);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove as unknown as EventListener);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDragging, isAiProctoringEnabled]);
+
+  const handleTestResultUpdate = (questionId: string, passedTests: number, totalTests: number) => {
+    setTestCaseStatus(prev => ({
+      ...prev,
+      [questionId]: {
+        totalTests,
+        passedTests
+      }
+    }));
+  };
+  
+  if (!assessment) {
+    return null;
+  }
+  
+  const currentQuestion = assessment.questions[currentQuestionIndex];
+  
+  const questionStatus = assessment.questions.map(q => {
+    if (isMCQQuestion(q)) {
+      return !!q.selectedOption;
+    } else if (isCodeQuestion(q)) {
+      return Object.values(q.userSolution).some(solution => solution && typeof solution === 'string' && solution.trim() !== '');
+    }
+    return false;
+  });
+
+  const getQuestionSubmissionStatus = (question: any) => {
+    if (!isCodeQuestion(question)) return null;
+    
+    const status = testCaseStatus[question.id];
+    if (!status) return 'Not Submitted';
+    
+    if (status.passedTests === status.totalTests && status.totalTests > 0) {
+      return 'All Tests Passed';
+    } else if (status.passedTests > 0) {
+      return 'Partially Submitted';
+    } else {
+      return 'No Tests Passed';
+    }
+  };
+
+  const getStatusBadgeColor = (status: string | null) => {
+    if (!status) return 'status-not-submitted';
+    
+    switch (status) {
+      case 'All Tests Passed':
+        return 'status-submitted';
+      case 'Partially Submitted':
+        return 'status-partial';
+      default:
+        return 'status-not-submitted';
+    }
+  };
+
+  const getStatusIcon = (status: string | null) => {
+    if (!status) return null;
+    
+    switch (status) {
+      case 'All Tests Passed':
+        return <CheckCircle2 className="h-3 w-3 mr-1" />;
+      case 'Partially Submitted':
+        return <AlertOctagon className="h-3 w-3 mr-1" />;
+      default:
+        return null;
+    }
+  };
+  
+  const handlePrevQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
+    }
+  };
+  
+  const handleNextQuestion = () => {
+    if (currentQuestionIndex < assessment.questions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    }
+  };
+  
+  const handleEndAssessment = () => {
+    setShowExitDialog(true);
+  };
+  
   const confirmEndAssessment = async () => {
-    console.log('Assessment ended successfully');
-    console.log(`Total marks obtained: ${marksObtained}/${totalMarks}`);
+    setIsEndingAssessment(true);
     
     try {
-      // Complete the submission
-      const { error: submissionError } = await supabase
+      const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
-        .update({ 
-          completed_at: new Date().toISOString(),
-          is_terminated: false
-        })
-        .eq('id', submissionId);
-
-      if (submissionError) {
-        console.error('Error completing submission:', submissionError);
-        toast({
-          title: "Error",
-          description: "Failed to complete submission",
-          variant: "destructive",
-        });
-        return;
+        .select('*')
+        .eq('assessment_id', assessment?.id || '')
+        .eq('user_id', user?.id || '')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (submissionError || !submissions || submissions.length === 0) {
+        console.error('Error finding submission to update:', submissionError);
+      } else {
+        const { error: updateError } = await supabase
+          .from('submissions')
+          .update({ 
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', submissions[0].id);
+        
+        if (updateError) {
+          console.error('Error updating submission completion status:', updateError);
+        }
       }
-
-      // Create result record
-      const { data: resultData, error: resultError } = await supabase
+      
+      await endAssessment();
+      
+      const { error: resultError } = await supabase
         .from('results')
-        .insert({
-          user_id: user.id,
-          assessment_id: assessment.id,
-          submission_id: submissionId,
-          total_score: marksObtained,
-          total_marks: totalMarks,
-          percentage: totalMarks > 0 ? Math.round((marksObtained / totalMarks) * 100) : 0,
-          is_cheated: false,
-          completed_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
+        .update({ 
+          contest_name: assessment?.name 
+        } as any)
+        .eq('assessment_id', assessment?.id || '')
+        .eq('user_id', user?.id || '');
+      
       if (resultError) {
-        console.error('Error creating result:', resultError);
-        toast({
-          title: "Error",
-          description: "Failed to save results",
-          variant: "destructive",
-        });
-        return;
+        console.error('Error updating contest name in results:', resultError);
       }
-
-      // Navigate to summary page
-      navigate('/summary', { 
-        state: { 
-          result: resultData,
-          assessment: assessment,
-          submissionId: submissionId
-        } 
+      
+      toast({
+        title: "Assessment Submitted",
+        description: "Your answers have been submitted successfully!",
       });
-
+      
+      navigate('/summary');
     } catch (error) {
-      console.error('Error in confirmEndAssessment:', error);
+      console.error('Error ending assessment:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: "There was an error submitting your assessment. Please try again.",
         variant: "destructive",
       });
-    } finally {
-      stopDetection();
+      setIsEndingAssessment(false);
     }
   };
-
-  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newLanguage = e.target.value;
-    setLanguage(newLanguage);
-    if (currentQuestion?.type === 'code') {
-      const codingQuestion = currentQuestion as CodingQuestion;
-      setCodeSolution(codingQuestion.solutionTemplate?.[newLanguage] || '');
-    }
+  
+  const handleUpdateMarks = (questionId: string, marks: number) => {
+    updateMarksObtained(questionId, marks);
   };
 
-  useEffect(() => {
-    if (violations > 5) {
-      toast({
-        title: "Warning",
-        description: "Too many violations detected. Assessment will be terminated.",
-        variant: "destructive",
-      });
-      setIsAlertOpen(true);
+  // Anti-cheating warning is active when either fullscreen or tab warnings are shown
+  const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
+  
+  // Function to get camera position styles based on current position
+  const getCameraPositionStyles = () => {
+    switch (cameraPosition) {
+      case 'top-left':
+        return { top: '1rem', left: '1rem', bottom: 'auto', right: 'auto' };
+      case 'top-right':
+        return { top: '1rem', right: '1rem', bottom: 'auto', left: 'auto' };
+      case 'bottom-left':
+        return { bottom: '4rem', left: '1rem', top: 'auto', right: 'auto' };
+      case 'bottom-right':
+      default:
+        return { bottom: '4rem', right: '1rem', top: 'auto', left: 'auto' };
     }
-  }, [toast, violations]);
-
-  useEffect(() => {
-    if (faceViolations > 5) {
-      toast({
-        title: "Warning",
-        description: "Too many face violations detected. Assessment will be terminated.",
-        variant: "destructive",
-      });
-      setIsAlertOpen(true);
-    }
-  }, [toast, faceViolations]);
-
+  };
+  
   return (
-    <div className="min-h-screen bg-gray-100 py-6">
-      {assessment ? (
-        <div className="container mx-auto px-4">
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h1 className="text-2xl font-semibold text-gray-800">{assessment.name}</h1>
-                <p className="text-gray-500">Time Remaining: {formatTime(timeRemaining)}</p>
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+      <header className={`${isAntiCheatingWarningActive ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'} border-b py-2 px-4 flex items-center justify-between sticky top-0 z-10 transition-colors duration-300`}>
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="icon" className="mr-4 hover:bg-gray-100 dark:hover:bg-gray-700">
+              <MenuIcon className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-72 overflow-y-auto">
+            <SheetHeader className="mb-4">
+              <SheetTitle className="text-primary flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-primary"></span>
+                Questions
+              </SheetTitle>
+            </SheetHeader>
+            <div className="py-4 space-y-6">
+              <div className="grid grid-cols-5 gap-2">
+                {assessment.questions.map((q, index) => {
+                  const status = isCodeQuestion(q) ? getQuestionSubmissionStatus(q) : null;
+                  return (
+                    <Button
+                      key={q.id}
+                      variant="outline"
+                      size="sm"
+                      className={`relative hover:shadow-md transition-shadow ${
+                        currentQuestionIndex === index ? 'border-primary bg-primary-50 dark:bg-primary-950/20' : ''
+                      }`}
+                      onClick={() => setCurrentQuestionIndex(index)}
+                    >
+                      {index + 1}
+                      {questionStatus[index] && (
+                        <span className="absolute -top-1 -right-1">
+                          <CheckCircle className="h-3 w-3 text-green-500" />
+                        </span>
+                      )}
+                    </Button>
+                  );
+                })}
               </div>
-              <Button variant="outline" size="icon" onClick={handleFullScreen}>
-                <Fullscreen className="h-4 w-4" />
+              
+              <div className="space-y-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Assessment Summary</p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
+                    <span className="text-gray-600 dark:text-gray-300">Total Questions:</span>
+                    <span className="font-medium">{assessment.questions.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
+                    <span className="text-gray-600 dark:text-gray-300">Answered:</span>
+                    <span className="font-medium">{questionStatus.filter(Boolean).length}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
+                    <span className="text-gray-600 dark:text-gray-300">Not Answered:</span>
+                    <span className="font-medium">{questionStatus.filter(status => !status).length}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <Button 
+                onClick={handleEndAssessment}
+                className="w-full mt-4 bg-primary hover:bg-primary-600"
+                variant="destructive"
+              >
+                End Assessment
               </Button>
             </div>
-            <p className="text-gray-600">{assessment.instructions}</p>
-          </div>
-
-          {currentQuestion ? (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <QuestionCard
-                question={currentQuestion}
-                questionNumber={currentQuestionIndex + 1}
-                totalQuestions={questions.length}
+          </SheetContent>
+        </Sheet>
+        
+        <div className="flex items-center gap-2">
+          {isAntiCheatingWarningActive && (
+            <div className="flex items-center mr-3 animate-pulse">
+              <AlertTriangle className="h-5 w-5 text-red-500 mr-1" />
+              <span className="text-sm font-medium text-red-700 dark:text-red-400">
+                {showExitWarning ? `Fullscreen Warning: ${fullscreenWarnings}/${MAX_WARNINGS}` : 
+                 tabSwitchWarning ? `Tab Switch Warning: ${visibilityViolations}/${MAX_WARNINGS}` : ''}
+              </span>
+            </div>
+          )}
+          <Timer variant="assessment" />
+        </div>
+      </header>
+      
+      <div className="flex-1 overflow-y-auto p-4">
+        <div className="max-w-6xl mx-auto h-full">
+          {isMCQQuestion(currentQuestion) ? (
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-card animate-fade-in">
+              <MCQQuestion 
+                question={currentQuestion} 
+                onAnswerSelect={answerMCQ}
+                isWarningActive={isAntiCheatingWarningActive}
               />
-
-              {currentQuestion.type === 'mcq' && (
-                <div className="mt-4">
-                  <ul>
-                    {(currentQuestion as MCQQuestion).options?.map((option) => (
-                      <li key={option.id} className="mb-2">
-                        <label className="flex items-center">
-                          <input
-                            type="radio"
-                            className="mr-2 h-5 w-5 text-blue-600 focus:ring-blue-500"
-                            value={option.id}
-                            checked={selectedOption === option.id}
-                            onChange={() => handleOptionChange(option.id)}
-                          />
-                          {option.text}
-                        </label>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {currentQuestion.type === 'code' && (
-                <div className="mt-4">
-                  <div className="flex items-center mb-2">
-                    <label htmlFor="language" className="mr-2 text-sm font-medium text-gray-700">
-                      Language:
-                    </label>
-                    <select
-                      id="language"
-                      className="shadow-sm bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-auto p-2.5"
-                      value={language}
-                      onChange={handleLanguageChange}
-                    >
-                      <option value="python">Python</option>
-                      <option value="javascript">JavaScript</option>
-                      <option value="java">Java</option>
-                    </select>
-                  </div>
-                  <Editor
-                    theme="vs-dark"
-                    height="400px"
-                    language={language}
-                    value={codeSolution}
-                    onChange={handleCodeChange}
-                    beforeMount={handleEditorWillMount}
-                    onMount={handleEditorDidMount}
-                    options={{
-                      "acceptSuggestionOnCommitCharacter": true,
-                      "acceptSuggestionOnEnter": "on",
-                      "accessibilitySupport": "auto",
-                      "autoClosingBrackets": "always",
-                      "autoClosingQuotes": "always",
-                      "autoIndent": false,
-                      "automaticLayout": true,
-                      "codeLens": true,
-                      "colorDecorators": true,
-                      "contextmenu": true,
-                      "cursorBlinking": "blink",
-                      "cursorSmoothCaretAnimation": true,
-                      "cursorStyle": "line",
-                      "detectIndentation": true,
-                      "dragAndDrop": true,
-                      "emptySelectionClipboard": true,
-                      "extraEditorClassName": "mt-2",
-                      "fixedOverflowWidgets": false,
-                      "folding": true,
-                      "foldingStrategy": "auto",
-                      "fontLigatures": false,
-                      "formatOnPaste": true,
-                      "formatOnType": true,
-                      "glyphMargin": true,
-                      "gotoLocation": {
-                        "multipleDefinitions": "show",
-                        "multipleReferences": "show",
-                        "peekDefinitions": true,
-                        "peekReferences": true
-                      },
-                      "hideCursorInOverviewRuler": false,
-                      "highlightActiveIndentGuide": true,
-                      "links": true,
-                      "mouseWheelZoom": false,
-                      "multiCursorMergeOverlapping": true,
-                      "multiCursorModifier": "alt",
-                      "occurrencesHighlight": true,
-                      "overviewRulerBorder": true,
-                      "overviewRulerLanes": 2,
-                      "parameterHints": {
-                        "cycle": true,
-                        "enabled": true
-                      },
-                      "quickSuggestions": {
-                        "comments": "on",
-                        "other": "on",
-                        "strings": "on"
-                      },
-                      "readOnly": false,
-                      "renameOnType": false,
-                      "roundedSelection": true,
-                      "rulers": [],
-                      "scrollBeyondLastColumn": 5,
-                      "scrollBeyondLastLine": true,
-                      "selectOnLineNumbers": true,
-                      "selectionClipboard": true,
-                      "selectionHighlight": true,
-                      "showFoldingControls": "mouseover",
-                      "showUnused": true,
-                      "snippetSuggestions": "inline",
-                      "smoothScrolling": true,
-                      "suggest": {
-                        "filterGraceful": true,
-                        "insertMode": "insert",
-                        "localityBonus": true,
-                        "shareSuggestSelections": false,
-                        "snippetsPreventQuickSuggestions": true
-                      },
-                      "suggestOnTriggerCharacters": true,
-                      "suggestSelection": "first",
-                      "tabCompletion": "on",
-                      "unicodeHighlight": {
-                        "ambiguousCharacters": true,
-                        "invisibleCharacters": true
-                      },
-                      "unusualLineTerminators": "auto",
-                      "useTabStops": true,
-                      "wordBasedSuggestions": true,
-                      "wordSeparators": null,
-                      "wordWrap": "off",
-                      "wrappingIndent": "same"
-                    }}
-                  />
-                </div>
-              )}
-
-              <div className="mt-6 flex justify-between">
-                <Button
-                  onClick={submitAnswer}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Submitting...' : 'Submit Answer'}
-                </Button>
-              </div>
             </div>
           ) : (
-            <div className="text-center py-10 bg-gray-50 rounded-lg">
-              <p className="text-gray-500">Loading assessment questions...</p>
+            <div className="h-[calc(100vh-180px)] animate-fade-in">
+              <ResizablePanelGroup direction="horizontal" className="h-full">
+                <ResizablePanel defaultSize={40} minSize={30} className={`bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm ${isAntiCheatingWarningActive ? 'border border-red-300 dark:border-red-800' : ''}`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-medium">{currentQuestion.title}</h3>
+                    
+                    {isCodeQuestion(currentQuestion) && (
+                      <div className={`${getStatusBadgeColor(getQuestionSubmissionStatus(currentQuestion))} flex items-center gap-1 px-2 py-1 text-xs rounded-full`}>
+                        {getStatusIcon(getQuestionSubmissionStatus(currentQuestion))}
+                        <span>{getQuestionSubmissionStatus(currentQuestion)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {isAntiCheatingWarningActive && (
+                    <div className="mb-3 bg-red-50 dark:bg-red-900/20 p-2 rounded-md flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-red-500" />
+                      <p className="text-sm text-red-700 dark:text-red-400">Anti-cheating warning active</p>
+                    </div>
+                  )}
+                  
+                  <ScrollArea className="h-[calc(100vh-280px)] pr-3">
+                    <div className="prose dark:prose-invert max-w-none mb-4">
+                      <p className="text-gray-700 dark:text-gray-200 whitespace-pre-line">{currentQuestion.description}</p>
+                    </div>
+                    
+                    {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (
+                      <div className="mb-4">
+                        <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Examples:</h4>
+                        <div className="space-y-3">
+                          {currentQuestion.examples.map((example, index) => (
+                            <div key={index} className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
+                              <div className="mb-1">
+                                <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Input:</span>
+                                <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1 overflow-x-auto">{example.input}</pre>
+                              </div>
+                              <div className="mb-1">
+                                <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Output:</span>
+                                <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1 overflow-x-auto">{example.output}</pre>
+                              </div>
+                              {example.explanation && (
+                                <div>
+                                  <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Explanation:</span>
+                                  <p className="text-xs mt-1 text-gray-600 dark:text-gray-400">{example.explanation}</p>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {isCodeQuestion(currentQuestion) && currentQuestion.constraints.length > 0 && (
+                      <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
+                        <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Constraints:</h4>
+                        <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                          {currentQuestion.constraints.map((constraint, index) => (
+                            <li key={index}>{constraint}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </ScrollArea>
+                </ResizablePanel>
+
+                <ResizableHandle withHandle className="bg-gray-200 dark:bg-gray-700" />
+
+                <ResizablePanel defaultSize={60} minSize={40} className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden ${isAntiCheatingWarningActive ? 'border border-red-300 dark:border-red-800' : ''}`}>
+                  {isCodeQuestion(currentQuestion) && (
+                    <CodeEditor 
+                      question={currentQuestion}
+                      onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
+                      onMarksUpdate={handleUpdateMarks}
+                      onTestResultsUpdate={(passed, total) => handleTestResultUpdate(currentQuestion.id, passed, total)}
+                    />
+                  )}
+                </ResizablePanel>
+              </ResizablePanelGroup>
             </div>
           )}
         </div>
-      ) : (
-        <div className="text-center py-10">
-          <p>Loading assessment...</p>
+        
+        {/* Conditionally render draggable proctoring camera overlay only if AI proctoring is enabled */}
+        {isAiProctoringEnabled && (
+          <div 
+            ref={cameraRef}
+            className={cn(
+              "fixed z-20 transition-all duration-300 ease-in-out",
+              isDragging ? "cursor-grabbing scale-105" : "cursor-grab hover:scale-102",
+              isAnimating ? "animate-pulse" : ""
+            )}
+            style={{
+              ...getCameraPositionStyles(),
+              transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+              filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))'
+            }}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+          >
+            <Card className={cn(
+              "w-[180px] overflow-hidden rounded-lg border-0",  // Reduced width from 240px to 180px
+              "bg-black/10 backdrop-blur-sm",
+              "transform transition-transform duration-200",
+              isDragging ? "scale-105" : "",
+              isAnimating ? "ring-2 ring-primary ring-opacity-70" : ""
+            )}>
+              <div 
+                className={cn(
+                  "flex items-center justify-between px-3 py-1", // Reduced padding
+                  "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
+                  "border-b border-white/10",
+                  isDragging ? "cursor-grabbing" : "cursor-grab"
+                )}
+                onMouseDown={handleMouseDown}
+                onTouchStart={handleTouchStart}
+              >
+                <div className="flex items-center space-x-1">
+                  <Camera className="h-3 w-3 text-white opacity-80" /> {/* Reduced icon size */}
+                  <span className="text-xs font-medium text-white opacity-90">Proctoring</span> {/* Shorter text */}
+                </div>
+                <div className="flex items-center">
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse mr-1"></div> {/* Smaller indicator */}
+                  <GripVertical className="h-3 w-3 text-white opacity-70" /> {/* Reduced icon size */}
+                </div>
+              </div>
+              <ProctoringCamera 
+                showControls={false}
+                showStatus={false}
+                trackViolations={true}
+                assessmentId={assessment.id}
+                submissionId={submissionId || undefined}
+                size="small" // Use the small size
+              />
+              <div className={cn(
+                "text-[9px] text-center py-0.5 text-white/70 opacity-0", // Smaller text and padding
+                "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
+                "border-t border-white/10",
+                "transition-opacity duration-200",
+                isDragging ? "opacity-100" : "group-hover:opacity-100"
+              )}>
+                Drag to reposition
+              </div>
+            </Card>
+          </div>
+        )}
+      </div>
+      
+      <div className={`${isAntiCheatingWarningActive ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'} border-t py-3 px-6 flex items-center justify-between sticky bottom-0 z-10 transition-colors duration-300`}>
+        <Button
+          variant="outline"
+          onClick={handlePrevQuestion}
+          disabled={currentQuestionIndex === 0 || isNavigating || isEndingAssessment}
+          className="nav-button shadow-sm hover:shadow-md"
+        >
+          <ChevronLeft className="h-5 w-5 mr-1" /> Previous
+        </Button>
+        
+        <div className="flex items-center gap-2">
+          {assessment.questions.map((_, index) => (
+            <div 
+              key={index} 
+              className={`h-2 w-2 rounded-full transition-all duration-200 ${
+                index === currentQuestionIndex 
+                  ? 'bg-primary scale-110'
+                  : questionStatus[index]
+                  ? 'bg-green-400 dark:bg-green-500'
+                  : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            />
+          ))}
         </div>
-      )}
+        
+        <div className="flex gap-2">
+          {currentQuestionIndex === assessment.questions.length - 1 ? (
+            <Button
+              className="bg-primary hover:bg-red-600 text-white nav-button shadow-sm hover:shadow-md"
+              onClick={handleEndAssessment}
+              disabled={isNavigating || isEndingAssessment}
+            >
+              {isEndingAssessment ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <>End Assessment</>
+              )}
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={handleNextQuestion}
+              disabled={isNavigating || isEndingAssessment}
+              className="nav-button shadow-sm hover:shadow-md"
+            >
+              Next <ChevronRight className="h-5 w-5 ml-1" />
+            </Button>
+          )}
+        </div>
+      </div>
 
-      <AlertDialog open={isAlertOpen}>
-        <AlertDialogContent>
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <AlertDialogContent className="dark:bg-gray-800 dark:border-gray-700">
           <AlertDialogHeader>
-            <AlertDialogTitle>End Assessment</AlertDialogTitle>
+            <AlertDialogTitle className="flex items-center text-primary">
+              <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
+              End Assessment
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to end the assessment?
+              Are you sure you want to end the assessment? This action cannot be undone, and all your answers will be submitted.
+              {questionStatus.some(status => !status) && (
+                <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md text-amber-700 dark:text-amber-400 text-sm">
+                  <HelpCircle className="h-4 w-4 inline mr-1" />
+                  You have {questionStatus.filter(status => !status).length} unanswered question(s).
+                </div>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setIsAlertOpen(false)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmEndAssessment}>Confirm</AlertDialogAction>
+            <AlertDialogCancel disabled={isEndingAssessment} className="dark:bg-gray-700 dark:hover:bg-gray-600">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmEndAssessment} 
+              className="bg-primary hover:bg-red-600 text-white"
+              disabled={isEndingAssessment}
+            >
+              {isEndingAssessment ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                "End Assessment"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showExitWarning || tabSwitchWarning}>
+        <AlertDialogContent className="dark:bg-gray-800 dark:border-gray-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center text-red-600 dark:text-red-400">
+              <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
+              {showExitWarning ? 'Fullscreen Mode Required' : 'Assessment Tab Focus Required'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <p>
+                {showExitWarning 
+                  ? `You have exited fullscreen mode. This is violation ${fullscreenWarnings}/${MAX_WARNINGS}.
+                     Please return to fullscreen immediately or your test will be terminated.`
+                  : `You switched away from the assessment tab. This is violation ${visibilityViolations}/${MAX_WARNINGS}.
+                     Please stay on this tab or your test will be terminated.`
+                }
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={showExitWarning ? enterFullscreen : undefined}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {showExitWarning ? 'Return to Fullscreen' : 'Continue Assessment'}
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={terminateAssessment}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              End Assessment
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
