@@ -522,7 +522,7 @@ const AssessmentPage = () => {
                 <p className="text-gray-500">Time Remaining: {formatTime(timeRemaining)}</p>
               </div>
               <Button variant="outline" size="icon" onClick={handleFullScreen}>
-                {isFullScreenMode ? <FullscreenExit className="h-4 w-4" /> : <Fullscreen className="h-4 w-4" />}
+                <Fullscreen className="h-4 w-4" />
               </Button>
             </div>
             <p className="text-gray-600">{assessment.instructions}</p>
