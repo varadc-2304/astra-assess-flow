@@ -129,18 +129,6 @@ const StudentDashboard = () => {
 
   return (
     <div className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-2xl font-bold">Student Dashboard</h1>
-          {user && (
-            <p className="text-gray-600">Welcome, {user.name || user.email}</p>
-          )}
-        </div>
-        <Button onClick={handleLogout} variant="outline" className="flex items-center gap-2">
-          <LogOut className="h-4 w-4" />
-          Logout
-        </Button>
-      </div>
       
       <div className="mb-8">
         <h2 className="text-lg font-semibold mb-4">Enter Assessment Code</h2>
