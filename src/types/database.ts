@@ -1,4 +1,3 @@
-
 export interface Auth {
   id: string;
   email: string;
@@ -31,7 +30,6 @@ export interface Assessment {
   startTime?: string;
   isAiProctored?: boolean; // Add missing property
   questions?: Array<MCQQuestion | CodingQuestion>; 
-  contest_name?: string; // Add this to support the contest_name field in results
 }
 
 export interface MCQQuestion {
@@ -151,7 +149,6 @@ export interface Result {
   is_cheated: boolean | null;
   completed_at: string;
   created_at: string;
-  contest_name?: string; // Add this field to match the AssessmentPage.tsx usage
 }
 
 // Define Json type for consistency with Supabase
