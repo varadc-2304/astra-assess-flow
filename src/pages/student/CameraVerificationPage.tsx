@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { ProctoringCamera } from '@/components/ProctoringCamera';
-import { ShieldCheck, Camera, AlertTriangle, CheckCircle } from 'lucide-react';
+import { ShieldCheck, Camera, AlertTriangle, CheckCircle, Sparkles, Eye, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,7 +23,6 @@ const CameraVerificationPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   
-  // Create submission record for tracking with retry logic
   const createSubmissionMutation = useMutation({
     mutationFn: async () => {
       if (!user || !assessment) return null;
@@ -30,7 +30,6 @@ const CameraVerificationPage = () => {
       setIsCreatingSubmission(true);
       
       try {
-        // First check if there's already an active submission
         const { data: existingSubmissions, error: fetchError } = await supabase
           .from('submissions')
           .select('id')
@@ -45,13 +44,11 @@ const CameraVerificationPage = () => {
           throw fetchError;
         }
         
-        // If there's an active submission, use that
         if (existingSubmissions && existingSubmissions.length > 0) {
           console.log('Using existing submission:', existingSubmissions[0]);
           return existingSubmissions[0];
         }
         
-        // Otherwise, create a new submission
         const { data, error } = await supabase
           .from('submissions')
           .insert({
@@ -94,7 +91,6 @@ const CameraVerificationPage = () => {
   });
   
   useEffect(() => {
-    // Check if assessment requires AI proctoring, if not, redirect to assessment page
     if (!loading && assessment && !assessment.isAiProctored) {
       console.log("Assessment doesn't require AI proctoring, redirecting to assessment page");
       startAssessment();
@@ -113,7 +109,6 @@ const CameraVerificationPage = () => {
       return;
     }
     
-    // Only create submission when needed, don't initialize camera yet
     if (user && assessment && !submissionId && !isCreatingSubmission) {
       console.log("Creating submission for assessment", assessment.id);
       createSubmissionMutation.mutate();
@@ -122,10 +117,10 @@ const CameraVerificationPage = () => {
   
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100">
         <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-astra-red border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-lg font-medium text-gray-600">Loading assessment details...</p>
+          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full mx-auto mb-6 animate-spin"></div>
+          <p className="text-xl font-medium text-gray-600">Loading assessment details...</p>
         </div>
       </div>
     );
@@ -167,62 +162,74 @@ const CameraVerificationPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white py-8">
-      <div className="max-w-4xl mx-auto px-4">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-white to-blue-50/30">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
+      
+      <div className="relative max-w-5xl mx-auto px-6 py-12">
         {/* Header with Logo */}
-        <header className="text-center mb-12">
-          <div className="mx-auto w-20 h-20 mb-4 relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-astra-red/20 to-red-600/20 rounded-full animate-pulse"></div>
+        <header className="text-center mb-16">
+          <div className="mx-auto w-24 h-24 mb-6 relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-red-600/20 rounded-full animate-pulse"></div>
+            <div className="absolute inset-2 bg-white rounded-full shadow-lg"></div>
             <img 
               src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" 
               alt="Yudha Logo" 
               className="w-full h-full relative z-10" 
             />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Camera Verification</h1>
-          <p className="text-lg text-gray-600">{assessment?.name}</p>
+          <h1 className="text-4xl font-bold text-gray-900 mb-3">Identity Verification</h1>
+          <p className="text-xl text-gray-600 mb-2">{assessment?.name}</p>
+          <div className="flex items-center justify-center gap-2 text-primary">
+            <ShieldCheck className="h-5 w-5" />
+            <span className="text-sm font-medium">Secure AI Proctoring</span>
+          </div>
         </header>
         
-        <div className="max-w-3xl mx-auto">
-          <Card className="shadow-xl border-0 overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-astra-red to-red-700 text-white p-8">
-              <div className="flex items-center justify-center mb-4">
-                <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
-                  <Camera className="h-8 w-8 text-white" />
+        <div className="max-w-4xl mx-auto">
+          <Card className="shadow-2xl border-0 overflow-hidden bg-white/95 backdrop-blur-sm">
+            <CardHeader className="bg-gradient-to-r from-primary via-primary/90 to-red-600 text-white p-10">
+              <div className="flex items-center justify-center mb-6">
+                <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm relative">
+                  <Camera className="h-10 w-10 text-white" />
+                  <div className="absolute -top-1 -right-1">
+                    <Sparkles className="h-6 w-6 text-yellow-300 animate-pulse" />
+                  </div>
                 </div>
               </div>
-              <CardTitle className="text-2xl text-center font-bold">
-                Identity Verification Required
+              <CardTitle className="text-3xl text-center font-bold mb-4">
+                AI-Powered Verification Required
               </CardTitle>
-              <CardDescription className="text-white/90 text-center text-lg mt-2">
-                Please position yourself in front of the camera for identity verification.
-                This ensures the security and integrity of your assessment.
+              <CardDescription className="text-white/90 text-center text-lg leading-relaxed max-w-2xl mx-auto">
+                Our advanced AI system will verify your identity to ensure exam integrity. 
+                Position yourself clearly in front of the camera for seamless verification.
               </CardDescription>
             </CardHeader>
             
-            <CardContent className="p-8">
+            <CardContent className="p-10">
               {!isCameraActivated ? (
-                <div className="text-center py-16">
-                  <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center shadow-lg">
-                    <Camera className="h-16 w-16 text-astra-red" />
+                <div className="text-center py-20">
+                  <div className="w-40 h-40 mx-auto mb-8 rounded-full bg-gradient-to-br from-primary/10 via-primary/5 to-transparent flex items-center justify-center relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent animate-pulse"></div>
+                    <Camera className="h-20 w-20 text-primary relative z-10" />
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-4">Camera Access Required</h3>
-                  <p className="text-gray-600 mb-8 max-w-lg mx-auto leading-relaxed">
+                  <h3 className="text-3xl font-bold text-gray-900 mb-4">Camera Access Required</h3>
+                  <p className="text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed text-lg">
                     For secure assessment proctoring, we need access to your camera. 
                     Your privacy is protected and the feed is only used for verification and monitoring purposes.
                   </p>
                   <Button 
                     onClick={handleActivateCamera}
-                    className="bg-astra-red hover:bg-red-600 text-white shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
+                    className="bg-gradient-to-r from-primary to-red-600 hover:from-primary/90 hover:to-red-600/90 text-white shadow-xl hover:shadow-2xl transition-all transform hover:-translate-y-1 px-8 py-4 text-lg"
                     size="lg"
                   >
-                    <Camera className="mr-3 h-5 w-5" />
+                    <Camera className="mr-3 h-6 w-6" />
                     Activate Camera
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-6">
-                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-6">
+                <div className="space-y-8">
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-2xl p-8 border border-gray-200">
                     <ProctoringCamera 
                       onVerificationComplete={handleVerificationComplete}
                       showControls={!isVerified}
@@ -233,50 +240,66 @@ const CameraVerificationPage = () => {
                     />
                   </div>
                   
-                  {/* Verification Instructions */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                    <h4 className="font-semibold text-blue-900 mb-3 flex items-center">
-                      <AlertTriangle className="h-5 w-5 mr-2" />
+                  {/* Enhanced Verification Guidelines */}
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-8">
+                    <h4 className="font-bold text-blue-900 mb-6 flex items-center text-xl">
+                      <Eye className="h-6 w-6 mr-3" />
                       Verification Guidelines
                     </h4>
-                    <ul className="text-blue-800 space-y-2 text-sm">
-                      <li>• Ensure your face is clearly visible and well-lit</li>
-                      <li>• Remove any hats, sunglasses, or face coverings</li>
-                      <li>• Look directly at the camera during verification</li>
-                      <li>• Maintain a stable internet connection</li>
-                    </ul>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
+                          <p className="text-blue-800">Ensure your face is clearly visible and well-lit</p>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
+                          <p className="text-blue-800">Remove any hats, sunglasses, or face coverings</p>
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
+                          <p className="text-blue-800">Look directly at the camera during verification</p>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <div className="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
+                          <p className="text-blue-800">Maintain a stable internet connection</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
             </CardContent>
             
-            <CardFooter className="p-8 bg-gray-50 border-t">
+            <CardFooter className="p-10 bg-gradient-to-r from-gray-50 to-gray-100/50 border-t border-gray-200">
               {isVerified ? (
                 <div className="w-full text-center">
-                  <div className="inline-flex items-center justify-center gap-3 bg-green-100 px-6 py-3 rounded-full text-green-700 mb-6">
-                    <CheckCircle className="h-6 w-6" />
-                    <span className="font-semibold text-lg">Verification Complete</span>
+                  <div className="inline-flex items-center justify-center gap-4 bg-green-100 px-8 py-4 rounded-2xl text-green-700 mb-8">
+                    <CheckCircle className="h-8 w-8" />
+                    <span className="font-bold text-xl">Verification Complete</span>
                   </div>
-                  <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                  <p className="text-gray-600 mb-8 max-w-md mx-auto text-lg leading-relaxed">
                     Your camera is properly configured and your identity has been verified.
                     You are now ready to begin your assessment.
                   </p>
                   <Button 
                     onClick={handleStartAssessment}
                     size="lg" 
-                    className="bg-astra-red hover:bg-red-600 text-white transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                    className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white transition-all shadow-xl hover:shadow-2xl transform hover:-translate-y-1 px-8 py-4 text-lg"
                   >
-                    <ShieldCheck className="mr-3 h-5 w-5" />
+                    <ShieldCheck className="mr-3 h-6 w-6" />
                     Start Assessment
                   </Button>
                 </div>
               ) : (
                 <div className="w-full text-center">
-                  <div className="flex items-center justify-center gap-3 text-amber-600 mb-4">
-                    <AlertTriangle className="h-5 w-5" />
-                    <span className="font-semibold">Verification Required</span>
+                  <div className="flex items-center justify-center gap-4 text-amber-600 mb-6">
+                    <AlertTriangle className="h-6 w-6" />
+                    <span className="font-bold text-lg">Verification Required</span>
                   </div>
-                  <p className="text-gray-600 max-w-md mx-auto">
+                  <p className="text-gray-600 max-w-md mx-auto text-lg">
                     Please activate your camera and complete the verification process to proceed with your assessment.
                   </p>
                 </div>
@@ -284,11 +307,11 @@ const CameraVerificationPage = () => {
             </CardFooter>
           </Card>
           
-          {/* Security Notice */}
-          <div className="mt-8 text-center">
-            <div className="inline-flex items-center gap-2 text-gray-500 text-sm">
-              <ShieldCheck className="h-4 w-4" />
-              <span>Your privacy is protected. Camera feed is encrypted and secure.</span>
+          {/* Enhanced Security Notice */}
+          <div className="mt-12 text-center">
+            <div className="inline-flex items-center gap-3 bg-white/80 backdrop-blur-sm px-6 py-3 rounded-full shadow-lg border border-gray-200">
+              <Lock className="h-5 w-5 text-gray-500" />
+              <span className="text-gray-600 font-medium">Your privacy is protected. Camera feed is encrypted and secure.</span>
             </div>
           </div>
         </div>
