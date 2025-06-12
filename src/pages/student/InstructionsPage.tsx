@@ -57,9 +57,6 @@ const InstructionsPage = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-3xl mx-auto px-4">
-        <header className="text-center mb-8">
-          <p className="text-gray-600">{assessment?.name}</p>
-        </header>
         
         <Card className="mb-6 shadow-lg border-0">
           <CardHeader>
