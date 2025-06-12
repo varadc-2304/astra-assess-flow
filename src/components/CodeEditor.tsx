@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -586,14 +587,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex justify-between items-center mb-2 gap-2">
+      <div className="flex justify-between items-center mb-3 gap-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
         <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
-          <SelectTrigger className="w-fit min-w-[120px] max-w-[200px] flex-shrink-0">
+          <SelectTrigger className="h-8 w-fit min-w-[100px] max-w-[160px] flex-shrink-0 text-xs border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-700 shadow-sm">
             <SelectValue placeholder="Language" />
           </SelectTrigger>
-          <SelectContent className="max-w-[200px]">
+          <SelectContent className="max-w-[160px]">
             {Object.keys(question.solutionTemplate).map((lang) => (
-              <SelectItem value={lang} key={lang} className="truncate">
+              <SelectItem value={lang} key={lang} className="truncate text-xs">
                 {lang.charAt(0).toUpperCase() + lang.slice(1)}
               </SelectItem>
             ))}
@@ -602,29 +603,29 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
 
         <div className="flex gap-2 flex-shrink-0">
           <Button 
-            variant="secondary" 
+            variant="outline" 
             size="sm"
             onClick={handleRunCode}
             disabled={isRunning || isSubmitting}
-            className="whitespace-nowrap"
+            className="h-8 px-3 text-xs whitespace-nowrap border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm"
           >
             {isRunning ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
             ) : (
-              <Play className="h-4 w-4 mr-1" />
+              <Play className="h-3 w-3 mr-1.5" />
             )}
             Run
           </Button>
           <Button 
-            className="bg-astra-red hover:bg-red-600 text-white whitespace-nowrap"
+            className="h-8 px-3 text-xs bg-astra-red hover:bg-red-600 text-white whitespace-nowrap shadow-sm"
             size="sm"
             onClick={handleSubmitCode}
             disabled={isRunning || isSubmitting}
           >
             {isSubmitting ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
             ) : (
-              <Check className="h-4 w-4 mr-1" />
+              <Check className="h-3 w-3 mr-1.5" />
             )}
             Submit
           </Button>
