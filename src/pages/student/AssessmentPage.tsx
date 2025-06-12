@@ -337,7 +337,7 @@ const AssessmentPage = () => {
                 </div>
                 <div className="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
                   <ProctoringCamera 
-                    showControls={true}
+                    showControls={false}
                     showStatus={true}
                     trackViolations={true}
                     assessmentId={assessment.id}
