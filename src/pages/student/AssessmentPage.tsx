@@ -15,7 +15,7 @@ import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, GripVertical, Camera } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, Camera, GripVertical } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
@@ -58,6 +58,7 @@ const AssessmentPage = () => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [isEndingAssessment, setIsEndingAssessment] = useState(false);
   const [testCaseStatus, setTestCaseStatus] = useState<TestCaseStatus>({});
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const navigate = useNavigate();
   const { 
     enterFullscreen, 
@@ -71,13 +72,6 @@ const AssessmentPage = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [submissionId, setSubmissionId] = useState<string | null>(null);
-  
-  // Camera states - only used when AI proctoring is enabled
-  const [cameraPosition, setCameraPosition] = useState('bottom-right');
-  const [isDragging, setIsDragging] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const dragStartPos = useRef({ x: 0, y: 0 });
-  const cameraRef = useRef<HTMLDivElement>(null);
   
   // Check if AI proctoring is enabled
   const isAiProctoringEnabled = assessment?.isAiProctored === true;
@@ -154,126 +148,6 @@ const AssessmentPage = () => {
     
     createSubmissionRecord();
   }, [assessment, assessmentStarted, user]);
-
-  // Only initialize camera-related event handlers if AI proctoring is enabled
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!isAiProctoringEnabled) return;
-    
-    if (cameraRef.current) {
-      setIsDragging(true);
-      setIsAnimating(true);
-      dragStartPos.current = {
-        x: e.clientX,
-        y: e.clientY
-      };
-      e.preventDefault();
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isAiProctoringEnabled || !isDragging) return;
-    
-    const windowHeight = window.innerHeight;
-    const windowWidth = window.innerWidth;
-    const x = e.clientX;
-    const y = e.clientY;
-    
-    // Determine which corner is closest
-    if (y < windowHeight / 2) {
-      // Top half
-      if (x < windowWidth / 2) {
-        setCameraPosition('top-left');
-      } else {
-        setCameraPosition('top-right');
-      }
-    } else {
-      // Bottom half
-      if (x < windowWidth / 2) {
-        setCameraPosition('bottom-left');
-      } else {
-        setCameraPosition('bottom-right');
-      }
-    }
-  };
-
-  const handleMouseUp = () => {
-    if (!isAiProctoringEnabled) return;
-    
-    setIsDragging(false);
-    setTimeout(() => {
-      setIsAnimating(false);
-    }, 300);
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (!isAiProctoringEnabled) return;
-    
-    if (cameraRef.current && e.touches.length === 1) {
-      setIsDragging(true);
-      setIsAnimating(true);
-      const touch = e.touches[0];
-      dragStartPos.current = {
-        x: touch.clientX,
-        y: touch.clientY
-      };
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isAiProctoringEnabled || !isDragging || !e.touches[0]) return;
-    
-    const windowHeight = window.innerHeight;
-    const windowWidth = window.innerWidth;
-    const x = e.touches[0].clientX;
-    const y = e.touches[0].clientY;
-    
-    // Determine which corner is closest
-    if (y < windowHeight / 2) {
-      // Top half
-      if (x < windowWidth / 2) {
-        setCameraPosition('top-left');
-      } else {
-        setCameraPosition('top-right');
-      }
-    } else {
-      // Bottom half
-      if (x < windowWidth / 2) {
-        setCameraPosition('bottom-left');
-      } else {
-        setCameraPosition('bottom-right');
-      }
-    }
-    
-    e.preventDefault();
-  };
-
-  const handleTouchEnd = () => {
-    if (!isAiProctoringEnabled) return;
-    
-    setIsDragging(false);
-    setTimeout(() => {
-      setIsAnimating(false);
-    }, 300);
-  };
-
-  // Only add event listeners if AI proctoring is enabled
-  useEffect(() => {
-    if (!isAiProctoringEnabled) return;
-    
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove as unknown as EventListener);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.addEventListener('touchmove', handleTouchMove as unknown as EventListener, { passive: false });
-      document.addEventListener('touchend', handleTouchEnd);
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove as unknown as EventListener);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('touchmove', handleTouchMove as unknown as EventListener);
-      document.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [isDragging, isAiProctoringEnabled]);
 
   const handleTestResultUpdate = (questionId: string, passedTests: number, totalTests: number) => {
     setTestCaseStatus(prev => ({
@@ -422,37 +296,58 @@ const AssessmentPage = () => {
   // Anti-cheating warning is active when either fullscreen or tab warnings are shown
   const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
   
-  // Function to get camera position styles based on current position
-  const getCameraPositionStyles = () => {
-    switch (cameraPosition) {
-      case 'top-left':
-        return { top: '1rem', left: '1rem', bottom: 'auto', right: 'auto' };
-      case 'top-right':
-        return { top: '1rem', right: '1rem', bottom: 'auto', left: 'auto' };
-      case 'bottom-left':
-        return { bottom: '4rem', left: '1rem', top: 'auto', right: 'auto' };
-      case 'bottom-right':
-      default:
-        return { bottom: '4rem', right: '1rem', top: 'auto', left: 'auto' };
-    }
-  };
-  
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Hidden proctoring camera that runs continuously when AI proctoring is enabled */}
+      {isAiProctoringEnabled && (
+        <div className="hidden">
+          <ProctoringCamera 
+            showControls={false}
+            showStatus={false}
+            trackViolations={true}
+            assessmentId={assessment.id}
+            submissionId={submissionId || undefined}
+            size="small"
+          />
+        </div>
+      )}
+
       <header className={`${isAntiCheatingWarningActive ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'} border-b py-2 px-4 flex items-center justify-between sticky top-0 z-10 transition-colors duration-300`}>
-        <Sheet>
+        <Sheet open={isSidePanelOpen} onOpenChange={setIsSidePanelOpen}>
           <SheetTrigger asChild>
             <Button variant="outline" size="icon" className="mr-4 hover:bg-gray-100 dark:hover:bg-gray-700">
               <MenuIcon className="h-5 w-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-72 overflow-y-auto">
+          <SheetContent side="left" className="w-80 overflow-y-auto">
             <SheetHeader className="mb-4">
               <SheetTitle className="text-primary flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-primary"></span>
                 Questions
               </SheetTitle>
             </SheetHeader>
+            
+            {/* AI Proctoring Camera Section in Side Panel */}
+            {isAiProctoringEnabled && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <Camera className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">AI Proctoring</span>
+                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                </div>
+                <div className="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                  <ProctoringCamera 
+                    showControls={true}
+                    showStatus={true}
+                    trackViolations={true}
+                    assessmentId={assessment.id}
+                    submissionId={submissionId || undefined}
+                    size="default"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="py-4 space-y-6">
               <div className="grid grid-cols-5 gap-2">
                 {assessment.questions.map((q, index) => {
@@ -613,70 +508,6 @@ const AssessmentPage = () => {
             </div>
           )}
         </div>
-        
-        {/* Conditionally render draggable proctoring camera overlay only if AI proctoring is enabled */}
-        {isAiProctoringEnabled && (
-          <div 
-            ref={cameraRef}
-            className={cn(
-              "fixed z-20 transition-all duration-300 ease-in-out",
-              isDragging ? "cursor-grabbing scale-105" : "cursor-grab hover:scale-102",
-              isAnimating ? "animate-pulse" : ""
-            )}
-            style={{
-              ...getCameraPositionStyles(),
-              transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
-              filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))'
-            }}
-            onMouseDown={handleMouseDown}
-            onTouchStart={handleTouchStart}
-          >
-            <Card className={cn(
-              "w-[180px] overflow-hidden rounded-lg border-0",  // Reduced width from 240px to 180px
-              "bg-black/10 backdrop-blur-sm",
-              "transform transition-transform duration-200",
-              isDragging ? "scale-105" : "",
-              isAnimating ? "ring-2 ring-primary ring-opacity-70" : ""
-            )}>
-              <div 
-                className={cn(
-                  "flex items-center justify-between px-3 py-1", // Reduced padding
-                  "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
-                  "border-b border-white/10",
-                  isDragging ? "cursor-grabbing" : "cursor-grab"
-                )}
-                onMouseDown={handleMouseDown}
-                onTouchStart={handleTouchStart}
-              >
-                <div className="flex items-center space-x-1">
-                  <Camera className="h-3 w-3 text-white opacity-80" /> {/* Reduced icon size */}
-                  <span className="text-xs font-medium text-white opacity-90">Proctoring</span> {/* Shorter text */}
-                </div>
-                <div className="flex items-center">
-                  <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse mr-1"></div> {/* Smaller indicator */}
-                  <GripVertical className="h-3 w-3 text-white opacity-70" /> {/* Reduced icon size */}
-                </div>
-              </div>
-              <ProctoringCamera 
-                showControls={false}
-                showStatus={false}
-                trackViolations={true}
-                assessmentId={assessment.id}
-                submissionId={submissionId || undefined}
-                size="small" // Use the small size
-              />
-              <div className={cn(
-                "text-[9px] text-center py-0.5 text-white/70 opacity-0", // Smaller text and padding
-                "bg-gradient-to-r from-gray-900/80 to-gray-800/80",
-                "border-t border-white/10",
-                "transition-opacity duration-200",
-                isDragging ? "opacity-100" : "group-hover:opacity-100"
-              )}>
-                Drag to reposition
-              </div>
-            </Card>
-          </div>
-        )}
       </div>
       
       <div className={`${isAntiCheatingWarningActive ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'} border-t py-3 px-6 flex items-center justify-between sticky bottom-0 z-10 transition-colors duration-300`}>
