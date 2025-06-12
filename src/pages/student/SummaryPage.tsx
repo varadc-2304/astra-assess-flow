@@ -70,9 +70,6 @@ const SummaryPage = () => {
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-3xl mx-auto px-4">
         <div className="text-center mb-8">
-          <div className="mx-auto w-16 h-16 mb-4">
-            <img src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" alt="Yudha Logo" className="w-full h-full" />
-          </div>
           <h1 className="text-3xl font-bold mb-2">Assessment Completed</h1>
           <p className="text-gray-600">Your results are summarized below</p>
         </div>
