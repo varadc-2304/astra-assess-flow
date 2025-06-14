@@ -8,7 +8,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Play, ArrowRight } from 'lucide-react';
 
 const AssessmentCodeInput = () => {
   const [code, setCode] = useState('');
@@ -92,52 +91,28 @@ const AssessmentCodeInput = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto">
-      <Card className="card-modern border-0 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-astra-red/5 to-orange-500/5 opacity-50"></div>
-        <CardHeader className="relative pb-6 text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-astra-red to-red-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-            <Play className="h-8 w-8 text-white" />
-          </div>
-          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-            Enter Assessment Code
-          </CardTitle>
-          <CardDescription className="text-gray-600 text-base mt-2">
-            Please enter your unique assessment code to begin
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="relative space-y-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Input
-                placeholder="Enter assessment code..."
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className="input-modern h-14 text-lg text-center font-mono tracking-wider uppercase placeholder:normal-case placeholder:tracking-normal"
-                disabled={loading}
-              />
-            </div>
-            <Button 
-              type="submit" 
-              className="btn-modern w-full h-14 bg-gradient-to-r from-astra-red to-red-600 hover:from-red-600 hover:to-red-700 text-white text-lg font-semibold" 
-              disabled={loading || !code.trim()}
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-3"></div>
-                  Verifying...
-                </>
-              ) : (
-                <>
-                  Start Assessment
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </>
-              )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+    <Card className="w-full max-w-md mx-auto">
+      <CardHeader>
+        <CardTitle>Enter Assessment Code</CardTitle>
+        <CardDescription>
+          Please enter your assessment code to begin
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            placeholder="Enter code..."
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            className="uppercase"
+            disabled={loading}
+          />
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Verifying..." : "Start Assessment"}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 };
 
