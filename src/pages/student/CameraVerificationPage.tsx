@@ -122,10 +122,10 @@ const CameraVerificationPage = () => {
   
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
         <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-gray-300 border-t-blue-600 rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading assessment...</p>
+          <div className="animate-spin h-8 w-8 border-4 border-gray-600 border-t-red-500 rounded-full mx-auto mb-4"></div>
+          <p className="text-gray-300">Loading assessment...</p>
         </div>
       </div>
     );
@@ -167,31 +167,31 @@ const CameraVerificationPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         {/* Minimal Header */}
         <div className="text-center mb-6">
-          <div className="w-12 h-12 mx-auto mb-3 bg-blue-50 rounded-full flex items-center justify-center">
-            <Camera className="h-6 w-6 text-blue-600" />
+          <div className="w-12 h-12 mx-auto mb-3 bg-red-500/10 rounded-full flex items-center justify-center border border-red-500/20">
+            <Camera className="h-6 w-6 text-red-400" />
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900 mb-1">Camera Verification</h1>
-          <p className="text-gray-600">{assessment?.name}</p>
+          <h1 className="text-2xl font-semibold text-white mb-1">Camera Verification</h1>
+          <p className="text-gray-400">{assessment?.name}</p>
         </div>
         
-        <Card className="border-0 shadow-sm">
+        <Card className="border-gray-700 bg-gray-800/50 shadow-xl backdrop-blur-sm">
           <CardContent className="p-6">
             {!isCameraActivated ? (
               <div className="text-center py-8">
-                <div className="w-16 h-16 mx-auto mb-4 bg-blue-50 rounded-full flex items-center justify-center">
-                  <Camera className="h-8 w-8 text-blue-600" />
+                <div className="w-16 h-16 mx-auto mb-4 bg-red-500/10 rounded-full flex items-center justify-center border border-red-500/20">
+                  <Camera className="h-8 w-8 text-red-400" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Camera Access Required</h3>
-                <p className="text-gray-600 mb-6 text-sm">
+                <h3 className="text-lg font-medium text-white mb-2">Camera Access Required</h3>
+                <p className="text-gray-400 mb-6 text-sm">
                   Please allow camera access to proceed with identity verification.
                 </p>
                 <Button 
                   onClick={handleActivateCamera}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-red-500 hover:bg-red-600 text-white border-0"
                 >
                   <Camera className="mr-2 h-4 w-4" />
                   Activate Camera
@@ -210,8 +210,8 @@ const CameraVerificationPage = () => {
                 />
                 
                 {/* Minimal Guidelines */}
-                <div className="bg-blue-50 rounded-lg p-3">
-                  <p className="text-blue-800 text-sm text-center">
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                  <p className="text-red-200 text-sm text-center">
                     Ensure your face is clearly visible and well-lit
                   </p>
                 </div>
@@ -222,14 +222,14 @@ const CameraVerificationPage = () => {
           <CardFooter className="p-6 pt-0">
             {isVerified ? (
               <div className="w-full text-center">
-                <div className="inline-flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full text-green-700 mb-4">
+                <div className="inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 px-4 py-2 rounded-full text-green-400 mb-4">
                   <CheckCircle className="h-4 w-4" />
                   <span className="text-sm font-medium">Verification Complete</span>
                 </div>
                 <div>
                   <Button 
                     onClick={handleStartAssessment}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className="bg-red-500 hover:bg-red-600 text-white border-0"
                   >
                     <ShieldCheck className="mr-2 h-4 w-4" />
                     Start Assessment
@@ -238,7 +238,7 @@ const CameraVerificationPage = () => {
               </div>
             ) : (
               <div className="w-full text-center">
-                <p className="text-gray-500 text-sm">
+                <p className="text-gray-400 text-sm">
                   {!isCameraActivated 
                     ? "Activate your camera to begin verification" 
                     : "Complete verification to proceed"
@@ -251,7 +251,7 @@ const CameraVerificationPage = () => {
         
         {/* Minimal Security Notice */}
         <div className="text-center mt-4">
-          <div className="inline-flex items-center gap-1 text-gray-400 text-xs">
+          <div className="inline-flex items-center gap-1 text-gray-500 text-xs">
             <ShieldCheck className="h-3 w-3" />
             <span>Secure & encrypted</span>
           </div>
