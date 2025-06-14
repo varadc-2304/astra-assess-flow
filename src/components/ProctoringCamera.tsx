@@ -272,7 +272,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       // Add new violation
       currentViolations.push(violationText);
       
-      // Update submission with new violations and mark as cheated since face violation occurred
+      // Update submission with new violations
       const { error: updateError } = await supabase
         .from('submissions')
         .update({ 
@@ -283,19 +283,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       
       if (updateError) {
         console.error("Error updating face violations:", updateError);
-        return;
-      }
-
-      // Update the results table to mark as cheated when any face violation is recorded
-      const { error: resultUpdateError } = await supabase
-        .from('results')
-        .update({ 
-          is_cheated: true
-        })
-        .eq('submission_id', submissionId);
-      
-      if (resultUpdateError) {
-        console.error("Error updating result cheating status:", resultUpdateError);
       }
       
       // If this is the final violation that terminates the session
