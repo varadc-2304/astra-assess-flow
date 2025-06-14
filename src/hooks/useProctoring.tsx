@@ -8,7 +8,6 @@ const MODEL_URL = '/models';
 const FACE_DISAPPEARANCE_WARNING_TIME = 40000; // 40 seconds
 const FACE_DISAPPEARANCE_VIOLATION_TIME = 60000; // 1 minute
 const VIOLATION_COOLDOWN_TIME = 300000; // 5 minutes
-const FACE_REFERENCE_UPDATE_INTERVAL = 30000; // Update reference face every 30 seconds when stable
 
 // Types
 export type ProctoringStatus = 
@@ -27,14 +26,12 @@ export type ViolationType =
   'faceNotCentered' | 
   'faceCovered' | 
   'rapidMovement' | 
-  'frequentDisappearance' |
-  'identityMismatch';
+  'frequentDisappearance';
 
 export type WarningType = 
   'faceDisappearing' | 
   'noFaceWarning' | 
-  'multipleFaces' | 
-  'identityChanged';
+  'multipleFaces';
 
 export interface ProctoringOptions {
   showDebugInfo?: boolean;
@@ -77,8 +74,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     faceNotCentered: 0,
     faceCovered: 0,
     rapidMovement: 0,
-    frequentDisappearance: 0,
-    identityMismatch: 0
+    frequentDisappearance: 0
   });
   const [activeWarning, setActiveWarning] = useState<ViolationWarning | null>(null);
 
@@ -112,14 +108,8 @@ export function useProctoring(options: ProctoringOptions = {}) {
     faceNotCentered: 0,
     faceCovered: 0,
     rapidMovement: 0,
-    frequentDisappearance: 0,
-    identityMismatch: 0
+    frequentDisappearance: 0
   });
-
-  // Face identity tracking
-  const referenceFaceDescriptorRef = useRef<Float32Array | null>(null);
-  const lastReferenceFaceUpdateRef = useRef<number>(0);
-  const stableFaceCountRef = useRef(0);
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -169,67 +159,23 @@ export function useProctoring(options: ProctoringOptions = {}) {
     }
   }, []);
 
-  // Compare face descriptors for identity verification - FIXED the euclideanDistance call
-  const compareFaceDescriptors = useCallback(async (detection: faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>) => {
-    try {
-      const descriptor = await faceapi.computeFaceDescriptor(videoRef.current!, detection);
-      
-      if (!referenceFaceDescriptorRef.current) {
-        // Set initial reference face
-        referenceFaceDescriptorRef.current = descriptor as Float32Array;
-        lastReferenceFaceUpdateRef.current = Date.now();
-        stableFaceCountRef.current = 1;
-        return true; // First face, consider it valid
-      }
-      
-      // Calculate distance between current face and reference - FIXED: use proper distance calculation
-      const distance = faceapi.euclideanDistance(referenceFaceDescriptorRef.current, descriptor as Float32Array);
-      const threshold = 0.6; // Threshold for face similarity
-      
-      const now = Date.now();
-      const isCurrentFaceSimilar = distance < threshold;
-      
-      if (isCurrentFaceSimilar) {
-        stableFaceCountRef.current++;
-        
-        // Update reference face periodically when face is stable
-        if (now - lastReferenceFaceUpdateRef.current > FACE_REFERENCE_UPDATE_INTERVAL && stableFaceCountRef.current > 10) {
-          referenceFaceDescriptorRef.current = descriptor as Float32Array;
-          lastReferenceFaceUpdateRef.current = now;
-          stableFaceCountRef.current = 0;
-        }
-        
-        return true;
-      } else {
-        // Face doesn't match reference
-        stableFaceCountRef.current = 0;
-        return false;
-      }
-    } catch (error) {
-      console.error('Error comparing face descriptors:', error);
-      return true; // Assume valid on error to avoid false positives
-    }
-  }, []);
-
   // Load models with performance optimizations
   const loadModels = useCallback(async () => {
     try {
       // Check if models are already loaded to avoid reloading
       if (faceapi.nets.tinyFaceDetector.isLoaded && 
           faceapi.nets.faceLandmark68Net.isLoaded && 
-          faceapi.nets.faceExpressionNet.isLoaded &&
-          faceapi.nets.faceRecognitionNet.isLoaded) {
+          faceapi.nets.faceExpressionNet.isLoaded) {
         console.log('Face-API models already loaded');
         setIsModelLoaded(true);
         return true;
       }
 
-      // Load models in parallel for better performance
+      // Load models in parallel for better performance - removed faceRecognitionNet
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
       ]);
       
       console.log('Face-API models loaded successfully');
@@ -516,14 +462,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
           if (detections.length === 1) {
             const detection = detections[0];
             
-            // Check face identity
-            const isSamePerson = await compareFaceDescriptors(detection);
-            if (!isSamePerson && !isViolationInCooldown('identityMismatch')) {
-              if (recordViolation('identityMismatch')) {
-                showWarning('identityChanged', 'Cheating detected: Face identity changed. Ensure you are the registered user.');
-              }
-            }
-            
             // Check if face is centered
             if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
               if (!isViolationInCooldown('faceNotCentered')) {
@@ -736,8 +674,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     recordViolation,
     isViolationInCooldown,
     showWarning,
-    dismissWarning,
-    compareFaceDescriptors
+    dismissWarning
   ]);
 
   // Start detection loop
@@ -793,8 +730,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
       faceNotCentered: 0,
       faceCovered: 0,
       rapidMovement: 0,
-      frequentDisappearance: 0,
-      identityMismatch: 0
+      frequentDisappearance: 0
     });
     
     // Reset tracking state
@@ -803,9 +739,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
     lastFaceDetectionTimeRef.current = 0;
     faceDisappearanceStartRef.current = null;
     noFaceStartRef.current = null;
-    referenceFaceDescriptorRef.current = null;
-    lastReferenceFaceUpdateRef.current = 0;
-    stableFaceCountRef.current = 0;
     setActiveWarning(null);
   }, []);
 

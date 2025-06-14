@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
@@ -80,8 +79,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     faceNotCentered: 0,
     faceCovered: 0,
     rapidMovement: 0,
-    frequentDisappearance: 0,
-    identityMismatch: 0
+    frequentDisappearance: 0
   });
   const [violationLog, setViolationLog] = useState<string[]>([]);
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
@@ -98,8 +96,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     faceNotCentered: 0,
     faceCovered: 0,
     rapidMovement: 0,
-    frequentDisappearance: 0,
-    identityMismatch: 0
+    frequentDisappearance: 0
   });
   
   const {
@@ -217,8 +214,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         return 'Rapid head movement detected';
       case 'frequentDisappearance':
         return 'Face frequently disappearing';
-      case 'identityMismatch':
-        return 'Face identity mismatch';
       default:
         return 'Unknown violation';
     }
