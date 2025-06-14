@@ -61,6 +61,7 @@ const AssessmentPage = () => {
   const [testCaseStatus, setTestCaseStatus] = useState<TestCaseStatus>({});
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [assessmentStartTime] = useState(Date.now()); // Track when assessment started
+  const [recordingPath, setRecordingPath] = useState<string | null>(null);
   const navigate = useNavigate();
   const { 
     enterFullscreen, 
@@ -233,10 +234,25 @@ const AssessmentPage = () => {
     setShowExitDialog(true);
   };
   
+  const handleRecordingStart = () => {
+    console.log("Assessment recording started");
+  };
+
+  const handleRecordingStop = (path: string | null) => {
+    setRecordingPath(path);
+    console.log("Assessment recording stopped, path:", path);
+  };
+
   const confirmEndAssessment = async () => {
     setIsEndingAssessment(true);
     
     try {
+      // Stop recording if it's running
+      if (isAiProctoringEnabled && recordingPath === null) {
+        // Give some time for recording to finish
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
@@ -323,6 +339,9 @@ const AssessmentPage = () => {
             submissionId={submissionId || undefined}
             size="small"
             onWarning={showProctoringWarning}
+            enableRecording={true}
+            onRecordingStart={handleRecordingStart}
+            onRecordingStop={handleRecordingStop}
           />
         </div>
       )}
@@ -444,6 +463,24 @@ const AssessmentPage = () => {
                     <span className="text-gray-600 dark:text-gray-300">Not Answered:</span>
                     <span className="font-medium">{questionStatus.filter(status => !status).length}</span>
                   </div>
+                  {isAiProctoringEnabled && (
+                    <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
+                      <span className="text-gray-600 dark:text-gray-300">Recording:</span>
+                      <span className="font-medium flex items-center">
+                        {recordingPath ? (
+                          <>
+                            <CheckCircle2 className="h-3 w-3 text-green-500 mr-1" />
+                            Completed
+                          </>
+                        ) : (
+                          <>
+                            <div className="h-2 w-2 bg-red-500 rounded-full animate-pulse mr-1"></div>
+                            Active
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
               
