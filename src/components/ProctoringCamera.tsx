@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,6 +14,7 @@ interface ProctoringCameraProps {
   onVerificationComplete?: (success: boolean) => void;
   showControls?: boolean;
   showStatus?: boolean;
+  showWarnings?: boolean;
   trackViolations?: boolean;
   assessmentId?: string;
   submissionId?: string;
@@ -66,6 +68,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   onVerificationComplete,
   showControls = true,
   showStatus = true,
+  showWarnings = true,
   trackViolations = false,
   assessmentId,
   submissionId,
@@ -322,8 +325,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
 
   return (
     <div className="proctoring-camera-container">
-      {/* Violation Warning Display */}
-      {activeWarning && (
+      {/* Violation Warning Display - Only show if showWarnings is true */}
+      {showWarnings && activeWarning && (
         <div className="mb-4 relative">
           <div className={cn(
             "p-4 rounded-lg border-2 animate-pulse",

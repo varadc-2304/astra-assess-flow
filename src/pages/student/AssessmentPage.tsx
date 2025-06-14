@@ -304,6 +304,7 @@ const AssessmentPage = () => {
           <ProctoringCamera 
             showControls={false}
             showStatus={false}
+            showWarnings={true}
             trackViolations={true}
             assessmentId={assessment.id}
             submissionId={submissionId || undefined}
@@ -339,7 +340,8 @@ const AssessmentPage = () => {
                   <ProctoringCamera 
                     showControls={false}
                     showStatus={true}
-                    trackViolations={true}
+                    showWarnings={false}
+                    trackViolations={false}
                     assessmentId={assessment.id}
                     submissionId={submissionId || undefined}
                     size="default"
