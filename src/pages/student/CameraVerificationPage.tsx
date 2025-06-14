@@ -204,7 +204,6 @@ const CameraVerificationPage = () => {
                   showControls={!isVerified}
                   showStatus={true}
                   trackViolations={false}
-                  enableRecording={true}
                   assessmentId={assessment.id}
                   submissionId={submissionId || undefined}
                   size="default"

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import { useToast } from '@/hooks/use-toast';
@@ -41,7 +40,6 @@ export interface ProctoringOptions {
   drawExpressions?: boolean;
   detectExpressions?: boolean;
   trackViolations?: boolean;
-  enableRecording?: boolean;
   detectionOptions?: {
     faceDetectionThreshold?: number;
     faceCenteredTolerance?: number;
@@ -116,8 +114,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectionIntervalRef = useRef<number | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
 
   // Check if violation is in cooldown period
@@ -196,58 +192,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
     }
   }, [toast]);
 
-  // Start recording
-  const startRecording = useCallback((stream: MediaStream) => {
-    if (!stream) return;
-
-    recordedChunksRef.current = [];
-    const recorderOptions = { mimeType: 'video/webm; codecs=vp9' };
-    try {
-        mediaRecorderRef.current = new MediaRecorder(stream, recorderOptions);
-    } catch (e) {
-        console.error('Error creating MediaRecorder with vp9, falling back:', e);
-        mediaRecorderRef.current = new MediaRecorder(stream);
-    }
-
-    mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-            recordedChunksRef.current.push(event.data);
-        }
-    };
-    
-    mediaRecorderRef.current.start(1000); // Record in 1s chunks
-    console.log('Recording started.');
-  }, []);
-
-  // Finalize recording
-  const finalizeRecording = useCallback((): Promise<Blob | null> => {
-    return new Promise((resolve) => {
-        const createBlobAndResolve = () => {
-            if (recordedChunksRef.current.length > 0) {
-                const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-                recordedChunksRef.current = [];
-                console.log('Recording finalized, blob created.', blob);
-                resolve(blob);
-            } else {
-                resolve(null);
-            }
-        };
-
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            mediaRecorderRef.current.onstop = () => {
-                createBlobAndResolve();
-                mediaRecorderRef.current = null;
-            };
-            mediaRecorderRef.current.stop();
-        } else {
-            createBlobAndResolve();
-            if (mediaRecorderRef.current) {
-                mediaRecorderRef.current = null;
-            }
-        }
-    });
-  }, []);
-
   // Initialize camera with improved error handling
   const initializeCamera = useCallback(async () => {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -290,10 +234,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
       setIsCameraPermissionGranted(true);
       setIsCameraReady(true);
       
-      if (options.enableRecording) {
-        startRecording(stream);
-      }
-
       return true;
     } catch (error) {
       console.error('Error accessing camera:', error);
@@ -306,7 +246,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
       setIsCameraPermissionGranted(false);
       return false;
     }
-  }, [facingMode, toast, options.enableRecording, startRecording]);
+  }, [facingMode, toast]);
 
   // Switch camera (for mobile devices with multiple cameras)
   const switchCamera = useCallback(() => {
@@ -759,7 +699,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
   }, [detectFaces]);
 
   // Stop detection and release camera
-  const stopDetection = useCallback(async () => {
+  const stopDetection = useCallback(() => {
     if (detectionIntervalRef.current) {
       clearInterval(detectionIntervalRef.current);
       detectionIntervalRef.current = null;
@@ -769,8 +709,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
       clearTimeout(warningTimeoutRef.current);
       warningTimeoutRef.current = null;
     }
-    
-    const recordedBlob = options.enableRecording ? await finalizeRecording() : null;
 
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
@@ -804,9 +742,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     noFaceStartRef.current = null;
     faceNotCenteredStartRef.current = null;
     setActiveWarning(null);
-
-    return recordedBlob;
-  }, [options.enableRecording, finalizeRecording]);
+  }, []);
 
   // Initialize system
   useEffect(() => {
@@ -840,22 +776,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
       initializeCamera();
     }
   }, [facingMode, isCameraPermissionGranted, initializeCamera]);
-
-  // Stop recording
-  const stopRecording = useCallback((): Promise<void> => {
-    return new Promise((resolve) => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            mediaRecorderRef.current.onstop = () => {
-                console.log('Recording stopped.');
-                resolve();
-            };
-            mediaRecorderRef.current.stop();
-            mediaRecorderRef.current = null;
-        } else {
-            resolve();
-        }
-    });
-  }, []);
 
   // Return values and functions
   return {
