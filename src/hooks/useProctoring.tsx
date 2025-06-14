@@ -706,7 +706,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     
     // Reset tracking state
     faceHistoryRef.current = { positions: [], timestamps: [] };
-    noFaceCounterRef.useRef(0);
+    noFaceCounterRef.current = 0;
     lastFaceDetectionTimeRef.current = 0;
     noFaceStartRef.current = null;
     setActiveWarning(null);
