@@ -28,7 +28,9 @@ export function useVideoRecording(options: RecordingOptions = {}) {
   const startRecording = useCallback(async (videoElement?: HTMLVideoElement) => {
     try {
       setRecordingError(null);
-      console.log('Starting video recording...');
+      console.log('=== STARTING VIDEO RECORDING ===');
+      console.log('User ID:', user?.id);
+      console.log('Video element provided:', !!videoElement);
       
       let stream: MediaStream;
       
@@ -36,7 +38,7 @@ export function useVideoRecording(options: RecordingOptions = {}) {
         // Use existing stream from video element
         stream = videoElement.srcObject as MediaStream;
         streamRef.current = stream;
-        console.log('Using existing video stream');
+        console.log('Using existing video stream from element');
       } else {
         // Create new stream
         console.log('Creating new video stream...');
@@ -49,8 +51,20 @@ export function useVideoRecording(options: RecordingOptions = {}) {
           audio: false // Don't record audio for privacy
         });
         streamRef.current = stream;
-        console.log('New video stream created');
+        console.log('New video stream created successfully');
       }
+
+      // Verify stream is active
+      const videoTracks = stream.getVideoTracks();
+      console.log('Video tracks:', videoTracks.length);
+      videoTracks.forEach((track, index) => {
+        console.log(`Track ${index}:`, {
+          kind: track.kind,
+          enabled: track.enabled,
+          readyState: track.readyState,
+          label: track.label
+        });
+      });
 
       // Check if the browser supports the preferred mime type
       let mimeType = defaultOptions.mimeType!;
@@ -66,6 +80,8 @@ export function useVideoRecording(options: RecordingOptions = {}) {
         }
       }
 
+      console.log('Final mime type selected:', mimeType);
+
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType,
         videoBitsPerSecond: defaultOptions.videoBitsPerSecond
@@ -75,58 +91,104 @@ export function useVideoRecording(options: RecordingOptions = {}) {
       recordingStartTimeRef.current = Date.now();
 
       mediaRecorder.ondataavailable = (event) => {
+        console.log('=== DATA AVAILABLE EVENT ===');
+        console.log('Event data size:', event.data.size, 'bytes');
+        console.log('Event data type:', event.data.type);
+        
         if (event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
-          console.log(`Recording chunk received, size: ${event.data.size} bytes. Total chunks: ${recordedChunksRef.current.length}`);
+          console.log(`Recording chunk added. Total chunks: ${recordedChunksRef.current.length}`);
+          console.log('Total size so far:', recordedChunksRef.current.reduce((total, chunk) => total + chunk.size, 0), 'bytes');
+        } else {
+          console.warn('Received empty data chunk!');
         }
       };
 
       mediaRecorder.onerror = (event) => {
-        console.error('MediaRecorder error:', event);
+        console.error('=== MEDIA RECORDER ERROR ===');
+        console.error('Error event:', event);
         setRecordingError('Recording error occurred');
         setIsRecording(false);
       };
 
+      mediaRecorder.onstart = () => {
+        console.log('=== MEDIA RECORDER STARTED ===');
+        console.log('State:', mediaRecorder.state);
+      };
+
+      mediaRecorder.onstop = () => {
+        console.log('=== MEDIA RECORDER STOPPED ===');
+        console.log('Final chunks count:', recordedChunksRef.current.length);
+        console.log('Final total size:', recordedChunksRef.current.reduce((total, chunk) => total + chunk.size, 0), 'bytes');
+      };
+
       mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start(10000); // Record in 10-second chunks
+      mediaRecorder.start(1000); // Record in 1-second chunks for better data collection
       setIsRecording(true);
       
-      console.log('Video recording started with mime type:', mimeType);
+      console.log('Video recording started successfully');
+      console.log('MediaRecorder state:', mediaRecorder.state);
       
     } catch (error) {
-      console.error('Error starting recording:', error);
+      console.error('=== ERROR STARTING RECORDING ===');
+      console.error('Error details:', error);
       setRecordingError(`Failed to start recording: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [defaultOptions]);
+  }, [defaultOptions, user]);
 
   const stopRecording = useCallback((): Promise<Blob | null> => {
     return new Promise((resolve) => {
+      console.log('=== STOPPING VIDEO RECORDING ===');
+      
       if (!mediaRecorderRef.current || !isRecording) {
         console.warn('No active recording to stop');
         resolve(null);
         return;
       }
 
-      console.log('Stopping video recording...');
+      console.log('Current MediaRecorder state:', mediaRecorderRef.current.state);
+      console.log('Current chunks count:', recordedChunksRef.current.length);
 
       mediaRecorderRef.current.onstop = () => {
-        console.log(`Creating blob from ${recordedChunksRef.current.length} chunks`);
-        const recordedBlob = new Blob(recordedChunksRef.current, {
-          type: mediaRecorderRef.current?.mimeType || 'video/webm'
-        });
+        console.log('=== CREATING BLOB FROM CHUNKS ===');
+        console.log('Total chunks to process:', recordedChunksRef.current.length);
+        
+        const totalSize = recordedChunksRef.current.reduce((total, chunk) => total + chunk.size, 0);
+        console.log('Total data size:', totalSize, 'bytes');
+        
+        if (totalSize === 0) {
+          console.error('ERROR: No data recorded! All chunks are empty.');
+          setRecordingError('No video data was recorded');
+          resolve(null);
+          return;
+        }
+
+        const mimeType = mediaRecorderRef.current?.mimeType || 'video/webm';
+        console.log('Creating blob with mime type:', mimeType);
+        
+        const recordedBlob = new Blob(recordedChunksRef.current, { type: mimeType });
         
         setIsRecording(false);
-        console.log('Video recording stopped, blob size:', recordedBlob.size, 'bytes');
+        console.log('=== BLOB CREATED SUCCESSFULLY ===');
+        console.log('Blob size:', recordedBlob.size, 'bytes');
         console.log('Blob type:', recordedBlob.type);
         
         if (recordedBlob.size === 0) {
-          console.error('WARNING: Recorded blob is empty!');
+          console.error('ERROR: Created blob is empty despite having chunks!');
+          setRecordingError('Created recording file is empty');
+          resolve(null);
+          return;
         }
+        
+        // Create a test URL to verify the blob
+        const testUrl = URL.createObjectURL(recordedBlob);
+        console.log('Test blob URL created:', testUrl.substring(0, 50) + '...');
         
         resolve(recordedBlob);
       };
 
       mediaRecorderRef.current.stop();
+      console.log('Stop command sent to MediaRecorder');
     });
   }, [isRecording]);
 
@@ -164,55 +226,99 @@ export function useVideoRecording(options: RecordingOptions = {}) {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       
       // Create a simple, clean file path
-      const fileName = `${user.id}/${assessmentId}/${submissionId}-${timestamp}.webm`;
+      const fileName = `recording-${timestamp}.webm`;
+      const filePath = `${user.id}/${assessmentId}/${fileName}`;
 
-      console.log(`Uploading file: ${fileName}`);
+      console.log(`Uploading file: ${filePath}`);
       console.log(`File size: ${fileSizeMB.toFixed(2)}MB`);
       console.log(`Duration: ${recordingDuration}s`);
 
       setUploadProgress(10);
 
-      // First, let's check if the bucket exists
+      // Test bucket access first
+      console.log('Testing bucket access...');
       const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
-      console.log('Available buckets:', buckets?.map(b => b.name));
       
       if (bucketsError) {
-        console.error('Error listing buckets:', bucketsError);
+        console.error('Error accessing buckets:', bucketsError);
+        throw new Error(`Cannot access storage: ${bucketsError.message}`);
       }
+      
+      console.log('Available buckets:', buckets?.map(b => b.name));
+      const targetBucket = buckets?.find(b => b.name === 'proctoring-recordings');
+      
+      if (!targetBucket) {
+        console.error('Target bucket "proctoring-recordings" not found!');
+        throw new Error('Storage bucket not found');
+      }
+      
+      console.log('Target bucket found:', targetBucket);
+      setUploadProgress(20);
 
-      // Upload to Supabase Storage with explicit content type
+      // Try to list existing files in the bucket to verify access
+      console.log('Testing bucket read access...');
+      const { data: existingFiles, error: listError } = await supabase.storage
+        .from('proctoring-recordings')
+        .list('', { limit: 1 });
+      
+      if (listError) {
+        console.error('Cannot read from bucket:', listError);
+      } else {
+        console.log('Bucket read test successful. Existing files count:', existingFiles?.length || 0);
+      }
+      
+      setUploadProgress(30);
+
+      // Convert blob to ArrayBuffer for upload (sometimes helps with compatibility)
+      console.log('Converting blob to ArrayBuffer...');
+      const arrayBuffer = await blob.arrayBuffer();
+      console.log('ArrayBuffer size:', arrayBuffer.byteLength, 'bytes');
+      
+      setUploadProgress(40);
+
+      // Upload to Supabase Storage with explicit options
       console.log('Starting upload to Supabase Storage...');
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('proctoring-recordings')
-        .upload(fileName, blob, {
-          contentType: blob.type || 'video/webm',
-          upsert: false
+        .upload(filePath, arrayBuffer, {
+          contentType: 'video/webm',
+          upsert: false,
+          duplex: 'half'
         });
 
       if (uploadError) {
-        console.error('Upload error details:', {
-          message: uploadError.message,
-          error: uploadError,
-          fileName,
-          blobSize: blob.size,
-          blobType: blob.type
-        });
+        console.error('=== UPLOAD ERROR DETAILS ===');
+        console.error('Error message:', uploadError.message);
+        console.error('Error details:', uploadError);
+        console.error('File path attempted:', filePath);
+        console.error('Content type:', 'video/webm');
+        console.error('File size:', arrayBuffer.byteLength, 'bytes');
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      console.log('Upload successful! Data:', uploadData);
-      setUploadProgress(50);
+      console.log('=== UPLOAD SUCCESSFUL ===');
+      console.log('Upload result:', uploadData);
+      setUploadProgress(60);
 
-      // Verify the upload by listing files in the bucket
-      const { data: files, error: listError } = await supabase.storage
+      // Verify the upload by checking if file exists
+      console.log('Verifying uploaded file...');
+      const { data: uploadedFile, error: verifyError } = await supabase.storage
         .from('proctoring-recordings')
-        .list(user.id, { limit: 10 });
+        .list(user.id + '/' + assessmentId);
       
-      if (listError) {
-        console.error('Error listing files after upload:', listError);
+      if (verifyError) {
+        console.error('Error verifying upload:', verifyError);
       } else {
-        console.log('Files in bucket after upload:', files?.map(f => f.name));
+        console.log('Files in upload directory:', uploadedFile?.map(f => f.name));
+        const ourFile = uploadedFile?.find(f => f.name === fileName);
+        if (ourFile) {
+          console.log('Upload verified! File found:', ourFile);
+        } else {
+          console.warn('Upload may have failed - file not found in directory listing');
+        }
       }
+      
+      setUploadProgress(70);
 
       // Create proctoring session record
       console.log('Creating proctoring session record...');
@@ -222,7 +328,7 @@ export function useVideoRecording(options: RecordingOptions = {}) {
           user_id: user.id,
           assessment_id: assessmentId,
           submission_id: submissionId,
-          recording_path: fileName,
+          recording_path: filePath,
           recording_status: 'completed',
           recording_size_mb: fileSizeMB,
           recording_duration_seconds: recordingDuration,
@@ -239,7 +345,7 @@ export function useVideoRecording(options: RecordingOptions = {}) {
         console.log('Proctoring session created successfully:', sessionData);
       }
 
-      setUploadProgress(75);
+      setUploadProgress(80);
 
       // Update submission with proctoring session reference
       if (sessionData) {
@@ -273,7 +379,7 @@ export function useVideoRecording(options: RecordingOptions = {}) {
   }, [user]);
 
   const cleanup = useCallback(() => {
-    console.log('Cleaning up video recording resources...');
+    console.log('=== CLEANING UP VIDEO RECORDING ===');
     
     if (mediaRecorderRef.current && isRecording) {
       console.log('Stopping active recording...');
