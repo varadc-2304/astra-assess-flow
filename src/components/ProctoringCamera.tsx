@@ -31,11 +31,6 @@ const statusMessages: Record<ProctoringStatus, { message: string; color: string;
     color: "text-blue-600",
     icon: <Loader2 className="h-4 w-4 animate-spin" />
   },
-  modelLoading: {
-    message: "Loading face detection model...",
-    color: "text-blue-600",
-    icon: <Loader2 className="h-4 w-4 animate-spin" />
-  },
   ready: {
     message: "System ready. Position your face in the frame.",
     color: "text-amber-600",
