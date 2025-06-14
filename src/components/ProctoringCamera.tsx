@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw, Shield, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -107,6 +107,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     canvasRef,
     status,
     violations,
+    activeWarning,
+    dismissWarning,
     isCameraReady,
     isModelLoaded,
     isInitializing,
@@ -325,6 +327,46 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
 
   return (
     <div className="proctoring-camera-container">
+      {/* Violation Warning Display */}
+      {activeWarning && (
+        <div className="mb-4 relative">
+          <div className={cn(
+            "p-4 rounded-lg border-2 animate-pulse",
+            "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
+          )}>
+            <div className="flex items-start justify-between">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0">
+                  <Shield className="h-6 w-6 text-red-600 dark:text-red-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-1">
+                    Proctoring Alert
+                  </h3>
+                  <p className="text-sm text-red-700 dark:text-red-300">
+                    {activeWarning.message}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={dismissWarning}
+                className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 p-1 h-6 w-6"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="mt-3 flex items-center space-x-2">
+              <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+              <span className="text-xs text-red-600 dark:text-red-400 font-medium">
+                Timestamp: {new Date(activeWarning.timestamp).toLocaleTimeString()}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className={`relative w-full ${containerSizeClass} mx-auto`}>
         {/* Enhanced video feed container with modern aesthetics */}
         <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-900 via-gray-800 to-black mb-4 border-2 border-gray-600/30 shadow-2xl backdrop-blur-sm">

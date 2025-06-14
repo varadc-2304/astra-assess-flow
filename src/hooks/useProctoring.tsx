@@ -6,6 +6,10 @@ import { useToast } from '@/hooks/use-toast';
 // Define constants
 const DETECTION_INTERVAL = 1000; // 1 second interval between detections
 const MODEL_URL = '/models';
+const FACE_DISAPPEARANCE_WARNING_TIME = 40000; // 40 seconds
+const FACE_DISAPPEARANCE_VIOLATION_TIME = 60000; // 1 minute
+const VIOLATION_COOLDOWN_TIME = 300000; // 5 minutes
+const FACE_REFERENCE_UPDATE_INTERVAL = 30000; // Update reference face every 30 seconds when stable
 
 // Types
 export type ProctoringStatus = 
@@ -27,6 +31,12 @@ export type ViolationType =
   'frequentDisappearance' |
   'identityMismatch';
 
+export type WarningType = 
+  'faceDisappearing' | 
+  'noFaceWarning' | 
+  'multipleFaces' | 
+  'identityChanged';
+
 export interface ProctoringOptions {
   showDebugInfo?: boolean;
   drawLandmarks?: boolean;
@@ -47,6 +57,13 @@ export interface DetectionResult {
   message?: string;
 }
 
+export interface ViolationWarning {
+  type: WarningType;
+  message: string;
+  timestamp: number;
+  isActive: boolean;
+}
+
 export function useProctoring(options: ProctoringOptions = {}) {
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
@@ -64,6 +81,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     frequentDisappearance: 0,
     identityMismatch: 0
   });
+  const [activeWarning, setActiveWarning] = useState<ViolationWarning | null>(null);
 
   // Set default detection options
   const detectionOptions = {
@@ -84,6 +102,25 @@ export function useProctoring(options: ProctoringOptions = {}) {
   );
   const noFaceCounterRef = useRef(0);
   const lastFaceDetectionTimeRef = useRef(Date.now());
+  const faceDisappearanceStartRef = useRef<number | null>(null);
+  const noFaceStartRef = useRef<number | null>(null);
+  const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Violation cooldown tracking
+  const violationCooldownRef = useRef<Record<ViolationType, number>>({
+    noFaceDetected: 0,
+    multipleFacesDetected: 0,
+    faceNotCentered: 0,
+    faceCovered: 0,
+    rapidMovement: 0,
+    frequentDisappearance: 0,
+    identityMismatch: 0
+  });
+
+  // Face identity tracking
+  const referenceFaceDescriptorRef = useRef<Float32Array | null>(null);
+  const lastReferenceFaceUpdateRef = useRef<number>(0);
+  const stableFaceCountRef = useRef(0);
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -91,13 +128,98 @@ export function useProctoring(options: ProctoringOptions = {}) {
   const detectionIntervalRef = useRef<number | null>(null);
   const { toast } = useToast();
 
+  // Check if violation is in cooldown period
+  const isViolationInCooldown = useCallback((violationType: ViolationType) => {
+    const now = Date.now();
+    return now - violationCooldownRef.current[violationType] < VIOLATION_COOLDOWN_TIME;
+  }, []);
+
+  // Record violation with cooldown
+  const recordViolation = useCallback((violationType: ViolationType) => {
+    if (isViolationInCooldown(violationType)) {
+      return false;
+    }
+    
+    const now = Date.now();
+    violationCooldownRef.current[violationType] = now;
+    
+    setViolations(prev => ({
+      ...prev,
+      [violationType]: prev[violationType] + 1
+    }));
+    
+    return true;
+  }, [isViolationInCooldown]);
+
+  // Show warning with dismiss functionality
+  const showWarning = useCallback((type: WarningType, message: string) => {
+    setActiveWarning({
+      type,
+      message,
+      timestamp: Date.now(),
+      isActive: true
+    });
+  }, []);
+
+  // Dismiss warning
+  const dismissWarning = useCallback(() => {
+    setActiveWarning(null);
+    if (warningTimeoutRef.current) {
+      clearTimeout(warningTimeoutRef.current);
+      warningTimeoutRef.current = null;
+    }
+  }, []);
+
+  // Compare face descriptors for identity verification
+  const compareFaceDescriptors = useCallback(async (detection: faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>) => {
+    try {
+      const descriptor = await faceapi.computeFaceDescriptor(videoRef.current!, detection);
+      
+      if (!referenceFaceDescriptorRef.current) {
+        // Set initial reference face
+        referenceFaceDescriptorRef.current = descriptor as Float32Array;
+        lastReferenceFaceUpdateRef.current = Date.now();
+        stableFaceCountRef.current = 1;
+        return true; // First face, consider it valid
+      }
+      
+      // Calculate distance between current face and reference
+      const distance = faceapi.euclideanDistance(referenceFaceDescriptorRef.current, descriptor as Float32Array);
+      const threshold = 0.6; // Threshold for face similarity
+      
+      const now = Date.now();
+      const isCurrentFaceSimilar = distance < threshold;
+      
+      if (isCurrentFaceSimilar) {
+        stableFaceCountRef.current++;
+        
+        // Update reference face periodically when face is stable
+        if (now - lastReferenceFaceUpdateRef.current > FACE_REFERENCE_UPDATE_INTERVAL && stableFaceCountRef.current > 10) {
+          referenceFaceDescriptorRef.current = descriptor as Float32Array;
+          lastReferenceFaceUpdateRef.current = now;
+          stableFaceCountRef.current = 0;
+        }
+        
+        return true;
+      } else {
+        // Face doesn't match reference
+        stableFaceCountRef.current = 0;
+        return false;
+      }
+    } catch (error) {
+      console.error('Error comparing face descriptors:', error);
+      return true; // Assume valid on error to avoid false positives
+    }
+  }, []);
+
   // Load models with performance optimizations
   const loadModels = useCallback(async () => {
     try {
       // Check if models are already loaded to avoid reloading
       if (faceapi.nets.tinyFaceDetector.isLoaded && 
           faceapi.nets.faceLandmark68Net.isLoaded && 
-          faceapi.nets.faceExpressionNet.isLoaded) {
+          faceapi.nets.faceExpressionNet.isLoaded &&
+          faceapi.nets.faceRecognitionNet.isLoaded) {
         console.log('Face-API models already loaded');
         setIsModelLoaded(true);
         return true;
@@ -107,7 +229,8 @@ export function useProctoring(options: ProctoringOptions = {}) {
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
       ]);
       
       console.log('Face-API models loaded successfully');
@@ -323,70 +446,104 @@ export function useProctoring(options: ProctoringOptions = {}) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
 
+      const now = Date.now();
+
       // Track violations if enabled
       if (options.trackViolations) {
-        const now = Date.now();
-        
         if (detections.length === 0) {
-          // No face detected
-          noFaceCounterRef.current += 1;
+          // No face detected logic
+          if (!noFaceStartRef.current) {
+            noFaceStartRef.current = now;
+          }
           
-          // Increase violation count if no face for 5 consecutive checks (5 seconds)
-          if (noFaceCounterRef.current >= 5) {
-            setViolations(prev => ({
-              ...prev,
-              noFaceDetected: prev.noFaceDetected + 1
-            }));
-            noFaceCounterRef.current = 0; // Reset counter after recording violation
+          const noFaceDuration = now - noFaceStartRef.current;
+          
+          // Show warning at 40 seconds
+          if (noFaceDuration >= FACE_DISAPPEARANCE_WARNING_TIME && noFaceDuration < FACE_DISAPPEARANCE_VIOLATION_TIME) {
+            if (!activeWarning || activeWarning.type !== 'noFaceWarning') {
+              showWarning('noFaceWarning', 'Face not visible in frame. If this continues, it will be considered cheating.');
+            }
+          }
+          
+          // Record violation at 60 seconds
+          if (noFaceDuration >= FACE_DISAPPEARANCE_VIOLATION_TIME) {
+            if (recordViolation('noFaceDetected')) {
+              dismissWarning();
+              showWarning('noFaceWarning', 'Cheating detected: Face not visible for extended period.');
+            }
+            noFaceStartRef.current = now; // Reset timer
           }
           
           // Track frequent disappearance
-          if (lastFaceDetectionTimeRef.current > 0 && 
-              now - lastFaceDetectionTimeRef.current < 10000) {  // Within 10 seconds
-            setViolations(prev => ({
-              ...prev,
-              frequentDisappearance: prev.frequentDisappearance + 1
-            }));
+          if (faceDisappearanceStartRef.current && !isViolationInCooldown('frequentDisappearance')) {
+            const disappearanceDuration = now - faceDisappearanceStartRef.current;
+            
+            if (disappearanceDuration >= FACE_DISAPPEARANCE_WARNING_TIME && disappearanceDuration < FACE_DISAPPEARANCE_VIOLATION_TIME) {
+              if (!activeWarning || activeWarning.type !== 'faceDisappearing') {
+                showWarning('faceDisappearing', 'Face frequently disappearing. If this continues, it will be considered cheating.');
+              }
+            }
+            
+            if (disappearanceDuration >= FACE_DISAPPEARANCE_VIOLATION_TIME) {
+              if (recordViolation('frequentDisappearance')) {
+                dismissWarning();
+                showWarning('faceDisappearing', 'Cheating detected: Face frequently disappearing.');
+              }
+              faceDisappearanceStartRef.current = null;
+            }
           }
         } else {
-          // Reset no-face counter
-          noFaceCounterRef.current = 0;
+          // Face detected - reset timers and warnings
+          noFaceStartRef.current = null;
+          if (activeWarning && (activeWarning.type === 'noFaceWarning' || activeWarning.type === 'faceDisappearing')) {
+            dismissWarning();
+          }
+          
+          // Start disappearance tracking if face was previously absent
+          if (!faceDisappearanceStartRef.current) {
+            faceDisappearanceStartRef.current = now;
+          }
+          
           lastFaceDetectionTimeRef.current = now;
           
           // Multiple faces detection
-          if (detections.length > 1) {
-            setViolations(prev => ({
-              ...prev,
-              multipleFacesDetected: prev.multipleFacesDetected + 1
-            }));
+          if (detections.length > 1 && !isViolationInCooldown('multipleFacesDetected')) {
+            if (recordViolation('multipleFacesDetected')) {
+              showWarning('multipleFaces', 'Cheating detected: Multiple faces detected. Only you should be visible.');
+            }
           }
           
           // Single face detection - check for other violations
           if (detections.length === 1) {
             const detection = detections[0];
             
+            // Check face identity
+            const isSamePerson = await compareFaceDescriptors(detection);
+            if (!isSamePerson && !isViolationInCooldown('identityMismatch')) {
+              if (recordViolation('identityMismatch')) {
+                showWarning('identityChanged', 'Cheating detected: Face identity changed. Ensure you are the registered user.');
+              }
+            }
+            
             // Check if face is centered
             if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
-              setViolations(prev => ({
-                ...prev,
-                faceNotCentered: prev.faceNotCentered + 1
-              }));
+              if (!isViolationInCooldown('faceNotCentered')) {
+                recordViolation('faceNotCentered');
+              }
             }
             
             // Check if face is covered
             if (isFaceCovered(detection)) {
-              setViolations(prev => ({
-                ...prev,
-                faceCovered: prev.faceCovered + 1
-              }));
+              if (!isViolationInCooldown('faceCovered')) {
+                recordViolation('faceCovered');
+              }
             }
             
             // Check for rapid movements
             if (checkForRapidMovements(detection.detection.box)) {
-              setViolations(prev => ({
-                ...prev,
-                rapidMovement: prev.rapidMovement + 1
-              }));
+              if (!isViolationInCooldown('rapidMovement')) {
+                recordViolation('rapidMovement');
+              }
             }
           }
         }
@@ -575,7 +732,13 @@ export function useProctoring(options: ProctoringOptions = {}) {
     isFaceCentered,
     isFaceCovered,
     checkForRapidMovements,
-    violations
+    violations,
+    activeWarning,
+    recordViolation,
+    isViolationInCooldown,
+    showWarning,
+    dismissWarning,
+    compareFaceDescriptors
   ]);
 
   // Start detection loop
@@ -601,6 +764,11 @@ export function useProctoring(options: ProctoringOptions = {}) {
     if (detectionIntervalRef.current) {
       clearInterval(detectionIntervalRef.current);
       detectionIntervalRef.current = null;
+    }
+
+    if (warningTimeoutRef.current) {
+      clearTimeout(warningTimeoutRef.current);
+      warningTimeoutRef.current = null;
     }
 
     if (streamRef.current) {
@@ -630,10 +798,16 @@ export function useProctoring(options: ProctoringOptions = {}) {
       identityMismatch: 0
     });
     
-    // Reset face tracking state
+    // Reset tracking state
     faceHistoryRef.current = { positions: [], timestamps: [] };
     noFaceCounterRef.current = 0;
     lastFaceDetectionTimeRef.current = 0;
+    faceDisappearanceStartRef.current = null;
+    noFaceStartRef.current = null;
+    referenceFaceDescriptorRef.current = null;
+    lastReferenceFaceUpdateRef.current = 0;
+    stableFaceCountRef.current = 0;
+    setActiveWarning(null);
   }, []);
 
   // Initialize system
@@ -676,6 +850,8 @@ export function useProctoring(options: ProctoringOptions = {}) {
     status,
     detectionResult,
     violations: options.trackViolations ? violations : undefined,
+    activeWarning,
+    dismissWarning,
     isModelLoaded,
     isCameraReady,
     isCameraPermissionGranted,
