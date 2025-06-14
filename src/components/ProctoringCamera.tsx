@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
@@ -19,6 +18,7 @@ interface ProctoringCameraProps {
   assessmentId?: string;
   submissionId?: string;
   size?: 'default' | 'small' | 'large';
+  onWarning?: (type: string, message: string) => void;
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -72,7 +72,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   trackViolations = false,
   assessmentId,
   submissionId,
-  size = 'default'
+  size = 'default',
+  onWarning
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -322,6 +323,13 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   // Determine container size based on the size prop
   const containerSizeClass = size === 'small' ? 'max-w-[180px]' : 
                             size === 'large' ? 'max-w-lg' : 'max-w-md';
+
+  // Forward warnings to parent component
+  useEffect(() => {
+    if (activeWarning && onWarning && trackViolations) {
+      onWarning(activeWarning.type, activeWarning.message);
+    }
+  }, [activeWarning, onWarning, trackViolations]);
 
   return (
     <div className="proctoring-camera-container">

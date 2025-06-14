@@ -15,7 +15,7 @@ import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, Camera, GripVertical } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, Camera, GripVertical, Shield, X, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
@@ -24,6 +24,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import ProctoringCamera from '@/components/ProctoringCamera';
 import { cn } from '@/lib/utils';
+import { useProctoringWarnings } from '@/hooks/useProctoringWarnings';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -296,6 +297,8 @@ const AssessmentPage = () => {
   // Anti-cheating warning is active when either fullscreen or tab warnings are shown
   const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
   
+  const { warning: proctoringWarning, showWarning: showProctoringWarning, dismissWarning: dismissProctoringWarning } = useProctoringWarnings();
+  
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
       {/* Hidden proctoring camera that runs continuously when AI proctoring is enabled */}
@@ -304,12 +307,53 @@ const AssessmentPage = () => {
           <ProctoringCamera 
             showControls={false}
             showStatus={false}
-            showWarnings={true}
+            showWarnings={false}
             trackViolations={true}
             assessmentId={assessment.id}
             submissionId={submissionId || undefined}
             size="small"
+            onWarning={showProctoringWarning}
           />
+        </div>
+      )}
+
+      {/* Visible Proctoring Warning Display */}
+      {isAiProctoringEnabled && proctoringWarning && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full mx-4">
+          <div className={cn(
+            "p-4 rounded-lg border-2 animate-pulse",
+            "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
+          )}>
+            <div className="flex items-start justify-between">
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0">
+                  <Shield className="h-6 w-6 text-red-600 dark:text-red-400" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-1">
+                    Proctoring Alert
+                  </h3>
+                  <p className="text-sm text-red-700 dark:text-red-300">
+                    {proctoringWarning.message}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={dismissProctoringWarning}
+                className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 p-1 h-6 w-6"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="mt-3 flex items-center space-x-2">
+              <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+              <span className="text-xs text-red-600 dark:text-red-400 font-medium">
+                Timestamp: {new Date(proctoringWarning.timestamp).toLocaleTimeString()}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
