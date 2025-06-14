@@ -31,11 +31,6 @@ const statusMessages: Record<ProctoringStatus, { message: string; color: string;
     color: "text-blue-600",
     icon: <Loader2 className="h-4 w-4 animate-spin" />
   },
-  ready: {
-    message: "System ready. Position your face in the frame.",
-    color: "text-amber-600",
-    icon: <Eye className="h-4 w-4" />
-  },
   faceDetected: {
     message: "Face detected and verified. You may proceed.",
     color: "text-green-600",
