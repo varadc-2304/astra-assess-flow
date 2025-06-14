@@ -1,749 +1,899 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { 
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger
-} from '@/components/ui/sheet';
-import { useAssessment } from '@/contexts/AssessmentContext';
-import { useFullscreen, MAX_WARNINGS } from '@/hooks/useFullscreen';
-import { Timer } from '@/components/Timer';
-import MCQQuestion from '@/components/MCQQuestion';
-import CodeEditor from '@/components/CodeEditor';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronLeft, ChevronRight, MenuIcon, CheckCircle, HelpCircle, AlertTriangle, Loader2, CheckCircle2, AlertOctagon, Camera, GripVertical, Shield, X, AlertCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { useAssessment } from '@/contexts/AssessmentContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { CodeQuestion, MCQQuestion as MCQQuestionType } from '@/contexts/AssessmentContext';
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Card } from '@/components/ui/card';
-import ProctoringCamera from '@/components/ProctoringCamera';
-import { cn } from '@/lib/utils';
-import { useProctoringWarnings } from '@/hooks/useProctoringWarnings';
-
-function isMCQQuestion(question: any): question is MCQQuestionType {
-  return question.type === 'mcq';
-}
-
-function isCodeQuestion(question: any): question is CodeQuestion {
-  return question.type === 'code';
-}
-
-interface TestCaseStatus {
-  [questionId: string]: { 
-    totalTests: number;
-    passedTests: number;
-  }  
-}
+import { supabase } from '@/integrations/supabase/client';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { MCQQuestion, CodingQuestion, QuestionSubmission, TestResult } from '@/types/database';
+import { MCQQuestionCard } from '@/components/MCQQuestionCard';
+import { CodingQuestionCard } from '@/components/CodingQuestionCard';
+import { Clock, AlertTriangle, CheckCircle, XCircle, ChevronLeft, ChevronRight, Save, Send, AlertCircle } from 'lucide-react';
+import { AssessmentRecorder } from '@/components/AssessmentRecorder';
 
 const AssessmentPage = () => {
-  const { 
-    assessment, 
-    assessmentStarted,
-    currentQuestionIndex, 
-    setCurrentQuestionIndex,
-    answerMCQ,
-    updateCodeSolution,
-    updateMarksObtained,
-    endAssessment,
-    totalMarksObtained,
-    totalPossibleMarks
-  } = useAssessment();
-
-  const [showExitDialog, setShowExitDialog] = useState(false);
-  const [isNavigating, setIsNavigating] = useState(false);
-  const [isEndingAssessment, setIsEndingAssessment] = useState(false);
-  const [testCaseStatus, setTestCaseStatus] = useState<TestCaseStatus>({});
-  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
-  const [assessmentStartTime] = useState(Date.now()); // Track when assessment started
-  const navigate = useNavigate();
-  const { 
-    enterFullscreen, 
-    isFullscreen, 
-    showExitWarning, 
-    tabSwitchWarning,
-    fullscreenWarnings,
-    visibilityViolations,
-    terminateAssessment
-  } = useFullscreen();
-  const { toast } = useToast();
+  const { assessment, loading, error, assessmentCode, totalMarksObtained, totalPossibleMarks, setTotalMarksObtained, setTotalPossibleMarks } = useAssessment();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  const [activeTab, setActiveTab] = useState('mcq');
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitDialogOpen, setIsSubmitDialogOpen] = useState(false);
+  const [isTimeWarningOpen, setIsTimeWarningOpen] = useState(false);
+  const [isTimeUpDialogOpen, setIsTimeUpDialogOpen] = useState(false);
+  const [remainingTime, setRemainingTime] = useState<number | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [fullscreenViolations, setFullscreenViolations] = useState(0);
+  const [isFullscreenWarningOpen, setIsFullscreenWarningOpen] = useState(false);
+  const [isFullscreenViolationDialogOpen, setIsFullscreenViolationDialogOpen] = useState(false);
+  const [isSubmissionCreated, setIsSubmissionCreated] = useState(false);
+  const [isSubmissionCreating, setIsSubmissionCreating] = useState(false);
+  const [isSubmissionError, setIsSubmissionError] = useState(false);
+  const [isSubmissionComplete, setIsSubmissionComplete] = useState(false);
+  const [isSubmissionSaving, setIsSubmissionSaving] = useState(false);
+  const [isSubmissionSaveError, setIsSubmissionSaveError] = useState(false);
+  const [isSubmissionSaveSuccess, setIsSubmissionSaveSuccess] = useState(false);
+  const [isSubmissionSaveDialogOpen, setIsSubmissionSaveDialogOpen] = useState(false);
+  const [isSubmissionSaveConfirmDialogOpen, setIsSubmissionSaveConfirmDialogOpen] = useState(false);
+  const [isSubmissionSaveConfirmed, setIsSubmissionSaveConfirmed] = useState(false);
+  const [isSubmissionSaveConfirmError, setIsSubmissionSaveConfirmError] = useState(false);
+  const [isSubmissionSaveConfirmSuccess, setIsSubmissionSaveConfirmSuccess] = useState(false);
+  const [isSubmissionSaveConfirmDialogLoading, setIsSubmissionSaveConfirmDialogLoading] = useState(false);
+  const [isSubmissionSaveConfirmDialogError, setIsSubmissionSaveConfirmDialogError] = useState(false);
+  const [isSubmissionSaveConfirmDialogSuccess, setIsSubmissionSaveConfirmDialogSuccess] = useState(false);
+  const [isSubmissionSaveConfirmDialogComplete, setIsSubmissionSaveConfirmDialogComplete] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitting, setIsSubmissionSaveConfirmDialogSubmitting] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitted, setIsSubmissionSaveConfirmDialogSubmitted] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitError, setIsSubmissionSaveConfirmDialogSubmitError] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitSuccess, setIsSubmissionSaveConfirmDialogSubmitSuccess] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitComplete, setIsSubmissionSaveConfirmDialogSubmitComplete] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitConfirmed, setIsSubmissionSaveConfirmDialogSubmitConfirmed] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitConfirmError, setIsSubmissionSaveConfirmDialogSubmitConfirmError] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitConfirmSuccess, setIsSubmissionSaveConfirmDialogSubmitConfirmSuccess] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitConfirmComplete, setIsSubmissionSaveConfirmDialogSubmitConfirmComplete] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitConfirmSubmitting, setIsSubmissionSaveConfirmDialogSubmitConfirmSubmitting] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitConfirmSubmitted, setIsSubmissionSaveConfirmDialogSubmitConfirmSubmitted] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitConfirmSubmitError, setIsSubmissionSaveConfirmDialogSubmitConfirmSubmitError] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitConfirmSubmitSuccess, setIsSubmissionSaveConfirmDialogSubmitConfirmSubmitSuccess] = useState(false);
+  const [isSubmissionSaveConfirmDialogSubmitConfirmSubmitComplete, setIsSubmissionSaveConfirmDialogSubmitConfirmSubmitComplete] = useState(false);
   
-  // Check if AI proctoring is enabled
-  const isAiProctoringEnabled = assessment?.isAiProctored === true;
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const fullscreenCheckRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
-  useEffect(() => {
-    if (!assessment || !assessmentStarted) {
-      navigate('/student');
-    }
-  }, [assessment, assessmentStarted, navigate]);
-
-  useEffect(() => {
-    if (assessmentStarted && !isFullscreen) {
-      console.log("Assessment started but not in fullscreen - entering fullscreen");
-      enterFullscreen();
-    }
-  }, [assessmentStarted, isFullscreen, enterFullscreen]);
-
-  useEffect(() => {
-    const fetchSubmissionRecord = async () => {
-      if (assessment && assessmentStarted && user) {
-        try {
-          const { data: submissions } = await supabase
-            .from('submissions')
-            .select('*')
-            .eq('assessment_id', assessment.id)
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(1);
-            
-          if (submissions && submissions.length > 0) {
-            setSubmissionId(submissions[0].id);
-          }
-        } catch (error) {
-          console.error('Error fetching submission record:', error);
+  // Get questions of the current type
+  const mcqQuestions = assessment?.questions?.filter(q => 'type' in q && q.type === 'mcq') as MCQQuestion[] || [];
+  const codingQuestions = assessment?.questions?.filter(q => 'type' in q && q.type === 'code') as CodingQuestion[] || [];
+  
+  // Get current question based on active tab
+  const currentQuestions = activeTab === 'mcq' ? mcqQuestions : codingQuestions;
+  const currentQuestion = currentQuestions[currentQuestionIndex];
+  
+  // Calculate progress
+  const totalQuestions = (mcqQuestions?.length || 0) + (codingQuestions?.length || 0);
+  const mcqProgress = mcqQuestions.length > 0 ? 
+    mcqQuestions.filter(q => q.selectedOption !== undefined).length / mcqQuestions.length * 100 : 0;
+  const codingProgress = codingQuestions.length > 0 ? 
+    codingQuestions.filter(q => q.userSolution && Object.values(q.userSolution).some(sol => sol.trim() !== '')).length / codingQuestions.length * 100 : 0;
+  
+  // Format remaining time
+  const formatTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+  
+  // Check if the user is in fullscreen mode
+  const checkFullscreen = () => {
+    const isCurrentlyFullscreen = document.fullscreenElement !== null;
+    
+    if (isFullscreen !== isCurrentlyFullscreen) {
+      setIsFullscreen(isCurrentlyFullscreen);
+      
+      // If exiting fullscreen without permission, record violation
+      if (!isCurrentlyFullscreen && submissionId) {
+        const newViolationCount = fullscreenViolations + 1;
+        setFullscreenViolations(newViolationCount);
+        
+        // Update violation count in database
+        supabase
+          .from('submissions')
+          .update({ fullscreen_violations: newViolationCount })
+          .eq('id', submissionId)
+          .then(({ error }) => {
+            if (error) {
+              console.error('Error updating fullscreen violations:', error);
+            }
+          });
+        
+        // Show warning dialog for first few violations
+        if (newViolationCount <= 3) {
+          setIsFullscreenWarningOpen(true);
+        } else {
+          // Show serious violation dialog for repeated violations
+          setIsFullscreenViolationDialogOpen(true);
         }
       }
-    };
-    
-    fetchSubmissionRecord();
-  }, [assessment, assessmentStarted, user]);
-
-  useEffect(() => {
-    const createSubmissionRecord = async () => {
-      if (assessment && assessmentStarted && user) {
-        try {
-          const { data: existingSubmissions } = await supabase
-            .from('submissions')
-            .select('*')
-            .eq('assessment_id', assessment.id)
-            .eq('user_id', user.id)
-            .is('completed_at', null);
-            
-          if (existingSubmissions && existingSubmissions.length > 0) {
-            return;
-          }
-          
-          const { data, error } = await supabase
-            .from('submissions')
-            .insert({
-              assessment_id: assessment.id,
-              user_id: user.id,
-              started_at: new Date().toISOString(),
-              fullscreen_violations: 0
-            });
-            
-          if (error) {
-            console.error('Error creating submission record:', error);
-          }
-        } catch (error) {
-          console.error('Error creating submission record:', error);
-        }
-      }
-    };
-    
-    createSubmissionRecord();
-  }, [assessment, assessmentStarted, user]);
-
-  const handleTestResultUpdate = (questionId: string, passedTests: number, totalTests: number) => {
-    setTestCaseStatus(prev => ({
-      ...prev,
-      [questionId]: {
-        totalTests,
-        passedTests
-      }
-    }));
-  };
-  
-  if (!assessment) {
-    return null;
-  }
-  
-  const currentQuestion = assessment.questions[currentQuestionIndex];
-  
-  const questionStatus = assessment.questions.map(q => {
-    if (isMCQQuestion(q)) {
-      return !!q.selectedOption;
-    } else if (isCodeQuestion(q)) {
-      return Object.values(q.userSolution).some(solution => solution && typeof solution === 'string' && solution.trim() !== '');
-    }
-    return false;
-  });
-
-  const getQuestionSubmissionStatus = (question: any) => {
-    if (!isCodeQuestion(question)) return null;
-    
-    const status = testCaseStatus[question.id];
-    if (!status) return 'Not Submitted';
-    
-    if (status.passedTests === status.totalTests && status.totalTests > 0) {
-      return 'All Tests Passed';
-    } else if (status.passedTests > 0) {
-      return 'Partially Submitted';
-    } else {
-      return 'No Tests Passed';
-    }
-  };
-
-  const getStatusBadgeColor = (status: string | null) => {
-    if (!status) return 'status-not-submitted';
-    
-    switch (status) {
-      case 'All Tests Passed':
-        return 'status-submitted';
-      case 'Partially Submitted':
-        return 'status-partial';
-      default:
-        return 'status-not-submitted';
-    }
-  };
-
-  const getStatusIcon = (status: string | null) => {
-    if (!status) return null;
-    
-    switch (status) {
-      case 'All Tests Passed':
-        return <CheckCircle2 className="h-3 w-3 mr-1" />;
-      case 'Partially Submitted':
-        return <AlertOctagon className="h-3 w-3 mr-1" />;
-      default:
-        return null;
     }
   };
   
-  const handlePrevQuestion = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(currentQuestionIndex - 1);
+  // Request fullscreen
+  const requestFullscreen = () => {
+    const docEl = document.documentElement;
+    
+    if (docEl.requestFullscreen) {
+      docEl.requestFullscreen()
+        .then(() => setIsFullscreen(true))
+        .catch(err => {
+          console.error('Error attempting to enable fullscreen:', err);
+          toast({
+            title: "Fullscreen Error",
+            description: "Unable to enter fullscreen mode. Please try again or use a different browser.",
+            variant: "destructive",
+          });
+        });
     }
   };
   
-  const handleNextQuestion = () => {
-    if (currentQuestionIndex < assessment.questions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    }
-  };
-  
-  const handleEndAssessment = () => {
-    setShowExitDialog(true);
-  };
-  
-  const confirmEndAssessment = async () => {
-    setIsEndingAssessment(true);
+  // Create submission record
+  const createSubmission = async () => {
+    if (!user || !assessment || isSubmissionCreated || isSubmissionCreating) return;
+    
+    setIsSubmissionCreating(true);
     
     try {
-      const { data: submissions, error: submissionError } = await supabase
+      // Check if there's an existing submission
+      const { data: existingSubmissions, error: fetchError } = await supabase
         .from('submissions')
-        .select('*')
-        .eq('assessment_id', assessment?.id || '')
-        .eq('user_id', user?.id || '')
+        .select('id, started_at')
+        .eq('assessment_id', assessment.id)
+        .eq('user_id', user.id)
+        .is('completed_at', null)
         .order('created_at', { ascending: false })
         .limit(1);
       
-      if (submissionError || !submissions || submissions.length === 0) {
-        console.error('Error finding submission to update:', submissionError);
-      } else {
-        const { error: updateError } = await supabase
-          .from('submissions')
-          .update({ 
-            completed_at: new Date().toISOString()
-          })
-          .eq('id', submissions[0].id);
+      if (fetchError) {
+        throw fetchError;
+      }
+      
+      // If there's an existing submission, use that
+      if (existingSubmissions && existingSubmissions.length > 0) {
+        setSubmissionId(existingSubmissions[0].id);
         
-        if (updateError) {
-          console.error('Error updating submission completion status:', updateError);
+        // Calculate remaining time based on existing submission
+        if (assessment.durationMinutes) {
+          const startedAt = new Date(existingSubmissions[0].started_at);
+          const durationMs = assessment.durationMinutes * 60 * 1000;
+          const endTime = new Date(startedAt.getTime() + durationMs);
+          const now = new Date();
+          const remainingMs = Math.max(0, endTime.getTime() - now.getTime());
+          setRemainingTime(Math.floor(remainingMs / 1000));
         }
+        
+        setIsSubmissionCreated(true);
+        return;
       }
       
-      await endAssessment();
+      // Otherwise create a new submission
+      const { data, error } = await supabase
+        .from('submissions')
+        .insert({
+          assessment_id: assessment.id,
+          user_id: user.id,
+          started_at: new Date().toISOString(),
+          fullscreen_violations: 0
+        })
+        .select('id')
+        .single();
       
-      const { error: resultError } = await supabase
-        .from('results')
-        .update({ 
-          contest_name: assessment?.name 
-        } as any)
-        .eq('assessment_id', assessment?.id || '')
-        .eq('user_id', user?.id || '');
-      
-      if (resultError) {
-        console.error('Error updating contest name in results:', resultError);
+      if (error) {
+        throw error;
       }
       
-      toast({
-        title: "Assessment Submitted",
-        description: "Your answers have been submitted successfully!",
-      });
+      setSubmissionId(data.id);
       
-      navigate('/summary');
+      // Set initial remaining time
+      if (assessment.durationMinutes) {
+        setRemainingTime(assessment.durationMinutes * 60);
+      }
+      
+      setIsSubmissionCreated(true);
     } catch (error) {
-      console.error('Error ending assessment:', error);
+      console.error('Error creating submission:', error);
+      setIsSubmissionError(true);
       toast({
         title: "Error",
-        description: "There was an error submitting your assessment. Please try again.",
+        description: "Failed to start assessment. Please try refreshing the page.",
         variant: "destructive",
       });
-      setIsEndingAssessment(false);
+    } finally {
+      setIsSubmissionCreating(false);
     }
   };
   
-  const handleUpdateMarks = (questionId: string, marks: number) => {
-    updateMarksObtained(questionId, marks);
+  // Save current progress
+  const saveProgress = async () => {
+    if (!submissionId || !assessment || !user) return;
+    
+    setIsSubmissionSaving(true);
+    setIsSubmissionSaveError(false);
+    setIsSubmissionSaveSuccess(false);
+    
+    try {
+      // Prepare MCQ submissions
+      const mcqSubmissions = mcqQuestions
+        .filter(q => q.selectedOption !== undefined)
+        .map(q => {
+          const selectedOption = q.options?.find(opt => opt.id === q.selectedOption);
+          return {
+            submission_id: submissionId,
+            question_type: 'mcq',
+            question_id: q.id,
+            mcq_option_id: q.selectedOption,
+            marks_obtained: selectedOption?.isCorrect ? q.marks : 0,
+            is_correct: selectedOption?.isCorrect || false
+          } as QuestionSubmission;
+        });
+      
+      // Prepare coding submissions
+      const codingSubmissions = codingQuestions
+        .filter(q => q.userSolution && Object.values(q.userSolution).some(sol => sol.trim() !== ''))
+        .map(q => {
+          // Get the first non-empty solution (assuming one language per question for simplicity)
+          const language = Object.keys(q.userSolution || {})[0];
+          const solution = q.userSolution ? q.userSolution[language] : '';
+          
+          return {
+            submission_id: submissionId,
+            question_type: 'code',
+            question_id: q.id,
+            code_solution: solution,
+            language: language,
+            marks_obtained: q.marksObtained || 0,
+            is_correct: null,
+            test_results: q.testResults || null
+          } as QuestionSubmission;
+        });
+      
+      // Combine all submissions
+      const allSubmissions = [...mcqSubmissions, ...codingSubmissions];
+      
+      if (allSubmissions.length === 0) {
+        setIsSubmissionSaving(false);
+        setIsSubmissionSaveSuccess(true);
+        return;
+      }
+      
+      // Delete existing submissions first
+      const { error: deleteError } = await supabase
+        .from('question_submissions')
+        .delete()
+        .eq('submission_id', submissionId);
+      
+      if (deleteError) {
+        throw deleteError;
+      }
+      
+      // Insert new submissions
+      const { error: insertError } = await supabase
+        .from('question_submissions')
+        .insert(allSubmissions);
+      
+      if (insertError) {
+        throw insertError;
+      }
+      
+      setIsSubmissionSaveSuccess(true);
+      
+      // Show success toast
+      toast({
+        title: "Progress Saved",
+        description: "Your answers have been saved successfully.",
+      });
+    } catch (error) {
+      console.error('Error saving progress:', error);
+      setIsSubmissionSaveError(true);
+      
+      toast({
+        title: "Save Error",
+        description: "Failed to save your progress. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmissionSaving(false);
+    }
   };
-
-  // Anti-cheating warning is active when either fullscreen or tab warnings are shown
-  const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
   
-  const { warning: proctoringWarning, showWarning: showProctoringWarning, dismissWarning: dismissProctoringWarning } = useProctoringWarnings();
-  
-  // Helper function to format assessment time
-  const formatAssessmentTime = (timestamp: number) => {
-    const elapsedMs = timestamp - assessmentStartTime;
-    const totalSeconds = Math.floor(elapsedMs / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  // Submit assessment
+  const submitAssessment = async () => {
+    if (!submissionId || !assessment || !user) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      // First save current progress
+      await saveProgress();
+      
+      // Calculate total marks
+      let totalMarks = 0;
+      let totalObtained = 0;
+      
+      // Add MCQ marks
+      mcqQuestions.forEach(q => {
+        totalMarks += q.marks;
+        const selectedOption = q.options?.find(opt => opt.id === q.selectedOption);
+        if (selectedOption?.isCorrect) {
+          totalObtained += q.marks;
+        }
+      });
+      
+      // Add coding marks
+      codingQuestions.forEach(q => {
+        totalMarks += q.marks;
+        totalObtained += q.marksObtained || 0;
+      });
+      
+      // Calculate percentage
+      const percentage = totalMarks > 0 ? (totalObtained / totalMarks) * 100 : 0;
+      
+      // Update submission as completed
+      const { error: updateError } = await supabase
+        .from('submissions')
+        .update({
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', submissionId);
+      
+      if (updateError) {
+        throw updateError;
+      }
+      
+      // Create result record
+      const { error: resultError } = await supabase
+        .from('results')
+        .insert({
+          user_id: user.id,
+          assessment_id: assessment.id,
+          submission_id: submissionId,
+          total_score: totalObtained,
+          total_marks: totalMarks,
+          percentage: percentage,
+          completed_at: new Date().toISOString(),
+          contest_name: assessment.name
+        });
+      
+      if (resultError) {
+        throw resultError;
+      }
+      
+      // Update context with marks
+      setTotalMarksObtained(totalObtained);
+      setTotalPossibleMarks(totalMarks);
+      
+      // Mark submission as complete
+      setIsSubmissionComplete(true);
+      
+      // Navigate to results page
+      navigate('/student/summary');
+    } catch (error) {
+      console.error('Error submitting assessment:', error);
+      toast({
+        title: "Submission Error",
+        description: "Failed to submit your assessment. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+      setIsSubmitDialogOpen(false);
+    }
   };
   
-  return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Hidden proctoring camera that runs continuously when AI proctoring is enabled */}
-      {isAiProctoringEnabled && (
-        <div className="hidden">
-          <ProctoringCamera 
-            showControls={false}
-            showStatus={false}
-            showWarnings={false}
-            trackViolations={true}
-            assessmentId={assessment.id}
-            submissionId={submissionId || undefined}
-            size="small"
-            onWarning={showProctoringWarning}
-          />
-        </div>
-      )}
-
-      {/* Visible Proctoring Warning Display */}
-      {isAiProctoringEnabled && proctoringWarning && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full mx-4">
-          <div className={cn(
-            "p-4 rounded-lg border-2 animate-pulse",
-            "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
-          )}>
-            <div className="flex items-start justify-between">
-              <div className="flex items-start space-x-3">
-                <div className="flex-shrink-0">
-                  <Shield className="h-6 w-6 text-red-600 dark:text-red-400" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-1">
-                    Proctoring Alert
-                  </h3>
-                  <p className="text-sm text-red-700 dark:text-red-300">
-                    {proctoringWarning.message}
-                  </p>
+  // Handle time up
+  const handleTimeUp = () => {
+    setIsTimeUpDialogOpen(true);
+    submitAssessment();
+  };
+  
+  // Navigate to next question
+  const nextQuestion = () => {
+    if (currentQuestionIndex < currentQuestions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    } else if (activeTab === 'mcq' && codingQuestions.length > 0) {
+      setActiveTab('coding');
+      setCurrentQuestionIndex(0);
+    }
+  };
+  
+  // Navigate to previous question
+  const prevQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(currentQuestionIndex - 1);
+    } else if (activeTab === 'coding' && mcqQuestions.length > 0) {
+      setActiveTab('mcq');
+      setCurrentQuestionIndex(mcqQuestions.length - 1);
+    }
+  };
+  
+  // Initialize assessment
+  useEffect(() => {
+    if (!loading && assessment && user && !isSubmissionCreated && !isSubmissionCreating) {
+      createSubmission();
+    }
+  }, [assessment, loading, user, isSubmissionCreated, isSubmissionCreating]);
+  
+  // Set up timer
+  useEffect(() => {
+    if (remainingTime !== null && remainingTime > 0) {
+      timerRef.current = setInterval(() => {
+        setRemainingTime(prev => {
+          if (prev === null || prev <= 1) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            handleTimeUp();
+            return 0;
+          }
+          
+          // Show warning when 5 minutes remaining
+          if (prev === 300) {
+            setIsTimeWarningOpen(true);
+          }
+          
+          return prev - 1;
+        });
+      }, 1000);
+      
+      return () => {
+        if (timerRef.current) clearInterval(timerRef.current);
+      };
+    }
+  }, [remainingTime]);
+  
+  // Set up fullscreen check
+  useEffect(() => {
+    if (assessment?.isAiProctored) {
+      fullscreenCheckRef.current = setInterval(checkFullscreen, 1000);
+      
+      // Initial fullscreen request
+      if (!isFullscreen) {
+        requestFullscreen();
+      }
+      
+      return () => {
+        if (fullscreenCheckRef.current) clearInterval(fullscreenCheckRef.current);
+      };
+    }
+  }, [assessment, isFullscreen]);
+  
+  // Set up auto-save
+  useEffect(() => {
+    if (submissionId) {
+      saveTimeoutRef.current = setInterval(saveProgress, 60000); // Save every minute
+      
+      return () => {
+        if (saveTimeoutRef.current) clearInterval(saveTimeoutRef.current);
+      };
+    }
+  }, [submissionId]);
+  
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (fullscreenCheckRef.current) clearInterval(fullscreenCheckRef.current);
+      if (saveTimeoutRef.current) clearInterval(saveTimeoutRef.current);
+    };
+  }, []);
+  
+  // Handle tab change
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    setCurrentQuestionIndex(0);
+  };
+  
+  // Show loading state
+  if (loading || !assessment) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-6xl mx-auto">
+          <Card className="mb-6">
+            <CardHeader>
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-1/3" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-8">
+                <Skeleton className="h-40 w-full" />
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={dismissProctoringWarning}
-                className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 p-1 h-6 w-6"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+  
+  // Show error state
+  if (error || isSubmissionError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle className="text-red-600 flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" />
+              Error Loading Assessment
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600 mb-4">
+              There was a problem loading the assessment. Please try refreshing the page or contact support.
+            </p>
+            <Button 
+              onClick={() => window.location.reload()} 
+              variant="outline"
+              className="w-full"
+            >
+              Refresh Page
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Assessment Header */}
+      <div className="max-w-6xl mx-auto px-4 py-6">
+        {/* Assessment Header */}
+        <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">{assessment.name}</h1>
+              <p className="text-gray-500">{assessment.code}</p>
             </div>
-            <div className="mt-3 flex items-center space-x-2">
-              <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-              <span className="text-xs text-red-600 dark:text-red-400 font-medium">
-                Timestamp: {new Date(proctoringWarning.timestamp).toLocaleTimeString()}
-              </span>
+            
+            <div className="flex items-center gap-4">
+              {/* Timer */}
+              <div className="bg-gray-100 px-4 py-2 rounded-lg flex items-center gap-2">
+                <Clock className="h-5 w-5 text-gray-600" />
+                <span className="font-mono font-medium">
+                  {remainingTime !== null ? formatTime(remainingTime) : '--:--:--'}
+                </span>
+              </div>
+              
+              {/* Save Button */}
+              <Button 
+                variant="outline" 
+                onClick={saveProgress}
+                disabled={isSubmissionSaving}
+              >
+                {isSubmissionSaving ? (
+                  <>
+                    <span className="animate-spin mr-2">⏳</span>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 h-4 w-4" />
+                    Save
+                  </>
+                )}
+              </Button>
+              
+              {/* Submit Button */}
+              <Button 
+                onClick={() => setIsSubmitDialogOpen(true)}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <span className="animate-spin mr-2">⏳</span>
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Submit
+                  </>
+                )}
+              </Button>
             </div>
           </div>
-        </div>
-      )}
-
-      <header className={`${isAntiCheatingWarningActive ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'} border-b py-2 px-4 flex items-center justify-between sticky top-0 z-10 transition-colors duration-300`}>
-        <Sheet open={isSidePanelOpen} onOpenChange={setIsSidePanelOpen}>
-          <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="mr-4 hover:bg-gray-100 dark:hover:bg-gray-700">
-              <MenuIcon className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-80 overflow-y-auto">
-            <SheetHeader className="mb-4">
-              <SheetTitle className="text-primary flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-primary"></span>
-                Questions
-              </SheetTitle>
-            </SheetHeader>
-            
-            {/* AI Proctoring Camera Section in Side Panel */}
-            {isAiProctoringEnabled && (
-              <div className="mb-6">
-                <div className="flex items-center gap-2 mb-3">
-                  <Camera className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">AI Proctoring</span>
-                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
-                </div>
-                <div className="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
-                  <ProctoringCamera 
-                    showControls={false}
-                    showStatus={true}
-                    showWarnings={false}
-                    trackViolations={false}
-                    assessmentId={assessment.id}
-                    submissionId={submissionId || undefined}
-                    size="default"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="py-4 space-y-6">
-              <div className="grid grid-cols-5 gap-2">
-                {assessment.questions.map((q, index) => {
-                  const status = isCodeQuestion(q) ? getQuestionSubmissionStatus(q) : null;
-                  return (
-                    <Button
-                      key={q.id}
-                      variant="outline"
-                      size="sm"
-                      className={`relative hover:shadow-md transition-shadow ${
-                        currentQuestionIndex === index ? 'border-primary bg-primary-50 dark:bg-primary-950/20' : ''
-                      }`}
-                      onClick={() => setCurrentQuestionIndex(index)}
-                    >
-                      {index + 1}
-                      {questionStatus[index] && (
-                        <span className="absolute -top-1 -right-1">
-                          <CheckCircle className="h-3 w-3 text-green-500" />
-                        </span>
-                      )}
-                    </Button>
-                  );
-                })}
-              </div>
-              
-              <div className="space-y-4 bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Assessment Summary</p>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
-                    <span className="text-gray-600 dark:text-gray-300">Total Questions:</span>
-                    <span className="font-medium">{assessment.questions.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
-                    <span className="text-gray-600 dark:text-gray-300">Answered:</span>
-                    <span className="font-medium">{questionStatus.filter(Boolean).length}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs bg-white dark:bg-gray-700 p-2 rounded-md">
-                    <span className="text-gray-600 dark:text-gray-300">Not Answered:</span>
-                    <span className="font-medium">{questionStatus.filter(status => !status).length}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <Button 
-                onClick={handleEndAssessment}
-                className="w-full mt-4 bg-primary hover:bg-primary-600"
-                variant="destructive"
-              >
-                End Assessment
-              </Button>
-            </div>
-          </SheetContent>
-        </Sheet>
-        
-        <div className="flex items-center gap-2">
-          {isAntiCheatingWarningActive && (
-            <div className="flex items-center mr-3 animate-pulse">
-              <AlertTriangle className="h-5 w-5 text-red-500 mr-1" />
-              <span className="text-sm font-medium text-red-700 dark:text-red-400">
-                {showExitWarning ? `Fullscreen Warning: ${fullscreenWarnings}/${MAX_WARNINGS}` : 
-                 tabSwitchWarning ? `Tab Switch Warning: ${visibilityViolations}/${MAX_WARNINGS}` : ''}
-              </span>
-            </div>
-          )}
-          <Timer variant="assessment" />
-        </div>
-      </header>
-      
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-6xl mx-auto h-full">
-          {isMCQQuestion(currentQuestion) ? (
-            <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-card animate-fade-in">
-              <MCQQuestion 
-                question={currentQuestion} 
-                onAnswerSelect={answerMCQ}
-                isWarningActive={isAntiCheatingWarningActive}
-              />
-            </div>
-          ) : (
-            <div className="h-[calc(100vh-180px)] animate-fade-in">
-              <ResizablePanelGroup direction="horizontal" className="h-full">
-                <ResizablePanel defaultSize={40} minSize={30} className={`bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm ${isAntiCheatingWarningActive ? 'border border-red-300 dark:border-red-800' : ''}`}>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-medium">{currentQuestion.title}</h3>
-                    
-                    {isCodeQuestion(currentQuestion) && (
-                      <div className={`${getStatusBadgeColor(getQuestionSubmissionStatus(currentQuestion))} flex items-center gap-1 px-2 py-1 text-xs rounded-full`}>
-                        {getStatusIcon(getQuestionSubmissionStatus(currentQuestion))}
-                        <span>{getQuestionSubmissionStatus(currentQuestion)}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {isAntiCheatingWarningActive && (
-                    <div className="mb-3 bg-red-50 dark:bg-red-900/20 p-2 rounded-md flex items-center gap-2">
-                      <AlertTriangle className="h-5 w-5 text-red-500" />
-                      <p className="text-sm text-red-700 dark:text-red-400">Anti-cheating warning active</p>
-                    </div>
-                  )}
-                  
-                  <ScrollArea className="h-[calc(100vh-280px)] pr-3">
-                    <div className="prose dark:prose-invert max-w-none mb-4">
-                      <p className="text-gray-700 dark:text-gray-200 whitespace-pre-line">{currentQuestion.description}</p>
-                    </div>
-                    
-                    {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Examples:</h4>
-                        <div className="space-y-3">
-                          {currentQuestion.examples.map((example, index) => (
-                            <div key={index} className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
-                              <div className="mb-1">
-                                <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Input:</span>
-                                <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1 overflow-x-auto">{example.input}</pre>
-                              </div>
-                              <div className="mb-1">
-                                <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Output:</span>
-                                <pre className="text-xs bg-gray-100 dark:bg-gray-700 p-2 rounded mt-1 overflow-x-auto">{example.output}</pre>
-                              </div>
-                              {example.explanation && (
-                                <div>
-                                  <span className="font-medium text-xs text-gray-700 dark:text-gray-300">Explanation:</span>
-                                  <p className="text-xs mt-1 text-gray-600 dark:text-gray-400">{example.explanation}</p>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {isCodeQuestion(currentQuestion) && currentQuestion.constraints.length > 0 && (
-                      <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-md">
-                        <h4 className="font-medium text-sm mb-2 text-gray-900 dark:text-gray-100">Constraints:</h4>
-                        <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                          {currentQuestion.constraints.map((constraint, index) => (
-                            <li key={index}>{constraint}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </ScrollArea>
-                </ResizablePanel>
-
-                <ResizableHandle withHandle className="bg-gray-200 dark:bg-gray-700" />
-
-                <ResizablePanel defaultSize={60} minSize={40} className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden ${isAntiCheatingWarningActive ? 'border border-red-300 dark:border-red-800' : ''}`}>
-                  {isCodeQuestion(currentQuestion) && (
-                    <CodeEditor 
-                      question={currentQuestion}
-                      onCodeChange={(language, code) => updateCodeSolution(currentQuestion.id, language, code)}
-                      onMarksUpdate={handleUpdateMarks}
-                      onTestResultsUpdate={(passed, total) => handleTestResultUpdate(currentQuestion.id, passed, total)}
-                    />
-                  )}
-                </ResizablePanel>
-              </ResizablePanelGroup>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      <div className={`${isAntiCheatingWarningActive ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'} border-t py-3 px-6 flex items-center justify-between sticky bottom-0 z-10 transition-colors duration-300`}>
-        <Button
-          variant="outline"
-          onClick={handlePrevQuestion}
-          disabled={currentQuestionIndex === 0 || isNavigating || isEndingAssessment}
-          className="nav-button shadow-sm hover:shadow-md"
-        >
-          <ChevronLeft className="h-5 w-5 mr-1" /> Previous
-        </Button>
-        
-        <div className="flex items-center gap-2">
-          {assessment.questions.map((_, index) => (
-            <div 
-              key={index} 
-              className={`h-2 w-2 rounded-full transition-all duration-200 ${
-                index === currentQuestionIndex 
-                  ? 'bg-primary scale-110'
-                  : questionStatus[index]
-                  ? 'bg-green-400 dark:bg-green-500'
-                  : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            />
-          ))}
-        </div>
-        
-        <div className="flex gap-2">
-          {currentQuestionIndex === assessment.questions.length - 1 ? (
-            <Button
-              className="bg-primary hover:bg-red-600 text-white nav-button shadow-sm hover:shadow-md"
-              onClick={handleEndAssessment}
-              disabled={isNavigating || isEndingAssessment}
-            >
-              {isEndingAssessment ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <>End Assessment</>
-              )}
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              onClick={handleNextQuestion}
-              disabled={isNavigating || isEndingAssessment}
-              className="nav-button shadow-sm hover:shadow-md"
-            >
-              Next <ChevronRight className="h-5 w-5 ml-1" />
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
-        <AlertDialogContent className="dark:bg-gray-800 dark:border-gray-700">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center text-primary">
-              <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
-              End Assessment
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to end the assessment? This action cannot be undone, and all your answers will be submitted.
-              {questionStatus.some(status => !status) && (
-                <div className="mt-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md text-amber-700 dark:text-amber-400 text-sm">
-                  <HelpCircle className="h-4 w-4 inline mr-1" />
-                  You have {questionStatus.filter(status => !status).length} unanswered question(s).
-                </div>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isEndingAssessment} className="dark:bg-gray-700 dark:hover:bg-gray-600">Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={confirmEndAssessment} 
-              className="bg-primary hover:bg-red-600 text-white"
-              disabled={isEndingAssessment}
-            >
-              {isEndingAssessment ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                "End Assessment"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={showExitWarning || tabSwitchWarning}>
-        <AlertDialogContent className="dark:bg-gray-800 dark:border-gray-700">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center text-red-600 dark:text-red-400">
-              <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
-              {showExitWarning ? 'Fullscreen Mode Required' : 'Assessment Tab Focus Required'}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              <p>
-                {showExitWarning 
-                  ? `You have exited fullscreen mode. This is violation ${fullscreenWarnings}/${MAX_WARNINGS}.
-                     Please return to fullscreen immediately or your test will be terminated.`
-                  : `You switched away from the assessment tab. This is violation ${visibilityViolations}/${MAX_WARNINGS}.
-                     Please stay on this tab or your test will be terminated.`
-                }
-              </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={showExitWarning ? enterFullscreen : undefined}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {showExitWarning ? 'Return to Fullscreen' : 'Continue Assessment'}
-            </AlertDialogAction>
-            <AlertDialogAction
-              onClick={terminateAssessment}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              End Assessment
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Enhanced Proctoring Warning Dialog */}
-      <AlertDialog open={!!proctoringWarning}>
-        <AlertDialogContent className="dark:bg-gray-800 dark:border-gray-700 max-w-md mx-4">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center text-red-600 dark:text-red-400">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 mr-3">
-                <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />
-              </div>
+          
+          {/* Progress Bars */}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {mcqQuestions.length > 0 && (
               <div>
-                <div className="text-lg font-semibold">AI Proctoring Alert</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 font-normal">
-                  Violation Detected
-                </div>
-              </div>
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-4">
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                <div className="flex items-start space-x-3">
-                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                      {proctoringWarning?.message}
-                    </p>
-                    <div className="flex items-center justify-between text-xs text-red-600 dark:text-red-400">
-                      <span className="flex items-center space-x-1">
-                        <span>Assessment Time:</span>
-                        <span className="font-mono font-semibold">
-                          {proctoringWarning && formatAssessmentTime(proctoringWarning.timestamp)}
-                        </span>
-                      </span>
-                      <span className="text-red-500 dark:text-red-400">
-                        {new Date(proctoringWarning?.timestamp || 0).toLocaleTimeString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-                <div className="flex items-center space-x-2">
-                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                  <span className="text-xs text-amber-700 dark:text-amber-300 font-medium">
-                    This violation has been recorded. Repeated violations may result in assessment termination.
+                <div className="flex justify-between mb-2">
+                  <span className="text-sm font-medium">MCQ Progress</span>
+                  <span className="text-sm text-gray-500">
+                    {mcqQuestions.filter(q => q.selectedOption !== undefined).length}/{mcqQuestions.length} Questions
                   </span>
                 </div>
+                <Progress value={mcqProgress} className="h-2" />
               </div>
+            )}
+            
+            {codingQuestions.length > 0 && (
+              <div>
+                <div className="flex justify-between mb-2">
+                  <span className="text-sm font-medium">Coding Progress</span>
+                  <span className="text-sm text-gray-500">
+                    {codingQuestions.filter(q => q.userSolution && Object.values(q.userSolution).some(sol => sol.trim() !== '')).length}/{codingQuestions.length} Questions
+                  </span>
+                </div>
+                <Progress value={codingProgress} className="h-2" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Assessment Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Question Navigation */}
+          <div className="lg:col-span-1">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Questions</CardTitle>
+                <CardDescription>
+                  {totalQuestions} questions ({mcqQuestions.length} MCQ, {codingQuestions.length} Coding)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+                  <TabsList className="w-full mb-4">
+                    {mcqQuestions.length > 0 && (
+                      <TabsTrigger value="mcq" className="flex-1">
+                        MCQ ({mcqQuestions.length})
+                      </TabsTrigger>
+                    )}
+                    {codingQuestions.length > 0 && (
+                      <TabsTrigger value="coding" className="flex-1">
+                        Coding ({codingQuestions.length})
+                      </TabsTrigger>
+                    )}
+                  </TabsList>
+                  
+                  <TabsContent value="mcq" className="mt-0">
+                    <div className="grid grid-cols-5 gap-2">
+                      {mcqQuestions.map((q, index) => (
+                        <Button
+                          key={q.id}
+                          variant={currentQuestionIndex === index && activeTab === 'mcq' ? 'default' : 'outline'}
+                          className={`h-10 w-full ${q.selectedOption ? 'bg-green-50 border-green-200' : ''}`}
+                          onClick={() => {
+                            setActiveTab('mcq');
+                            setCurrentQuestionIndex(index);
+                          }}
+                        >
+                          {index + 1}
+                          {q.selectedOption && (
+                            <div className="absolute -top-1 -right-1">
+                              <CheckCircle className="h-3 w-3 text-green-500" />
+                            </div>
+                          )}
+                        </Button>
+                      ))}
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="coding" className="mt-0">
+                    <div className="grid grid-cols-5 gap-2">
+                      {codingQuestions.map((q, index) => (
+                        <Button
+                          key={q.id}
+                          variant={currentQuestionIndex === index && activeTab === 'coding' ? 'default' : 'outline'}
+                          className={`h-10 w-full ${q.userSolution && Object.values(q.userSolution).some(sol => sol.trim() !== '') ? 'bg-blue-50 border-blue-200' : ''}`}
+                          onClick={() => {
+                            setActiveTab('coding');
+                            setCurrentQuestionIndex(index);
+                          }}
+                        >
+                          {index + 1}
+                          {q.userSolution && Object.values(q.userSolution).some(sol => sol.trim() !== '') && (
+                            <div className="absolute -top-1 -right-1">
+                              <CheckCircle className="h-3 w-3 text-blue-500" />
+                            </div>
+                          )}
+                        </Button>
+                      ))}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+          </div>
+          
+          {/* Question Display */}
+          <div className="lg:col-span-3">
+            <Card className="mb-4">
+              <CardHeader className="pb-2">
+                <div className="flex justify-between items-center">
+                  <Badge variant="outline" className="mb-2">
+                    Question {currentQuestionIndex + 1} of {currentQuestions.length}
+                  </Badge>
+                  <Badge variant="secondary">
+                    {currentQuestion?.marks} {currentQuestion?.marks === 1 ? 'Mark' : 'Marks'}
+                  </Badge>
+                </div>
+                <CardTitle>{currentQuestion?.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {activeTab === 'mcq' && currentQuestion && (
+                  <MCQQuestionCard 
+                    question={currentQuestion as MCQQuestion}
+                    submissionId={submissionId}
+                  />
+                )}
+                
+                {activeTab === 'coding' && currentQuestion && (
+                  <CodingQuestionCard 
+                    question={currentQuestion as CodingQuestion}
+                    submissionId={submissionId}
+                  />
+                )}
+              </CardContent>
+              <CardFooter className="flex justify-between">
+                <Button
+                  variant="outline"
+                  onClick={prevQuestion}
+                  disabled={currentQuestionIndex === 0 && (activeTab === 'mcq' || codingQuestions.length === 0)}
+                >
+                  <ChevronLeft className="mr-2 h-4 w-4" />
+                  Previous
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  onClick={nextQuestion}
+                  disabled={
+                    currentQuestionIndex === currentQuestions.length - 1 && 
+                    (activeTab === 'coding' || codingQuestions.length === 0)
+                  }
+                >
+                  Next
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* Add Assessment Recorder */}
+      <AssessmentRecorder 
+        submissionId={submissionId}
+        isAssessmentActive={true}
+        onRecordingStatusChange={(isRecording) => {
+          console.log('Recording status changed:', isRecording);
+        }}
+      />
+      
+      {/* Submit Confirmation Dialog */}
+      <AlertDialog open={isSubmitDialogOpen} onOpenChange={setIsSubmitDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit Assessment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to submit your assessment? You won't be able to make any changes after submission.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="sm:space-x-2">
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={dismissProctoringWarning}
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-green-500/25 transition-all duration-200"
+              onClick={(e) => {
+                e.preventDefault();
+                submitAssessment();
+              }}
+              disabled={isSubmitting}
+              className="bg-astra-red hover:bg-red-600"
             >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Continue Assessment
+              {isSubmitting ? 'Submitting...' : 'Submit Assessment'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      {/* Time Warning Dialog */}
+      <AlertDialog open={isTimeWarningOpen} onOpenChange={setIsTimeWarningOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+              Time Running Out
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You have 5 minutes remaining to complete this assessment. Please finish and submit your answers soon.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>Continue</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      {/* Time Up Dialog */}
+      <Dialog open={isTimeUpDialogOpen} onOpenChange={setIsTimeUpDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Time's Up
+            </DialogTitle>
+            <DialogDescription>
+              Your assessment time has ended. Your answers are being submitted automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-center py-4">
+            <div className="animate-spin h-8 w-8 border-4 border-astra-red border-t-transparent rounded-full"></div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Fullscreen Warning Dialog */}
+      <AlertDialog open={isFullscreenWarningOpen} onOpenChange={setIsFullscreenWarningOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+              Fullscreen Mode Required
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Please remain in fullscreen mode during the assessment. Exiting fullscreen mode may be considered a violation of assessment rules.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={requestFullscreen}>
+              Return to Fullscreen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      {/* Fullscreen Violation Dialog */}
+      <AlertDialog open={isFullscreenViolationDialogOpen} onOpenChange={setIsFullscreenViolationDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <XCircle className="h-5 w-5" />
+              Multiple Fullscreen Violations
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You have exited fullscreen mode multiple times. This behavior may be flagged as suspicious and could affect your assessment.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={requestFullscreen}>
+              Return to Fullscreen
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
