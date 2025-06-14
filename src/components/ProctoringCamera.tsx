@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { useVideoRecording } from '@/hooks/useVideoRecording';
@@ -25,7 +26,63 @@ interface ProctoringCameraProps {
   onRecordingStop?: (recordingPath: string | null) => void;
 }
 
-// ... keep existing code (statusMessages constant and early component setup) the same ...
+const statusMessages: Record<ProctoringStatus, { message: string; color: string; icon: React.ReactNode }> = {
+  initializing: {
+    message: "Initializing camera...",
+    color: "text-blue-600",
+    icon: <Loader2 className="h-4 w-4 animate-spin" />
+  },
+  cameraPermissionDenied: {
+    message: "Camera access denied. Please allow camera access.",
+    color: "text-red-600",
+    icon: <AlertCircle className="h-4 w-4" />
+  },
+  modelLoading: {
+    message: "Loading face detection model...",
+    color: "text-blue-600",
+    icon: <Loader2 className="h-4 w-4 animate-spin" />
+  },
+  ready: {
+    message: "System ready. Position your face in the frame.",
+    color: "text-amber-600",
+    icon: <Eye className="h-4 w-4" />
+  },
+  faceDetected: {
+    message: "Face detected and verified. You may proceed.",
+    color: "text-green-600",
+    icon: <CheckCircle2 className="h-4 w-4" />
+  },
+  noFaceDetected: {
+    message: "No face detected. Please position yourself in the camera view.",
+    color: "text-amber-600",
+    icon: <EyeOff className="h-4 w-4" />
+  },
+  multipleFacesDetected: {
+    message: "Multiple faces detected. Ensure only you are visible.",
+    color: "text-red-600",
+    icon: <Users className="h-4 w-4" />
+  },
+  faceNotCentered: {
+    message: "Please center your face in the camera frame.",
+    color: "text-amber-600",
+    icon: <Eye className="h-4 w-4" />
+  },
+  faceCovered: {
+    message: "Face appears to be covered. Please ensure clear visibility.",
+    color: "text-red-600",
+    icon: <AlertCircle className="h-4 w-4" />
+  },
+  rapidMovement: {
+    message: "Rapid movement detected. Please remain still.",
+    color: "text-amber-600",
+    icon: <AlertTriangle className="h-4 w-4" />
+  },
+  error: {
+    message: "Camera error occurred. Please restart the camera.",
+    color: "text-red-600",
+    icon: <AlertCircle className="h-4 w-4" />
+  }
+};
 
 export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   onVerificationComplete,
