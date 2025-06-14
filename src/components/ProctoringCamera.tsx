@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { useVideoRecording } from '@/hooks/useVideoRecording';
@@ -31,11 +30,6 @@ const statusMessages: Record<ProctoringStatus, { message: string; color: string;
     message: "Initializing camera...",
     color: "text-blue-600",
     icon: <Loader2 className="h-4 w-4 animate-spin" />
-  },
-  cameraPermissionDenied: {
-    message: "Camera access denied. Please allow camera access.",
-    color: "text-red-600",
-    icon: <AlertCircle className="h-4 w-4" />
   },
   modelLoading: {
     message: "Loading face detection model...",
