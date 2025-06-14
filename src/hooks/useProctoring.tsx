@@ -115,6 +115,8 @@ export function useProctoring(options: ProctoringOptions = {}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectionIntervalRef = useRef<number | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
 
   // Check if violation is in cooldown period
@@ -840,11 +842,16 @@ export function useProctoring(options: ProctoringOptions = {}) {
         };
 
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            mediaRecorderRef.current.onstop = createBlobAndResolve;
+            mediaRecorderRef.current.onstop = () => {
+                createBlobAndResolve();
+                mediaRecorderRef.current = null;
+            };
             mediaRecorderRef.current.stop();
-            mediaRecorderRef.current = null;
         } else {
             createBlobAndResolve();
+            if (mediaRecorderRef.current) {
+                mediaRecorderRef.current = null;
+            }
         }
     });
   }, []);
