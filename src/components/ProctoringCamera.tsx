@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
@@ -140,10 +139,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     // Cleanup function that will run when component unmounts
     return () => {
       console.log("Stopping camera detection...");
-      // Copy violations to submission record when component unmounts (assessment ends)
-      if (trackViolations && submissionId && violationLog.length > 0) {
-        copyViolationsToSubmission();
-      }
       stopDetection();
     };
   }, [reinitialize, stopDetection]);
@@ -296,29 +291,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       }
     } catch (err) {
       console.error("Error updating face violations:", err);
-    }
-  };
-
-  // Function to copy all violations to submission record
-  const copyViolationsToSubmission = async () => {
-    if (!submissionId || !user || violationLog.length === 0) return;
-    
-    try {
-      // Update submission with all violations
-      const { error: updateError } = await supabase
-        .from('submissions')
-        .update({ 
-          face_violations: violationLog
-        })
-        .eq('id', submissionId);
-      
-      if (updateError) {
-        console.error("Error copying violations to submission:", updateError);
-      } else {
-        console.log("Successfully copied all violations to submission record");
-      }
-    } catch (err) {
-      console.error("Error copying violations to submission:", err);
     }
   };
 
