@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { ProctoringCamera } from '@/components/ProctoringCamera';
-import { ShieldCheck, Camera, AlertTriangle, CheckCircle } from 'lucide-react';
+import { ShieldCheck, Camera, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -122,10 +122,10 @@ const CameraVerificationPage = () => {
   
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-astra-red border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-lg font-medium text-gray-600">Loading assessment details...</p>
+          <div className="animate-spin h-8 w-8 border-4 border-gray-300 border-t-blue-600 rounded-full mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading assessment...</p>
         </div>
       </div>
     );
@@ -167,129 +167,93 @@ const CameraVerificationPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white py-8">
-      <div className="max-w-4xl mx-auto px-4">
-        {/* Header with Logo */}
-        <header className="text-center mb-12">
-          <div className="mx-auto w-20 h-20 mb-4 relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-astra-red/20 to-red-600/20 rounded-full animate-pulse"></div>
-            <img 
-              src="/lovable-uploads/75631a95-2bc5-4c66-aa10-729af5a22292.png" 
-              alt="Yudha Logo" 
-              className="w-full h-full relative z-10" 
-            />
+    <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl">
+        {/* Minimal Header */}
+        <div className="text-center mb-6">
+          <div className="w-12 h-12 mx-auto mb-3 bg-blue-50 rounded-full flex items-center justify-center">
+            <Camera className="h-6 w-6 text-blue-600" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Camera Verification</h1>
-          <p className="text-lg text-gray-600">{assessment?.name}</p>
-        </header>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">Camera Verification</h1>
+          <p className="text-gray-600">{assessment?.name}</p>
+        </div>
         
-        <div className="max-w-3xl mx-auto">
-          <Card className="shadow-xl border-0 overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-astra-red to-red-700 text-white p-8">
-              <div className="flex items-center justify-center mb-4">
-                <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-sm">
-                  <Camera className="h-8 w-8 text-white" />
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-6">
+            {!isCameraActivated ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 mx-auto mb-4 bg-blue-50 rounded-full flex items-center justify-center">
+                  <Camera className="h-8 w-8 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Camera Access Required</h3>
+                <p className="text-gray-600 mb-6 text-sm">
+                  Please allow camera access to proceed with identity verification.
+                </p>
+                <Button 
+                  onClick={handleActivateCamera}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Camera className="mr-2 h-4 w-4" />
+                  Activate Camera
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <ProctoringCamera 
+                  onVerificationComplete={handleVerificationComplete}
+                  showControls={!isVerified}
+                  showStatus={true}
+                  trackViolations={false}
+                  assessmentId={assessment.id}
+                  submissionId={submissionId || undefined}
+                  size="default"
+                />
+                
+                {/* Minimal Guidelines */}
+                <div className="bg-blue-50 rounded-lg p-3">
+                  <p className="text-blue-800 text-sm text-center">
+                    Ensure your face is clearly visible and well-lit
+                  </p>
                 </div>
               </div>
-              <CardTitle className="text-2xl text-center font-bold">
-                Identity Verification Required
-              </CardTitle>
-              <CardDescription className="text-white/90 text-center text-lg mt-2">
-                Please position yourself in front of the camera for identity verification.
-                This ensures the security and integrity of your assessment.
-              </CardDescription>
-            </CardHeader>
-            
-            <CardContent className="p-8">
-              {!isCameraActivated ? (
-                <div className="text-center py-16">
-                  <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center shadow-lg">
-                    <Camera className="h-16 w-16 text-astra-red" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-4">Camera Access Required</h3>
-                  <p className="text-gray-600 mb-8 max-w-lg mx-auto leading-relaxed">
-                    For secure assessment proctoring, we need access to your camera. 
-                    Your privacy is protected and the feed is only used for verification and monitoring purposes.
-                  </p>
-                  <Button 
-                    onClick={handleActivateCamera}
-                    className="bg-astra-red hover:bg-red-600 text-white shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1"
-                    size="lg"
-                  >
-                    <Camera className="mr-3 h-5 w-5" />
-                    Activate Camera
-                  </Button>
+            )}
+          </CardContent>
+          
+          <CardFooter className="p-6 pt-0">
+            {isVerified ? (
+              <div className="w-full text-center">
+                <div className="inline-flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full text-green-700 mb-4">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="text-sm font-medium">Verification Complete</span>
                 </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-6">
-                    <ProctoringCamera 
-                      onVerificationComplete={handleVerificationComplete}
-                      showControls={!isVerified}
-                      showStatus={true}
-                      trackViolations={false}
-                      assessmentId={assessment.id}
-                      submissionId={submissionId || undefined}
-                    />
-                  </div>
-                  
-                  {/* Verification Instructions */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                    <h4 className="font-semibold text-blue-900 mb-3 flex items-center">
-                      <AlertTriangle className="h-5 w-5 mr-2" />
-                      Verification Guidelines
-                    </h4>
-                    <ul className="text-blue-800 space-y-2 text-sm">
-                      <li>• Ensure your face is clearly visible and well-lit</li>
-                      <li>• Remove any hats, sunglasses, or face coverings</li>
-                      <li>• Look directly at the camera during verification</li>
-                      <li>• Maintain a stable internet connection</li>
-                    </ul>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-            
-            <CardFooter className="p-8 bg-gray-50 border-t">
-              {isVerified ? (
-                <div className="w-full text-center">
-                  <div className="inline-flex items-center justify-center gap-3 bg-green-100 px-6 py-3 rounded-full text-green-700 mb-6">
-                    <CheckCircle className="h-6 w-6" />
-                    <span className="font-semibold text-lg">Verification Complete</span>
-                  </div>
-                  <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                    Your camera is properly configured and your identity has been verified.
-                    You are now ready to begin your assessment.
-                  </p>
+                <div>
                   <Button 
                     onClick={handleStartAssessment}
-                    size="lg" 
-                    className="bg-astra-red hover:bg-red-600 text-white transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
                   >
-                    <ShieldCheck className="mr-3 h-5 w-5" />
+                    <ShieldCheck className="mr-2 h-4 w-4" />
                     Start Assessment
                   </Button>
                 </div>
-              ) : (
-                <div className="w-full text-center">
-                  <div className="flex items-center justify-center gap-3 text-amber-600 mb-4">
-                    <AlertTriangle className="h-5 w-5" />
-                    <span className="font-semibold">Verification Required</span>
-                  </div>
-                  <p className="text-gray-600 max-w-md mx-auto">
-                    Please activate your camera and complete the verification process to proceed with your assessment.
-                  </p>
-                </div>
-              )}
-            </CardFooter>
-          </Card>
-          
-          {/* Security Notice */}
-          <div className="mt-8 text-center">
-            <div className="inline-flex items-center gap-2 text-gray-500 text-sm">
-              <ShieldCheck className="h-4 w-4" />
-              <span>Your privacy is protected. Camera feed is encrypted and secure.</span>
-            </div>
+              </div>
+            ) : (
+              <div className="w-full text-center">
+                <p className="text-gray-500 text-sm">
+                  {!isCameraActivated 
+                    ? "Activate your camera to begin verification" 
+                    : "Complete verification to proceed"
+                  }
+                </p>
+              </div>
+            )}
+          </CardFooter>
+        </Card>
+        
+        {/* Minimal Security Notice */}
+        <div className="text-center mt-4">
+          <div className="inline-flex items-center gap-1 text-gray-400 text-xs">
+            <ShieldCheck className="h-3 w-3" />
+            <span>Secure & encrypted</span>
           </div>
         </div>
       </div>
