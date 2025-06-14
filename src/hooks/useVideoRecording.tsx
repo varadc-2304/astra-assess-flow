@@ -130,8 +130,8 @@ export const useVideoRecording = () => {
 
           console.log('Upload successful:', uploadData);
 
-          // Get the file path for the recording URL
-          const recordingUrl = `${supabase.supabaseUrl}/storage/v1/object/proctoring_recordings/${fileName}`;
+          // Get the file path for the recording URL using the hardcoded Supabase URL
+          const recordingUrl = `https://tafvjwurzgpugcfidbfv.supabase.co/storage/v1/object/public/proctoring_recordings/${fileName}`;
 
           // Update submission with recording URL
           const { error: updateError } = await supabase
