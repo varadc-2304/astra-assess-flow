@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
+import { useVideoRecording, RecordingConfig } from '@/hooks/useVideoRecording';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { RecordingIndicator } from '@/components/RecordingIndicator';
 import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw, Shield, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +21,11 @@ interface ProctoringCameraProps {
   submissionId?: string;
   size?: 'default' | 'small' | 'large';
   onWarning?: (type: string, message: string) => void;
+  // New recording props
+  enableRecording?: boolean;
+  recordingConfig?: RecordingConfig;
+  onRecordingStart?: (success: boolean) => void;
+  onRecordingStop?: (recordingUrl: string | null) => void;
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -73,10 +80,16 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   assessmentId,
   submissionId,
   size = 'default',
-  onWarning
+  onWarning,
+  enableRecording = false,
+  recordingConfig,
+  onRecordingStart,
+  onRecordingStop
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { isRecording, isUploading, startRecording, stopRecording, cleanup } = useVideoRecording();
+  
   const [violationCount, setViolationCount] = useState<Record<ViolationType, number>>({
     noFaceDetected: 0,
     multipleFacesDetected: 0,
@@ -314,6 +327,35 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }, 100);
   };
 
+  const handleStartRecording = async () => {
+    if (!enableRecording || !recordingConfig || !videoRef.current) return;
+    
+    const success = await startRecording(videoRef.current, recordingConfig);
+    onRecordingStart?.(success);
+  };
+
+  const handleStopRecording = async () => {
+    if (!recordingConfig) return;
+    
+    const recordingUrl = await stopRecording(recordingConfig);
+    onRecordingStop?.(recordingUrl);
+  };
+
+  // Start recording automatically when camera is ready and recording is enabled
+  useEffect(() => {
+    if (enableRecording && recordingConfig && isCameraReady && isModelLoaded && !isRecording && videoRef.current) {
+      console.log('Auto-starting recording for assessment');
+      handleStartRecording();
+    }
+  }, [enableRecording, recordingConfig, isCameraReady, isModelLoaded, isRecording]);
+
+  // Cleanup recording on unmount
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, [cleanup]);
+
   const statusConfig = statusMessages[status] || statusMessages.initializing;
   
   // Determine container size based on the size prop
@@ -329,6 +371,17 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
 
   return (
     <div className="proctoring-camera-container">
+      {/* Recording indicator */}
+      {(enableRecording && (isRecording || isUploading)) && (
+        <div className="mb-4 flex justify-center">
+          <RecordingIndicator 
+            isRecording={isRecording} 
+            isUploading={isUploading}
+            size={size === 'small' ? 'small' : 'default'}
+          />
+        </div>
+      )}
+
       {/* Violation Warning Display - Only show if showWarnings is true */}
       {showWarnings && activeWarning && (
         <div className="mb-4 relative">
