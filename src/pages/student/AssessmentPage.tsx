@@ -678,6 +678,36 @@ const AssessmentPage = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Proctoring Warning Dialog - styled to match tab change warnings */}
+      <AlertDialog open={!!proctoringWarning}>
+        <AlertDialogContent className="dark:bg-gray-800 dark:border-gray-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center text-red-600 dark:text-red-400">
+              <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
+              Proctoring Alert
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <p>
+                {proctoringWarning?.message}
+              </p>
+              {proctoringWarning && (
+                <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                  Timestamp: {new Date(proctoringWarning.timestamp).toLocaleTimeString()}
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={dismissProctoringWarning}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              Continue Assessment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
