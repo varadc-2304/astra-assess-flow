@@ -69,6 +69,7 @@ export function useVideoRecording(options: RecordingOptions = {}) {
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
+          console.log('Recording chunk received, size:', event.data.size);
         }
       };
 
@@ -82,7 +83,7 @@ export function useVideoRecording(options: RecordingOptions = {}) {
       mediaRecorder.start(10000); // Record in 10-second chunks
       setIsRecording(true);
       
-      console.log('Video recording started');
+      console.log('Video recording started with mime type:', mimeType);
       
     } catch (error) {
       console.error('Error starting recording:', error);
@@ -103,7 +104,8 @@ export function useVideoRecording(options: RecordingOptions = {}) {
         });
         
         setIsRecording(false);
-        console.log('Video recording stopped, blob size:', recordedBlob.size);
+        console.log('Video recording stopped, blob size:', recordedBlob.size, 'bytes');
+        console.log('Total chunks recorded:', recordedChunksRef.current.length);
         resolve(recordedBlob);
       };
 
@@ -121,28 +123,43 @@ export function useVideoRecording(options: RecordingOptions = {}) {
       return null;
     }
 
+    if (blob.size === 0) {
+      setRecordingError('Recording is empty');
+      return null;
+    }
+
     try {
       setUploadProgress(0);
       
       const recordingDuration = Math.floor((Date.now() - recordingStartTimeRef.current) / 1000);
       const fileSizeMB = blob.size / (1024 * 1024);
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const fileName = `${user.id}/${assessmentId}/${submissionId}/recording-${timestamp}.webm`;
+      
+      // Simplified file path structure
+      const fileName = `${user.id}/${assessmentId}/${submissionId}-${timestamp}.webm`;
 
-      console.log(`Uploading recording: ${fileName}, Size: ${fileSizeMB.toFixed(2)}MB, Duration: ${recordingDuration}s`);
+      console.log(`Starting upload: ${fileName}`);
+      console.log(`File size: ${fileSizeMB.toFixed(2)}MB`);
+      console.log(`Duration: ${recordingDuration}s`);
+      console.log(`Blob type: ${blob.type}`);
 
-      // Upload to Supabase Storage
+      setUploadProgress(10);
+
+      // Upload to Supabase Storage with explicit content type
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('proctoring-recordings')
         .upload(fileName, blob, {
-          contentType: blob.type,
-          upsert: false
+          contentType: blob.type || 'video/webm',
+          upsert: false,
+          duplex: 'half'
         });
 
       if (uploadError) {
-        throw uploadError;
+        console.error('Upload error:', uploadError);
+        throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
+      console.log('Upload successful:', uploadData);
       setUploadProgress(50);
 
       // Create proctoring session record
@@ -165,6 +182,8 @@ export function useVideoRecording(options: RecordingOptions = {}) {
       if (sessionError) {
         console.error('Error creating proctoring session:', sessionError);
         // Don't throw here, upload was successful
+      } else {
+        console.log('Proctoring session created:', sessionData);
       }
 
       setUploadProgress(75);
@@ -178,17 +197,19 @@ export function useVideoRecording(options: RecordingOptions = {}) {
 
         if (updateError) {
           console.error('Error updating submission with proctoring session:', updateError);
+        } else {
+          console.log('Submission updated with proctoring session ID');
         }
       }
 
       setUploadProgress(100);
       
-      console.log('Recording uploaded successfully:', uploadData.path);
+      console.log('Recording upload process completed successfully');
       return uploadData.path;
       
     } catch (error) {
       console.error('Error uploading recording:', error);
-      setRecordingError('Failed to upload recording');
+      setRecordingError(`Failed to upload recording: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return null;
     }
   }, [user]);
