@@ -1,5 +1,3 @@
-
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import { useToast } from '@/hooks/use-toast';
@@ -184,8 +182,8 @@ export function useProctoring(options: ProctoringOptions = {}) {
         return true; // First face, consider it valid
       }
       
-      // Calculate distance between current face and reference - FIXED: pass array of descriptors
-      const distance = faceapi.euclideanDistance([referenceFaceDescriptorRef.current, descriptor as Float32Array]);
+      // Calculate distance between current face and reference - FIXED: use proper distance calculation
+      const distance = faceapi.euclideanDistance(referenceFaceDescriptorRef.current, descriptor as Float32Array);
       const threshold = 0.6; // Threshold for face similarity
       
       const now = Date.now();
