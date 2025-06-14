@@ -171,8 +171,8 @@ const CameraVerificationPage = () => {
       <div className="w-full max-w-2xl">
         {/* Minimal Header */}
         <div className="text-center mb-6">
-          <div className="w-12 h-12 mx-auto mb-3 bg-blue-50 rounded-full flex items-center justify-center">
-            <Camera className="h-6 w-6 text-blue-600" />
+          <div className="w-12 h-12 mx-auto mb-3 bg-red-50 rounded-full flex items-center justify-center">
+            <Camera className="h-6 w-6 text-red-600" />
           </div>
           <h1 className="text-2xl font-semibold text-gray-900 mb-1">Camera Verification</h1>
           <p className="text-gray-600">{assessment?.name}</p>
@@ -182,8 +182,8 @@ const CameraVerificationPage = () => {
           <CardContent className="p-6">
             {!isCameraActivated ? (
               <div className="text-center py-8">
-                <div className="w-16 h-16 mx-auto mb-4 bg-blue-50 rounded-full flex items-center justify-center">
-                  <Camera className="h-8 w-8 text-blue-600" />
+                <div className="w-16 h-16 mx-auto mb-4 bg-red-50 rounded-full flex items-center justify-center">
+                  <Camera className="h-8 w-8 text-red-600" />
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Camera Access Required</h3>
                 <p className="text-gray-600 mb-6 text-sm">
@@ -191,7 +191,7 @@ const CameraVerificationPage = () => {
                 </p>
                 <Button 
                   onClick={handleActivateCamera}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-red-600 hover:bg-red-700 text-white"
                 >
                   <Camera className="mr-2 h-4 w-4" />
                   Activate Camera
@@ -210,8 +210,8 @@ const CameraVerificationPage = () => {
                 />
                 
                 {/* Minimal Guidelines */}
-                <div className="bg-blue-50 rounded-lg p-3">
-                  <p className="text-blue-800 text-sm text-center">
+                <div className="bg-red-50 rounded-lg p-3">
+                  <p className="text-red-800 text-sm text-center">
                     Ensure your face is clearly visible and well-lit
                   </p>
                 </div>
@@ -229,7 +229,7 @@ const CameraVerificationPage = () => {
                 <div>
                   <Button 
                     onClick={handleStartAssessment}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className="bg-red-600 hover:bg-red-700 text-white"
                   >
                     <ShieldCheck className="mr-2 h-4 w-4" />
                     Start Assessment
