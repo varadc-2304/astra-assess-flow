@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ interface ProctoringCameraProps {
   showStatus?: boolean;
   showWarnings?: boolean;
   trackViolations?: boolean;
+  enableRecording?: boolean;
   assessmentId?: string;
   submissionId?: string;
   size?: 'default' | 'small' | 'large';
@@ -70,6 +71,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   showStatus = true,
   showWarnings = true,
   trackViolations = false,
+  enableRecording = false,
   assessmentId,
   submissionId,
   size = 'default',
@@ -120,6 +122,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     drawExpressions: false,
     detectExpressions: true,
     trackViolations: trackViolations,
+    enableRecording: enableRecording,
     // Improved parameters for more accurate face detection
     detectionOptions: {
       faceDetectionThreshold: 0.5,
@@ -127,6 +130,60 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       rapidMovementThreshold: 0.3,
     }
   });
+
+  const uploadRecording = useCallback(async (blob: Blob) => {
+    if (!submissionId || !user) return;
+
+    toast({
+        title: "Uploading Recording",
+        description: "Your proctoring session is being uploaded.",
+    });
+
+    const fileName = `${user.id}/${submissionId}_${new Date().toISOString()}.webm`;
+    const { error } = await supabase.storage
+        .from('proctoring_recordings')
+        .upload(fileName, blob, {
+            contentType: 'video/webm',
+            upsert: true
+        });
+
+    if (error) {
+        console.error('Error uploading recording:', error);
+        toast({
+            title: "Recording Upload Failed",
+            description: "There was an error uploading your session recording.",
+            variant: "destructive",
+        });
+        return;
+    }
+
+    const { data: urlData } = supabase.storage
+        .from('proctoring_recordings')
+        .getPublicUrl(fileName);
+
+    if (urlData && urlData.publicUrl) {
+        const { error: updateError } = await supabase
+            .from('submissions')
+            .update({ recording_url: urlData.publicUrl })
+            .eq('id', submissionId);
+        
+        if (updateError) {
+            console.error('Error updating submission with recording URL:', updateError);
+            toast({
+                title: "Error",
+                description: "Failed to save recording URL.",
+                variant: "destructive",
+            });
+        } else {
+            console.log('Submission updated with recording URL.');
+            toast({
+                title: "Upload Complete",
+                description: "Your proctoring session has been securely saved.",
+                variant: "success",
+            });
+        }
+    }
+  }, [submissionId, user, toast]);
 
   // Initialize the camera when component mounts
   useEffect(() => {
@@ -139,9 +196,13 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     // Cleanup function that will run when component unmounts
     return () => {
       console.log("Stopping camera detection...");
-      stopDetection();
+      stopDetection().then(blob => {
+        if (blob && enableRecording && submissionId && user) {
+            uploadRecording(blob);
+        }
+      });
     };
-  }, [reinitialize, stopDetection]);
+  }, [reinitialize, stopDetection, enableRecording, submissionId, user, uploadRecording]);
   
   // Update camera loading state
   useEffect(() => {
