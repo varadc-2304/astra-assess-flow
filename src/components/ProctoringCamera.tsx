@@ -140,6 +140,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     });
 
     const fileName = `${user.id}/${submissionId}_${new Date().toISOString()}.webm`;
+    console.log(`[ProctoringUpload] Attempting to upload to: ${fileName} for user ${user.id}`);
     const { error } = await supabase.storage
         .from('proctoring_recordings')
         .upload(fileName, blob, {
@@ -492,9 +493,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
                 "shadow-lg",
                 status === 'faceDetected' 
                   ? "bg-green-500/10 border-green-400/30 scale-95" 
-                  : status === 'error' 
-                    ? "bg-red-500/10 border-red-400/30" 
-                    : "bg-amber-500/10 border-amber-400/30"
+                  : "bg-red-500/10 border-red-400/30"
               )}>
                 {/* Status indicator dot with enhanced animation */}
                 <div className={cn(
