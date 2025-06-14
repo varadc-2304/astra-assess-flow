@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import { useToast } from '@/hooks/use-toast';
@@ -194,6 +195,58 @@ export function useProctoring(options: ProctoringOptions = {}) {
       return false;
     }
   }, [toast]);
+
+  // Start recording
+  const startRecording = useCallback((stream: MediaStream) => {
+    if (!stream) return;
+
+    recordedChunksRef.current = [];
+    const recorderOptions = { mimeType: 'video/webm; codecs=vp9' };
+    try {
+        mediaRecorderRef.current = new MediaRecorder(stream, recorderOptions);
+    } catch (e) {
+        console.error('Error creating MediaRecorder with vp9, falling back:', e);
+        mediaRecorderRef.current = new MediaRecorder(stream);
+    }
+
+    mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+            recordedChunksRef.current.push(event.data);
+        }
+    };
+    
+    mediaRecorderRef.current.start(1000); // Record in 1s chunks
+    console.log('Recording started.');
+  }, []);
+
+  // Finalize recording
+  const finalizeRecording = useCallback((): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+        const createBlobAndResolve = () => {
+            if (recordedChunksRef.current.length > 0) {
+                const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+                recordedChunksRef.current = [];
+                console.log('Recording finalized, blob created.', blob);
+                resolve(blob);
+            } else {
+                resolve(null);
+            }
+        };
+
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            mediaRecorderRef.current.onstop = () => {
+                createBlobAndResolve();
+                mediaRecorderRef.current = null;
+            };
+            mediaRecorderRef.current.stop();
+        } else {
+            createBlobAndResolve();
+            if (mediaRecorderRef.current) {
+                mediaRecorderRef.current = null;
+            }
+        }
+    });
+  }, []);
 
   // Initialize camera with improved error handling
   const initializeCamera = useCallback(async () => {
@@ -788,29 +841,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
     }
   }, [facingMode, isCameraPermissionGranted, initializeCamera]);
 
-  // Start recording
-  const startRecording = useCallback((stream: MediaStream) => {
-    if (!stream) return;
-
-    recordedChunksRef.current = [];
-    const recorderOptions = { mimeType: 'video/webm; codecs=vp9' };
-    try {
-        mediaRecorderRef.current = new MediaRecorder(stream, recorderOptions);
-    } catch (e) {
-        console.error('Error creating MediaRecorder with vp9, falling back:', e);
-        mediaRecorderRef.current = new MediaRecorder(stream);
-    }
-
-    mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-            recordedChunksRef.current.push(event.data);
-        }
-    };
-    
-    mediaRecorderRef.current.start(1000); // Record in 1s chunks
-    console.log('Recording started.');
-  }, []);
-
   // Stop recording
   const stopRecording = useCallback((): Promise<void> => {
     return new Promise((resolve) => {
@@ -823,35 +853,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
             mediaRecorderRef.current = null;
         } else {
             resolve();
-        }
-    });
-  }, []);
-
-  // Finalize recording
-  const finalizeRecording = useCallback((): Promise<Blob | null> => {
-    return new Promise((resolve) => {
-        const createBlobAndResolve = () => {
-            if (recordedChunksRef.current.length > 0) {
-                const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-                recordedChunksRef.current = [];
-                console.log('Recording finalized, blob created.', blob);
-                resolve(blob);
-            } else {
-                resolve(null);
-            }
-        };
-
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-            mediaRecorderRef.current.onstop = () => {
-                createBlobAndResolve();
-                mediaRecorderRef.current = null;
-            };
-            mediaRecorderRef.current.stop();
-        } else {
-            createBlobAndResolve();
-            if (mediaRecorderRef.current) {
-                mediaRecorderRef.current = null;
-            }
         }
     });
   }, []);
