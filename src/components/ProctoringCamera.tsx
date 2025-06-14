@@ -328,21 +328,40 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   };
 
   const handleStartRecording = async () => {
-    if (!enableRecording || !recordingConfig || !videoRef.current) return;
+    if (!enableRecording || !recordingConfig || !videoRef.current) {
+      console.log('Cannot start recording:', { enableRecording, recordingConfig: !!recordingConfig, videoRef: !!videoRef.current });
+      return;
+    }
     
+    console.log('Starting recording with config:', recordingConfig);
     const success = await startRecording(videoRef.current, recordingConfig);
+    console.log('Recording start success:', success);
     onRecordingStart?.(success);
   };
 
   const handleStopRecording = async () => {
-    if (!recordingConfig) return;
+    if (!recordingConfig) {
+      console.log('Cannot stop recording: no config');
+      return;
+    }
     
+    console.log('Stopping recording...');
     const recordingUrl = await stopRecording(recordingConfig);
+    console.log('Recording stopped, URL:', recordingUrl);
     onRecordingStop?.(recordingUrl);
   };
 
   // Start recording automatically when camera is ready and recording is enabled
   useEffect(() => {
+    console.log('Recording useEffect:', {
+      enableRecording,
+      recordingConfig: !!recordingConfig,
+      isCameraReady,
+      isModelLoaded,
+      isRecording,
+      videoRef: !!videoRef.current
+    });
+
     if (enableRecording && recordingConfig && isCameraReady && isModelLoaded && !isRecording && videoRef.current) {
       console.log('Auto-starting recording for assessment');
       handleStartRecording();
@@ -352,9 +371,13 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   // Cleanup recording on unmount
   useEffect(() => {
     return () => {
+      if (enableRecording && isRecording) {
+        console.log('Component unmounting, stopping recording...');
+        handleStopRecording();
+      }
       cleanup();
     };
-  }, [cleanup]);
+  }, [cleanup, enableRecording, isRecording]);
 
   const statusConfig = statusMessages[status] || statusMessages.initializing;
   

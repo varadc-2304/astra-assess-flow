@@ -39,6 +39,11 @@ export const useVideoRecording = () => {
         options.mimeType = 'video/webm;codecs=vp8,opus';
       }
 
+      // Additional fallback if webm is not supported
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options.mimeType = 'video/mp4';
+      }
+
       const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       recordedChunksRef.current = [];
@@ -46,13 +51,14 @@ export const useVideoRecording = () => {
       mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
+          console.log('Recording chunk received:', event.data.size, 'bytes');
         }
       };
 
       mediaRecorder.start(1000); // Collect data every second
       setIsRecording(true);
       
-      console.log('Recording started for assessment:', config.assessmentId);
+      console.log('Recording started for assessment:', config.assessmentId, 'user:', user.id);
       return true;
     } catch (error) {
       console.error('Error starting recording:', error);
@@ -67,6 +73,7 @@ export const useVideoRecording = () => {
 
   const stopRecording = useCallback(async (config: RecordingConfig): Promise<string | null> => {
     if (!mediaRecorderRef.current || !isRecording || !user) {
+      console.log('Cannot stop recording - no recorder, not recording, or no user');
       return null;
     }
 
@@ -77,6 +84,8 @@ export const useVideoRecording = () => {
         try {
           setIsRecording(false);
           setIsUploading(true);
+
+          console.log('Recording stopped, processing chunks:', recordedChunksRef.current.length);
 
           if (recordedChunksRef.current.length === 0) {
             console.warn('No recorded chunks available');
@@ -90,11 +99,13 @@ export const useVideoRecording = () => {
             type: 'video/webm'
           });
 
+          console.log('Recording blob created:', Math.round(recordedBlob.size / 1024 / 1024), 'MB');
+
           // Generate filename with timestamp
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
           const fileName = `${user.id}/${config.assessmentId}/${config.submissionId}/recording-${timestamp}.webm`;
 
-          console.log('Uploading recording:', fileName, 'Size:', Math.round(recordedBlob.size / 1024 / 1024), 'MB');
+          console.log('Uploading recording to:', fileName);
 
           // Upload to Supabase storage
           const { data: uploadData, error: uploadError } = await supabase.storage
@@ -109,7 +120,7 @@ export const useVideoRecording = () => {
             console.error('Upload error:', uploadError);
             toast({
               title: "Upload Failed",
-              description: "Failed to upload recording. Please contact support.",
+              description: `Failed to upload recording: ${uploadError.message}`,
               variant: "destructive",
             });
             setIsUploading(false);
@@ -117,12 +128,10 @@ export const useVideoRecording = () => {
             return;
           }
 
-          // Get public URL
-          const { data: urlData } = supabase.storage
-            .from('proctoring_recordings')
-            .getPublicUrl(fileName);
+          console.log('Upload successful:', uploadData);
 
-          const recordingUrl = urlData.publicUrl;
+          // Get the file path for the recording URL
+          const recordingUrl = `${supabase.supabaseUrl}/storage/v1/object/proctoring_recordings/${fileName}`;
 
           // Update submission with recording URL
           const { error: updateError } = await supabase
@@ -139,6 +148,10 @@ export const useVideoRecording = () => {
             });
           } else {
             console.log('Recording successfully saved:', recordingUrl);
+            toast({
+              title: "Recording Complete",
+              description: "Assessment recording has been saved successfully.",
+            });
           }
 
           setIsUploading(false);
@@ -156,12 +169,14 @@ export const useVideoRecording = () => {
         }
       };
 
+      console.log('Stopping media recorder...');
       mediaRecorder.stop();
     });
   }, [isRecording, user, toast]);
 
   const cleanup = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
+      console.log('Cleaning up recording...');
       mediaRecorderRef.current.stop();
     }
     mediaRecorderRef.current = null;
