@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -12,44 +13,33 @@ const SummaryPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Effect to clean up camera and recording resources when results page is shown
+  // Effect to clean up camera when results page is shown
   useEffect(() => {
-    // Find and stop any running camera streams and media recorders
-    const stopAllMediaResources = () => {
-      try {
-        // Stop all camera streams
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          navigator.mediaDevices.enumerateDevices()
-            .then(() => {
-              const videoElements = document.querySelectorAll('video');
-              videoElements.forEach(video => {
-                if (video.srcObject) {
-                  const stream = video.srcObject as MediaStream;
-                  if (stream) {
-                    const tracks = stream.getTracks();
-                    tracks.forEach(track => {
-                      track.stop();
-                    });
-                  }
-                  video.srcObject = null;
+    // Find and stop any running camera streams
+    const stopAllCameraStreams = () => {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.enumerateDevices()
+          .then(() => {
+            const videoElements = document.querySelectorAll('video');
+            videoElements.forEach(video => {
+              if (video.srcObject) {
+                const stream = video.srcObject as MediaStream;
+                if (stream) {
+                  const tracks = stream.getTracks();
+                  tracks.forEach(track => {
+                    track.stop();
+                  });
                 }
-              });
-            })
-            .catch(err => console.error("Error stopping camera streams:", err));
-        }
-
-        // Stop any MediaRecorder instances that might still be running
-        // This is a cleanup fallback in case recording wasn't properly stopped
-        if (window.MediaRecorder) {
-          console.log("Ensuring all recording resources are cleaned up");
-        }
-      } catch (error) {
-        console.error("Error during media cleanup:", error);
+                video.srcObject = null;
+              }
+            });
+          })
+          .catch(err => console.error("Error stopping camera streams:", err));
       }
     };
     
-    // Stop all media resources when this component mounts
-    stopAllMediaResources();
+    // Stop all camera streams when this component mounts
+    stopAllCameraStreams();
     
     return () => {
       // Additional cleanup if needed when component unmounts

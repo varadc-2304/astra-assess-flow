@@ -1,9 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
-import { useVideoRecording } from '@/hooks/useVideoRecording';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw, Shield, AlertTriangle, Video, VideoOff, Upload } from 'lucide-react';
+import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw, Shield, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,51 +19,48 @@ interface ProctoringCameraProps {
   submissionId?: string;
   size?: 'default' | 'small' | 'large';
   onWarning?: (type: string, message: string) => void;
-  enableRecording?: boolean;
-  onRecordingStart?: () => void;
-  onRecordingStop?: (recordingPath: string | null) => void;
 }
 
-const statusMessages: Record<ProctoringStatus, { message: string; color: string; icon: React.ReactNode }> = {
-  initializing: {
-    message: "Initializing camera...",
-    color: "text-blue-600",
-    icon: <Loader2 className="h-4 w-4 animate-spin" />
+const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
+  initializing: { 
+    message: 'Initializing camera...', 
+    icon: <Loader2 className="animate-spin mr-2 h-5 w-5" />,
+    color: 'text-blue-500'
   },
-  faceDetected: {
-    message: "Face detected and verified. You may proceed.",
-    color: "text-green-600",
-    icon: <CheckCircle2 className="h-4 w-4" />
+  noFaceDetected: { 
+    message: 'No face detected. Please position yourself correctly.', 
+    icon: <AlertCircle className="mr-2 h-5 w-5" />,
+    color: 'text-amber-500'
   },
-  noFaceDetected: {
-    message: "No face detected. Please position yourself in the camera view.",
-    color: "text-amber-600",
-    icon: <EyeOff className="h-4 w-4" />
+  faceDetected: { 
+    message: 'Face detected successfully!', 
+    icon: <CheckCircle2 className="mr-2 h-5 w-5" />,
+    color: 'text-green-500'
   },
-  multipleFacesDetected: {
-    message: "Multiple faces detected. Ensure only you are visible.",
-    color: "text-red-600",
-    icon: <Users className="h-4 w-4" />
-  },
-  faceNotCentered: {
-    message: "Please center your face in the camera frame.",
-    color: "text-amber-600",
-    icon: <Eye className="h-4 w-4" />
+  multipleFacesDetected: { 
+    message: 'Multiple faces detected. Please ensure only you are visible.', 
+    icon: <Users className="mr-2 h-5 w-5" />,
+    color: 'text-red-500'
   },
   faceCovered: {
-    message: "Face appears to be covered. Please ensure clear visibility.",
-    color: "text-red-600",
-    icon: <AlertCircle className="h-4 w-4" />
+    message: 'Face appears to be partially covered. Please improve lighting or reposition.', 
+    icon: <EyeOff className="mr-2 h-5 w-5" />,
+    color: 'text-amber-500' 
+  },
+  faceNotCentered: {
+    message: 'Face not centered. Please position yourself in the middle of the frame.',
+    icon: <X className="mr-2 h-5 w-5" />,
+    color: 'text-amber-500'
   },
   rapidMovement: {
-    message: "Rapid movement detected. Please remain still.",
-    color: "text-amber-600",
-    icon: <AlertTriangle className="h-4 w-4" />
+    message: 'Rapid head movement detected. Please stay still.',
+    icon: <AlertCircle className="mr-2 h-5 w-5" />,
+    color: 'text-amber-500'
   },
-  error: {
-    message: "Camera error occurred. Please restart the camera.",
-    color: "text-red-600",
-    icon: <AlertCircle className="h-4 w-4" />
+  error: { 
+    message: 'Error initializing camera. Please check permissions and try again.', 
+    icon: <AlertCircle className="mr-2 h-5 w-5" />,
+    color: 'text-red-500'
   }
 };
 
@@ -77,10 +73,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   assessmentId,
   submissionId,
   size = 'default',
-  onWarning,
-  enableRecording = false,
-  onRecordingStart,
-  onRecordingStop
+  onWarning
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -135,16 +128,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }
   });
 
-  const {
-    isRecording,
-    recordingError,
-    uploadProgress,
-    startRecording,
-    stopRecording,
-    uploadRecording,
-    cleanup: cleanupRecording
-  } = useVideoRecording();
-
   // Initialize the camera when component mounts
   useEffect(() => {
     if (!autoInitRef.current) {
@@ -157,19 +140,9 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     return () => {
       console.log("Stopping camera detection...");
       stopDetection();
-      cleanupRecording();
     };
-  }, [reinitialize, stopDetection, cleanupRecording]);
+  }, [reinitialize, stopDetection]);
   
-  // Start recording when camera is ready and recording is enabled
-  useEffect(() => {
-    if (enableRecording && isCameraReady && !isRecording && videoRef.current && assessmentId && submissionId) {
-      console.log("Starting assessment recording...");
-      startRecording(videoRef.current);
-      onRecordingStart?.();
-    }
-  }, [enableRecording, isCameraReady, isRecording, assessmentId, submissionId, startRecording, onRecordingStart]);
-
   // Update camera loading state
   useEffect(() => {
     if (isInitializing) {
@@ -341,47 +314,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }, 100);
   };
 
-  const handleStopRecording = async () => {
-    if (!isRecording || !assessmentId || !submissionId) return;
-
-    try {
-      console.log("Stopping assessment recording...");
-      const recordingBlob = await stopRecording();
-      
-      if (recordingBlob) {
-        toast({
-          title: "Recording Stopped",
-          description: "Uploading recording...",
-        });
-        
-        const recordingPath = await uploadRecording(recordingBlob, assessmentId, submissionId);
-        
-        if (recordingPath) {
-          toast({
-            title: "Recording Uploaded",
-            description: "Assessment recording has been saved successfully.",
-          });
-          onRecordingStop?.(recordingPath);
-        } else {
-          toast({
-            title: "Upload Failed",
-            description: "Failed to upload recording. Please contact support.",
-            variant: "destructive",
-          });
-          onRecordingStop?.(null);
-        }
-      }
-    } catch (error) {
-      console.error("Error stopping recording:", error);
-      toast({
-        title: "Recording Error",
-        description: "Failed to stop recording properly.",
-        variant: "destructive",
-      });
-      onRecordingStop?.(null);
-    }
-  };
-
   const statusConfig = statusMessages[status] || statusMessages.initializing;
   
   // Determine container size based on the size prop
@@ -499,7 +431,9 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
                 "shadow-lg",
                 status === 'faceDetected' 
                   ? "bg-green-500/10 border-green-400/30 scale-95" 
-                  : "bg-amber-500/10 border-amber-400/30"
+                  : status === 'error' 
+                    ? "bg-red-500/10 border-red-400/30" 
+                    : "bg-amber-500/10 border-amber-400/30"
               )}>
                 {/* Status indicator dot with enhanced animation */}
                 <div className={cn(
@@ -525,23 +459,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
             </div>
           )}
 
-          {/* Recording indicator */}
-          {enableRecording && isRecording && (
-            <div className="absolute top-3 right-3 z-30 flex items-center space-x-2 bg-red-600/90 text-white px-3 py-1 rounded-full animate-pulse">
-              <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
-              <Video className="h-4 w-4" />
-              <span className="text-xs font-semibold">REC</span>
-            </div>
-          )}
-
-          {/* Upload progress indicator */}
-          {uploadProgress > 0 && uploadProgress < 100 && (
-            <div className="absolute top-3 left-3 z-30 flex items-center space-x-2 bg-blue-600/90 text-white px-3 py-1 rounded-full">
-              <Upload className="h-4 w-4 animate-spin" />
-              <span className="text-xs font-semibold">{uploadProgress}%</span>
-            </div>
-          )}
-          
           {/* Corner accent elements for modern look */}
           <div className="absolute top-2 left-2 w-4 h-4 border-l-2 border-t-2 border-blue-400/50 rounded-tl-lg"></div>
           <div className="absolute top-2 right-2 w-4 h-4 border-r-2 border-t-2 border-blue-400/50 rounded-tr-lg"></div>
@@ -549,7 +466,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
           <div className="absolute bottom-2 right-2 w-4 h-4 border-r-2 border-b-2 border-blue-400/50 rounded-br-lg"></div>
         </div>
 
-        {/* Enhanced controls with recording button */}
+        {/* Enhanced controls with better styling */}
         {showControls && (
           <div className="flex justify-between items-center mt-4 gap-2">
             <Button
@@ -602,40 +519,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
               )} />
               <span className="relative z-10">Switch</span>
             </Button>
-
-            {/* Recording control button - only show if recording is enabled */}
-            {enableRecording && (
-              <Button
-                onClick={isRecording ? handleStopRecording : () => startRecording(videoRef.current)}
-                disabled={!isCameraReady || isInitializing}
-                variant={isRecording ? "destructive" : "outline"}
-                type="button"
-                className={cn(
-                  "group relative overflow-hidden",
-                  "transition-all duration-300 ease-in-out",
-                  "hover:scale-105 transform",
-                  size === 'small' ? "text-xs px-2 py-1 h-7" : "h-9"
-                )}
-              >
-                {isRecording ? (
-                  <>
-                    <VideoOff className={cn(
-                      "mr-2 relative z-10",
-                      size === 'small' ? "h-3 w-3" : "h-4 w-4"
-                    )} />
-                    <span className="relative z-10">Stop</span>
-                  </>
-                ) : (
-                  <>
-                    <Video className={cn(
-                      "mr-2 relative z-10",
-                      size === 'small' ? "h-3 w-3" : "h-4 w-4"
-                    )} />
-                    <span className="relative z-10">Record</span>
-                  </>
-                )}
-              </Button>
-            )}
             
             <Button
               onClick={handleVerificationComplete}
@@ -661,13 +544,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
               )} />
               <span className="relative z-10">Verify</span>
             </Button>
-          </div>
-        )}
-
-        {/* Recording error display */}
-        {recordingError && (
-          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-sm text-red-700">{recordingError}</p>
           </div>
         )}
       </div>
