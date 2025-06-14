@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MCQQuestion, CodingQuestion, QuestionSubmission, TestResult } from '@/types/database';
+import { MCQQuestion, CodeQuestion, QuestionSubmission, TestResult } from '@/types/database';
 import { MCQQuestionCard } from '@/components/MCQQuestionCard';
 import { CodingQuestionCard } from '@/components/CodingQuestionCard';
 import { Clock, AlertTriangle, CheckCircle, XCircle, ChevronLeft, ChevronRight, Save, Send, AlertCircle } from 'lucide-react';
@@ -44,29 +44,6 @@ const AssessmentPage = () => {
   const [isSubmissionSaving, setIsSubmissionSaving] = useState(false);
   const [isSubmissionSaveError, setIsSubmissionSaveError] = useState(false);
   const [isSubmissionSaveSuccess, setIsSubmissionSaveSuccess] = useState(false);
-  const [isSubmissionSaveDialogOpen, setIsSubmissionSaveDialogOpen] = useState(false);
-  const [isSubmissionSaveConfirmDialogOpen, setIsSubmissionSaveConfirmDialogOpen] = useState(false);
-  const [isSubmissionSaveConfirmed, setIsSubmissionSaveConfirmed] = useState(false);
-  const [isSubmissionSaveConfirmError, setIsSubmissionSaveConfirmError] = useState(false);
-  const [isSubmissionSaveConfirmSuccess, setIsSubmissionSaveConfirmSuccess] = useState(false);
-  const [isSubmissionSaveConfirmDialogLoading, setIsSubmissionSaveConfirmDialogLoading] = useState(false);
-  const [isSubmissionSaveConfirmDialogError, setIsSubmissionSaveConfirmDialogError] = useState(false);
-  const [isSubmissionSaveConfirmDialogSuccess, setIsSubmissionSaveConfirmDialogSuccess] = useState(false);
-  const [isSubmissionSaveConfirmDialogComplete, setIsSubmissionSaveConfirmDialogComplete] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitting, setIsSubmissionSaveConfirmDialogSubmitting] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitted, setIsSubmissionSaveConfirmDialogSubmitted] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitError, setIsSubmissionSaveConfirmDialogSubmitError] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitSuccess, setIsSubmissionSaveConfirmDialogSubmitSuccess] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitComplete, setIsSubmissionSaveConfirmDialogSubmitComplete] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitConfirmed, setIsSubmissionSaveConfirmDialogSubmitConfirmed] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitConfirmError, setIsSubmissionSaveConfirmDialogSubmitConfirmError] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitConfirmSuccess, setIsSubmissionSaveConfirmDialogSubmitConfirmSuccess] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitConfirmComplete, setIsSubmissionSaveConfirmDialogSubmitConfirmComplete] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitConfirmSubmitting, setIsSubmissionSaveConfirmDialogSubmitConfirmSubmitting] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitConfirmSubmitted, setIsSubmissionSaveConfirmDialogSubmitConfirmSubmitted] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitConfirmSubmitError, setIsSubmissionSaveConfirmDialogSubmitConfirmSubmitError] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitConfirmSubmitSuccess, setIsSubmissionSaveConfirmDialogSubmitConfirmSubmitSuccess] = useState(false);
-  const [isSubmissionSaveConfirmDialogSubmitConfirmSubmitComplete, setIsSubmissionSaveConfirmDialogSubmitConfirmSubmitComplete] = useState(false);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const fullscreenCheckRef = useRef<NodeJS.Timeout | null>(null);
@@ -74,7 +51,7 @@ const AssessmentPage = () => {
   
   // Get questions of the current type
   const mcqQuestions = assessment?.questions?.filter(q => 'type' in q && q.type === 'mcq') as MCQQuestion[] || [];
-  const codingQuestions = assessment?.questions?.filter(q => 'type' in q && q.type === 'code') as CodingQuestion[] || [];
+  const codingQuestions = assessment?.questions?.filter(q => 'type' in q && q.type === 'code') as CodeQuestion[] || [];
   
   // Get current question based on active tab
   const currentQuestions = activeTab === 'mcq' ? mcqQuestions : codingQuestions;
@@ -577,8 +554,8 @@ const AssessmentPage = () => {
         <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{assessment.name}</h1>
-              <p className="text-gray-500">{assessment.code}</p>
+              <h1 className="text-2xl font-bold text-gray-900">{assessment?.name}</h1>
+              <p className="text-gray-500">{assessment?.code}</p>
             </div>
             
             <div className="flex items-center gap-4">
