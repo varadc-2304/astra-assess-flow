@@ -3,7 +3,7 @@ import React from 'react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { Check, HelpCircle, AlertTriangle } from 'lucide-react';
+import { Check, HelpCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -28,25 +28,31 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
   };
 
   return (
-    <Card className={`border ${isWarningActive ? 'border-red-500 shadow-red-100' : 'border-gray-200'} shadow-sm hover:shadow-md transition-shadow duration-200`}>
+    <Card className={`card-modern ${isWarningActive ? 'ring-2 ring-red-400 ring-opacity-50' : ''} overflow-hidden`}>
       {isWarningActive && (
-        <div className="bg-red-50 p-2 flex items-center gap-2 border-b border-red-200">
-          <AlertTriangle className="h-5 w-5 text-red-500" />
-          <span className="text-sm font-medium text-red-700">
-            Anti-cheating warning active - please return to assessment conditions
-          </span>
+        <div className="bg-gradient-to-r from-red-50 to-orange-50 p-4 border-b border-red-100">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-100 rounded-full">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-red-800">Anti-cheating warning active</p>
+              <p className="text-xs text-red-600">Please return to assessment conditions</p>
+            </div>
+          </div>
         </div>
       )}
-      <CardContent className="p-6 space-y-6">
-        <div className="space-y-3">
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="text-xl font-semibold text-gray-800">{question.title}</h3>
+      
+      <CardContent className="p-8 space-y-8">
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <h3 className="text-2xl font-bold text-gray-900 leading-tight">{question.title}</h3>
             {question.description && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <button className="inline-flex items-center text-gray-500 hover:text-gray-700">
-                      <HelpCircle className="h-5 w-5" />
+                    <button className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors">
+                      <HelpCircle className="h-5 w-5 text-gray-600" />
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
@@ -58,11 +64,11 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
           </div>
           
           {question.imageUrl && (
-            <div className="relative rounded-lg overflow-hidden border border-gray-200">
+            <div className="relative rounded-2xl overflow-hidden border border-gray-100 shadow-lg">
               <img 
                 src={question.imageUrl} 
                 alt="Question image" 
-                className="max-w-full rounded-md object-contain max-h-64"
+                className="max-w-full rounded-2xl object-contain max-h-80 w-full"
               />
             </div>
           )}
@@ -73,33 +79,49 @@ const MCQQuestion: React.FC<MCQQuestionProps> = ({
           onValueChange={handleOptionChange}
           className="space-y-4"
         >
-          {question.options.map((option) => (
+          {question.options.map((option, index) => (
             <div
               key={option.id}
-              className={`flex items-center gap-3 p-4 rounded-lg border ${
+              className={`group relative flex items-center gap-4 p-6 rounded-2xl border-2 transition-all duration-300 cursor-pointer ${
                 question.selectedOption === option.id
-                  ? 'border-astra-red bg-red-50'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-              } transition-all duration-200`}
+                  ? 'border-astra-red bg-gradient-to-r from-red-50 to-orange-50 shadow-lg shadow-red-100'
+                  : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50 bg-white'
+              }`}
             >
-              <RadioGroupItem
-                value={option.id}
-                id={`option-${question.id}-${option.id}`}
-                className="border-2"
-              />
+              <div className={`relative flex items-center justify-center w-6 h-6 rounded-full border-2 transition-all ${
+                question.selectedOption === option.id
+                  ? 'border-astra-red bg-astra-red'
+                  : 'border-gray-300 group-hover:border-gray-400'
+              }`}>
+                <RadioGroupItem
+                  value={option.id}
+                  id={`option-${question.id}-${option.id}`}
+                  className="opacity-0 absolute"
+                />
+                {question.selectedOption === option.id && (
+                  <CheckCircle2 className="h-4 w-4 text-white" />
+                )}
+              </div>
+              
               <Label 
                 htmlFor={`option-${question.id}-${option.id}`}
-                className={`flex-grow text-base ${
+                className={`flex-grow text-lg cursor-pointer transition-colors ${
                   question.selectedOption === option.id
-                    ? 'text-gray-900 font-medium'
-                    : 'text-gray-700'
+                    ? 'text-gray-900 font-semibold'
+                    : 'text-gray-700 group-hover:text-gray-900'
                 }`}
               >
-                {option.text}
+                <span className="inline-flex items-center gap-2">
+                  <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                    question.selectedOption === option.id
+                      ? 'bg-astra-red text-white'
+                      : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'
+                  }`}>
+                    {String.fromCharCode(65 + index)}
+                  </span>
+                  {option.text}
+                </span>
               </Label>
-              {question.selectedOption === option.id && (
-                <Check className="h-5 w-5 text-astra-red" />
-              )}
             </div>
           ))}
         </RadioGroup>

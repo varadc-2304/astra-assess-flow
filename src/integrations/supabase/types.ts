@@ -1138,7 +1138,10 @@ export type Database = {
           ended_at: string | null
           flagged_actions: Json | null
           id: string
+          recording_blob_url: string | null
+          recording_duration_seconds: number | null
           recording_path: string
+          recording_size_mb: number | null
           recording_status: string | null
           recording_url: string | null
           started_at: string | null
@@ -1152,7 +1155,10 @@ export type Database = {
           ended_at?: string | null
           flagged_actions?: Json | null
           id?: string
+          recording_blob_url?: string | null
+          recording_duration_seconds?: number | null
           recording_path: string
+          recording_size_mb?: number | null
           recording_status?: string | null
           recording_url?: string | null
           started_at?: string | null
@@ -1166,7 +1172,10 @@ export type Database = {
           ended_at?: string | null
           flagged_actions?: Json | null
           id?: string
+          recording_blob_url?: string | null
+          recording_duration_seconds?: number | null
           recording_path?: string
+          recording_size_mb?: number | null
           recording_status?: string | null
           recording_url?: string | null
           started_at?: string | null
@@ -1532,6 +1541,8 @@ export type Database = {
           id: string
           is_terminated: boolean | null
           object_violations: Json | null
+          proctoring_session_id: string | null
+          recording_url: string | null
           started_at: string
           user_id: string
         }
@@ -1544,6 +1555,8 @@ export type Database = {
           id?: string
           is_terminated?: boolean | null
           object_violations?: Json | null
+          proctoring_session_id?: string | null
+          recording_url?: string | null
           started_at?: string
           user_id: string
         }
@@ -1556,6 +1569,8 @@ export type Database = {
           id?: string
           is_terminated?: boolean | null
           object_violations?: Json | null
+          proctoring_session_id?: string | null
+          recording_url?: string | null
           started_at?: string
           user_id?: string
         }
@@ -1565,6 +1580,13 @@ export type Database = {
             columns: ["assessment_id"]
             isOneToOne: false
             referencedRelation: "assessments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "submissions_proctoring_session_id_fkey"
+            columns: ["proctoring_session_id"]
+            isOneToOne: false
+            referencedRelation: "proctoring_sessions"
             referencedColumns: ["id"]
           },
           {

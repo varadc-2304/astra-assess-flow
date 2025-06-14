@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { Clock } from 'lucide-react';
@@ -6,9 +5,9 @@ import { useNavigate } from 'react-router-dom';
 
 type TimerProps = {
   variant?: 'countdown' | 'assessment';
-  targetTime?: string; // ISO date string for countdown to start time
+  targetTime?: string;
   onCountdownEnd?: () => void;
-  value?: number; // For manually controlled timers (fullscreen warning)
+  value?: number;
 };
 
 export const Timer: React.FC<TimerProps> = ({ 
@@ -80,10 +79,10 @@ export const Timer: React.FC<TimerProps> = ({
   // Calculate warning thresholds
   const getColorClass = (): string => {
     if (variant === 'assessment') {
-      if (timeRemaining <= 300) return 'text-red-500'; // Last 5 minutes
-      if (timeRemaining <= 600) return 'text-orange-500'; // Last 10 minutes
+      if (timeRemaining <= 300) return 'text-red-500 animate-pulse'; 
+      if (timeRemaining <= 600) return 'text-amber-500'; 
     }
-    return 'text-astra-darkGray';
+    return 'text-slate-700';
   };
   
   // Determine what time to display
@@ -92,9 +91,11 @@ export const Timer: React.FC<TimerProps> = ({
     : value !== undefined ? formatTime(value) : formatTime(timeRemaining);
   
   return (
-    <div className={`flex items-center gap-2 font-mono text-lg font-bold ${getColorClass()}`}>
-      <Clock className="h-5 w-5" />
-      <span>{displayTime}</span>
+    <div className={`flex items-center gap-3 font-mono text-lg font-bold ${getColorClass()} px-4 py-2 bg-white/80 backdrop-blur-sm rounded-xl shadow-lg border border-white/20`}>
+      <div className="p-2 bg-gradient-to-br from-astra-red to-red-600 rounded-lg text-white shadow-md">
+        <Clock className="h-5 w-5" />
+      </div>
+      <span className="tracking-wider">{displayTime}</span>
     </div>
   );
 };
