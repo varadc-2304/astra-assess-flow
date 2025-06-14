@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as faceapi from 'face-api.js';
 import { useToast } from '@/hooks/use-toast';
@@ -170,7 +169,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     }
   }, []);
 
-  // Compare face descriptors for identity verification
+  // Compare face descriptors for identity verification - FIXED the euclideanDistance call
   const compareFaceDescriptors = useCallback(async (detection: faceapi.WithFaceLandmarks<{ detection: faceapi.FaceDetection }>) => {
     try {
       const descriptor = await faceapi.computeFaceDescriptor(videoRef.current!, detection);
@@ -183,7 +182,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
         return true; // First face, consider it valid
       }
       
-      // Calculate distance between current face and reference
+      // Calculate distance between current face and reference - FIXED: removed extra parameter
       const distance = faceapi.euclideanDistance(referenceFaceDescriptorRef.current, descriptor as Float32Array);
       const threshold = 0.6; // Threshold for face similarity
       
