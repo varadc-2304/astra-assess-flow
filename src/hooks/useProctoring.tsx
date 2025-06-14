@@ -7,6 +7,7 @@ const DETECTION_INTERVAL = 1000; // 1 second interval between detections
 const MODEL_URL = '/models';
 const FACE_DISAPPEARANCE_WARNING_TIME = 40000; // 40 seconds
 const FACE_DISAPPEARANCE_VIOLATION_TIME = 60000; // 1 minute
+const FACE_NOT_CENTERED_WARNING_TIME = 60000; // 60 seconds warning period for face centering
 const VIOLATION_COOLDOWN_TIME = 300000; // 5 minutes
 
 // Types
@@ -30,7 +31,8 @@ export type ViolationType =
 export type WarningType = 
   'faceDisappearing' | 
   'noFaceWarning' | 
-  'multipleFaces';
+  'multipleFaces' |
+  'faceNotCenteredWarning';
 
 export interface ProctoringOptions {
   showDebugInfo?: boolean;
@@ -96,6 +98,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
   const noFaceCounterRef = useRef(0);
   const lastFaceDetectionTimeRef = useRef(Date.now());
   const noFaceStartRef = useRef<number | null>(null);
+  const faceNotCenteredStartRef = useRef<number | null>(null);
   const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Violation cooldown tracking
@@ -397,6 +400,12 @@ export function useProctoring(options: ProctoringOptions = {}) {
             noFaceStartRef.current = now;
           }
           
+          // Reset face not centered tracking when no face is detected
+          faceNotCenteredStartRef.current = null;
+          if (activeWarning && activeWarning.type === 'faceNotCenteredWarning') {
+            dismissWarning();
+          }
+          
           const noFaceDuration = now - noFaceStartRef.current;
           
           // Show warning at 40 seconds
@@ -415,7 +424,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
             noFaceStartRef.current = now; // Reset timer
           }
         } else {
-          // Face detected - reset timers and warnings
+          // Face detected - reset no face timers and warnings
           noFaceStartRef.current = null;
           if (activeWarning && activeWarning.type === 'noFaceWarning') {
             dismissWarning();
@@ -433,11 +442,33 @@ export function useProctoring(options: ProctoringOptions = {}) {
           // Single face detection - check for other violations
           if (detections.length === 1) {
             const detection = detections[0];
+            const faceCentered = isFaceCentered(detection, video.videoWidth, video.videoHeight);
             
-            // Check if face is centered
-            if (!isFaceCentered(detection, video.videoWidth, video.videoHeight)) {
-              if (!isViolationInCooldown('faceNotCentered')) {
-                recordViolation('faceNotCentered');
+            // Handle face centering with warning system
+            if (!faceCentered) {
+              if (!faceNotCenteredStartRef.current) {
+                faceNotCenteredStartRef.current = now;
+                // Show warning immediately when face becomes not centered
+                showWarning('faceNotCenteredWarning', 'Please center your face in the frame. You have 60 seconds to correct this.');
+              }
+              
+              const notCenteredDuration = now - faceNotCenteredStartRef.current;
+              
+              // Record violation after 60 seconds
+              if (notCenteredDuration >= FACE_NOT_CENTERED_WARNING_TIME) {
+                if (!isViolationInCooldown('faceNotCentered')) {
+                  if (recordViolation('faceNotCentered')) {
+                    dismissWarning();
+                    showWarning('faceNotCenteredWarning', 'Violation recorded: Face not centered for extended period.');
+                  }
+                }
+                faceNotCenteredStartRef.current = now; // Reset timer
+              }
+            } else {
+              // Face is centered - reset timer and dismiss warning
+              faceNotCenteredStartRef.current = null;
+              if (activeWarning && activeWarning.type === 'faceNotCenteredWarning') {
+                dismissWarning();
               }
             }
             
@@ -709,6 +740,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     noFaceCounterRef.current = 0;
     lastFaceDetectionTimeRef.current = 0;
     noFaceStartRef.current = null;
+    faceNotCenteredStartRef.current = null;
     setActiveWarning(null);
   }, []);
 
