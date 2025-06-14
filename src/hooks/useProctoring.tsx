@@ -25,8 +25,7 @@ export type ViolationType =
   'multipleFacesDetected' | 
   'faceNotCentered' | 
   'faceCovered' | 
-  'rapidMovement' | 
-  'frequentDisappearance';
+  'rapidMovement';
 
 export type WarningType = 
   'faceDisappearing' | 
@@ -73,8 +72,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     multipleFacesDetected: 0,
     faceNotCentered: 0,
     faceCovered: 0,
-    rapidMovement: 0,
-    frequentDisappearance: 0
+    rapidMovement: 0
   });
   const [activeWarning, setActiveWarning] = useState<ViolationWarning | null>(null);
 
@@ -97,7 +95,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
   );
   const noFaceCounterRef = useRef(0);
   const lastFaceDetectionTimeRef = useRef(Date.now());
-  const faceDisappearanceStartRef = useRef<number | null>(null);
   const noFaceStartRef = useRef<number | null>(null);
   const warningTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -107,8 +104,7 @@ export function useProctoring(options: ProctoringOptions = {}) {
     multipleFacesDetected: 0,
     faceNotCentered: 0,
     faceCovered: 0,
-    rapidMovement: 0,
-    frequentDisappearance: 0
+    rapidMovement: 0
   });
   
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -418,35 +414,11 @@ export function useProctoring(options: ProctoringOptions = {}) {
             }
             noFaceStartRef.current = now; // Reset timer
           }
-          
-          // Track frequent disappearance
-          if (faceDisappearanceStartRef.current && !isViolationInCooldown('frequentDisappearance')) {
-            const disappearanceDuration = now - faceDisappearanceStartRef.current;
-            
-            if (disappearanceDuration >= FACE_DISAPPEARANCE_WARNING_TIME && disappearanceDuration < FACE_DISAPPEARANCE_VIOLATION_TIME) {
-              if (!activeWarning || activeWarning.type !== 'faceDisappearing') {
-                showWarning('faceDisappearing', 'Face frequently disappearing. If this continues, it will be considered cheating.');
-              }
-            }
-            
-            if (disappearanceDuration >= FACE_DISAPPEARANCE_VIOLATION_TIME) {
-              if (recordViolation('frequentDisappearance')) {
-                dismissWarning();
-                showWarning('faceDisappearing', 'Cheating detected: Face frequently disappearing.');
-              }
-              faceDisappearanceStartRef.current = null;
-            }
-          }
         } else {
           // Face detected - reset timers and warnings
           noFaceStartRef.current = null;
-          if (activeWarning && (activeWarning.type === 'noFaceWarning' || activeWarning.type === 'faceDisappearing')) {
+          if (activeWarning && activeWarning.type === 'noFaceWarning') {
             dismissWarning();
-          }
-          
-          // Start disappearance tracking if face was previously absent
-          if (!faceDisappearanceStartRef.current) {
-            faceDisappearanceStartRef.current = now;
           }
           
           lastFaceDetectionTimeRef.current = now;
@@ -729,15 +701,13 @@ export function useProctoring(options: ProctoringOptions = {}) {
       multipleFacesDetected: 0,
       faceNotCentered: 0,
       faceCovered: 0,
-      rapidMovement: 0,
-      frequentDisappearance: 0
+      rapidMovement: 0
     });
     
     // Reset tracking state
     faceHistoryRef.current = { positions: [], timestamps: [] };
-    noFaceCounterRef.current = 0;
+    noFaceCounterRef.useRef(0);
     lastFaceDetectionTimeRef.current = 0;
-    faceDisappearanceStartRef.current = null;
     noFaceStartRef.current = null;
     setActiveWarning(null);
   }, []);

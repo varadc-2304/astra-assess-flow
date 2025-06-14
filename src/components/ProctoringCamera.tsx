@@ -82,8 +82,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     multipleFacesDetected: 0,
     faceNotCentered: 0,
     faceCovered: 0,
-    rapidMovement: 0,
-    frequentDisappearance: 0
+    rapidMovement: 0
   });
   const [violationLog, setViolationLog] = useState<string[]>([]);
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
@@ -99,8 +98,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     multipleFacesDetected: 0,
     faceNotCentered: 0,
     faceCovered: 0,
-    rapidMovement: 0,
-    frequentDisappearance: 0
+    rapidMovement: 0
   });
   
   const {
@@ -216,8 +214,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         return 'Face may be partially obstructed';
       case 'rapidMovement':
         return 'Rapid head movement detected';
-      case 'frequentDisappearance':
-        return 'Face frequently disappearing';
       default:
         return 'Unknown violation';
     }

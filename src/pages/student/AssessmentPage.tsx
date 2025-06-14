@@ -60,6 +60,7 @@ const AssessmentPage = () => {
   const [isEndingAssessment, setIsEndingAssessment] = useState(false);
   const [testCaseStatus, setTestCaseStatus] = useState<TestCaseStatus>({});
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
+  const [assessmentStartTime] = useState(Date.now()); // Track when assessment started
   const navigate = useNavigate();
   const { 
     enterFullscreen, 
@@ -298,6 +299,15 @@ const AssessmentPage = () => {
   const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
   
   const { warning: proctoringWarning, showWarning: showProctoringWarning, dismissWarning: dismissProctoringWarning } = useProctoringWarnings();
+  
+  // Helper function to format assessment time
+  const formatAssessmentTime = (timestamp: number) => {
+    const elapsedMs = timestamp - assessmentStartTime;
+    const totalSeconds = Math.floor(elapsedMs / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
   
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
@@ -679,30 +689,60 @@ const AssessmentPage = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Proctoring Warning Dialog - styled to match tab change warnings */}
+      {/* Enhanced Proctoring Warning Dialog */}
       <AlertDialog open={!!proctoringWarning}>
-        <AlertDialogContent className="dark:bg-gray-800 dark:border-gray-700">
+        <AlertDialogContent className="dark:bg-gray-800 dark:border-gray-700 max-w-md mx-4">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center text-red-600 dark:text-red-400">
-              <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
-              Proctoring Alert
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              <p>
-                {proctoringWarning?.message}
-              </p>
-              {proctoringWarning && (
-                <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
-                  Timestamp: {new Date(proctoringWarning.timestamp).toLocaleTimeString()}
+              <div className="flex items-center justify-center w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 mr-3">
+                <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <div className="text-lg font-semibold">AI Proctoring Alert</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 font-normal">
+                  Violation Detected
                 </div>
-              )}
+              </div>
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-4">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <div className="flex items-start space-x-3">
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+                      {proctoringWarning?.message}
+                    </p>
+                    <div className="flex items-center justify-between text-xs text-red-600 dark:text-red-400">
+                      <span className="flex items-center space-x-1">
+                        <span>Assessment Time:</span>
+                        <span className="font-mono font-semibold">
+                          {proctoringWarning && formatAssessmentTime(proctoringWarning.timestamp)}
+                        </span>
+                      </span>
+                      <span className="text-red-500 dark:text-red-400">
+                        {new Date(proctoringWarning?.timestamp || 0).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+                    This violation has been recorded. Repeated violations may result in assessment termination.
+                  </span>
+                </div>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="sm:space-x-2">
             <AlertDialogAction
               onClick={dismissProctoringWarning}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-green-500/25 transition-all duration-200"
             >
+              <CheckCircle className="h-4 w-4 mr-2" />
               Continue Assessment
             </AlertDialogAction>
           </AlertDialogFooter>
