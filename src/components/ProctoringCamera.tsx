@@ -144,14 +144,14 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   // Initialize the camera when component mounts
   useEffect(() => {
     if (!autoInitRef.current) {
-      console.log("Initializing camera...");
+      console.log("ProctoringCamera: Initializing camera...");
       reinitialize();
       autoInitRef.current = true;
     }
     
     // Cleanup function that will run when component unmounts
     return () => {
-      console.log("Stopping camera detection...");
+      console.log("ProctoringCamera: Stopping camera detection...");
       stopDetection();
     };
   }, [reinitialize, stopDetection]);
@@ -329,50 +329,69 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
 
   const handleStartRecording = async () => {
     if (!enableRecording || !recordingConfig || !videoRef.current) {
-      console.log('Cannot start recording:', { enableRecording, recordingConfig: !!recordingConfig, videoRef: !!videoRef.current });
+      console.log('ProctoringCamera: Cannot start recording:', { 
+        enableRecording, 
+        hasRecordingConfig: !!recordingConfig, 
+        hasVideoRef: !!videoRef.current,
+        hasUser: !!user
+      });
       return;
     }
     
-    console.log('Starting recording with config:', recordingConfig);
+    console.log('ProctoringCamera: Starting recording with config:', recordingConfig);
+    toast({
+      title: "Starting Recording",
+      description: "Please wait while we initialize the recording...",
+    });
+    
     const success = await startRecording(videoRef.current, recordingConfig);
-    console.log('Recording start success:', success);
+    console.log('ProctoringCamera: Recording start success:', success);
     onRecordingStart?.(success);
   };
 
   const handleStopRecording = async () => {
     if (!recordingConfig) {
-      console.log('Cannot stop recording: no config');
+      console.log('ProctoringCamera: Cannot stop recording: no config');
       return;
     }
     
-    console.log('Stopping recording...');
+    console.log('ProctoringCamera: Stopping recording...');
+    toast({
+      title: "Stopping Recording",
+      description: "Please wait while we save your recording...",
+    });
+    
     const recordingUrl = await stopRecording(recordingConfig);
-    console.log('Recording stopped, URL:', recordingUrl);
+    console.log('ProctoringCamera: Recording stopped, URL:', recordingUrl);
     onRecordingStop?.(recordingUrl);
   };
 
   // Start recording automatically when camera is ready and recording is enabled
   useEffect(() => {
-    console.log('Recording useEffect:', {
+    console.log('ProctoringCamera: Recording auto-start check:', {
       enableRecording,
-      recordingConfig: !!recordingConfig,
+      hasRecordingConfig: !!recordingConfig,
       isCameraReady,
       isModelLoaded,
       isRecording,
-      videoRef: !!videoRef.current
+      hasVideoRef: !!videoRef.current,
+      hasUser: !!user
     });
 
-    if (enableRecording && recordingConfig && isCameraReady && isModelLoaded && !isRecording && videoRef.current) {
-      console.log('Auto-starting recording for assessment');
-      handleStartRecording();
+    if (enableRecording && recordingConfig && isCameraReady && isModelLoaded && !isRecording && videoRef.current && user) {
+      console.log('ProctoringCamera: Auto-starting recording for assessment');
+      // Add a small delay to ensure camera is fully ready
+      setTimeout(() => {
+        handleStartRecording();
+      }, 1000);
     }
-  }, [enableRecording, recordingConfig, isCameraReady, isModelLoaded, isRecording]);
+  }, [enableRecording, recordingConfig, isCameraReady, isModelLoaded, isRecording, user]);
 
   // Cleanup recording on unmount
   useEffect(() => {
     return () => {
       if (enableRecording && isRecording) {
-        console.log('Component unmounting, stopping recording...');
+        console.log('ProctoringCamera: Component unmounting, stopping recording...');
         handleStopRecording();
       }
       cleanup();

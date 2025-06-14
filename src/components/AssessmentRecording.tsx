@@ -21,61 +21,78 @@ export const AssessmentRecording: React.FC<AssessmentRecordingProps> = ({
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log('AssessmentRecording: isAssessmentStarted:', isAssessmentStarted, 'assessmentId:', assessmentId, 'submissionId:', submissionId);
+    console.log('AssessmentRecording: Configuration check:', {
+      isAssessmentStarted,
+      assessmentId,
+      submissionId,
+      hasConfig: !!recordingConfig
+    });
     
     if (isAssessmentStarted && assessmentId && submissionId) {
       const config = {
         assessmentId,
         submissionId
       };
-      console.log('Setting recording config:', config);
+      console.log('AssessmentRecording: Setting recording config:', config);
       setRecordingConfig(config);
+      
+      // Show immediate feedback that recording setup is starting
+      toast({
+        title: "Recording Setup",
+        description: "Initializing assessment recording...",
+      });
     } else {
-      console.log('Clearing recording config');
+      console.log('AssessmentRecording: Clearing recording config - missing requirements');
       setRecordingConfig(undefined);
     }
-  }, [isAssessmentStarted, assessmentId, submissionId]);
+  }, [isAssessmentStarted, assessmentId, submissionId, toast]);
 
   const handleRecordingStart = (success: boolean) => {
-    console.log('Recording start result:', success);
+    console.log('AssessmentRecording: Recording start result:', success);
     if (success) {
       console.log('Assessment recording started successfully');
       onRecordingStatusChange?.(true);
       toast({
         title: "Recording Started",
-        description: "Assessment recording has begun.",
+        description: "Your assessment is now being recorded for proctoring purposes.",
       });
     } else {
       console.warn('Failed to start assessment recording');
+      onRecordingStatusChange?.(false);
       toast({
         title: "Recording Warning",
-        description: "Assessment recording could not be started. The assessment will continue.",
+        description: "Assessment recording could not be started. The assessment will continue, but this may be flagged.",
         variant: "destructive",
       });
     }
   };
 
   const handleRecordingStop = (recordingUrl: string | null) => {
-    console.log('Recording stop result:', recordingUrl);
+    console.log('AssessmentRecording: Recording stop result:', recordingUrl);
     if (recordingUrl) {
-      console.log('Assessment recording completed:', recordingUrl);
+      console.log('Assessment recording completed successfully:', recordingUrl);
+      toast({
+        title: "Recording Complete",
+        description: "Assessment recording has been saved successfully.",
+      });
     } else {
       console.warn('Assessment recording failed to save');
       toast({
         title: "Recording Issue",
-        description: "There was an issue saving the recording.",
+        description: "There was an issue saving the recording. Please contact support if this affects your assessment.",
         variant: "destructive",
       });
     }
     onRecordingStatusChange?.(false);
   };
 
-  if (!isAssessmentStarted || !recordingConfig) {
-    console.log('AssessmentRecording: Not rendering camera - assessment not started or no config');
+  // Always render the camera when we have the required props, regardless of recording config
+  if (!isAssessmentStarted) {
+    console.log('AssessmentRecording: Not rendering - assessment not started');
     return null;
   }
 
-  console.log('AssessmentRecording: Rendering camera with config:', recordingConfig);
+  console.log('AssessmentRecording: Rendering camera with recording enabled');
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
