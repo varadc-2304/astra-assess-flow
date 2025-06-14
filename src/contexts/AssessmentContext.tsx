@@ -48,7 +48,6 @@ export type CodeQuestion = {
   }>;
   marks?: number;
   marksObtained?: number;
-  testResults?: any;
 };
 
 export type Question = MCQQuestion | CodeQuestion;
@@ -91,8 +90,6 @@ interface AssessmentContextType {
   addFullscreenWarning: () => void;
   setTimeRemaining: (seconds: number) => void;
   checkReattemptAvailability: (assessmentId: string) => Promise<boolean>;
-  setTotalMarksObtained: (marks: number) => void;
-  setTotalPossibleMarks: (marks: number) => void;
 }
 
 const AssessmentContext = createContext<AssessmentContextType | undefined>(undefined);
@@ -1301,9 +1298,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         updateMarksObtained,
         addFullscreenWarning,
         setTimeRemaining,
-        checkReattemptAvailability,
-        setTotalMarksObtained,
-        setTotalPossibleMarks
+        checkReattemptAvailability
       }}
     >
       {children}
