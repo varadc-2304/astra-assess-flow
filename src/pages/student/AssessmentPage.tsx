@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -13,11 +14,12 @@ import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MCQQuestion, CodeQuestion, QuestionSubmission, TestResult } from '@/types/database';
+import { MCQQuestion, CodingQuestion, QuestionSubmission, TestResult } from '@/types/database';
 import { MCQQuestionCard } from '@/components/MCQQuestionCard';
 import { CodingQuestionCard } from '@/components/CodingQuestionCard';
 import { Clock, AlertTriangle, CheckCircle, XCircle, ChevronLeft, ChevronRight, Save, Send, AlertCircle } from 'lucide-react';
 import { AssessmentRecorder } from '@/components/AssessmentRecorder';
+import { MCQQuestion as ContextMCQQuestion, CodeQuestion as ContextCodingQuestion } from '@/contexts/AssessmentContext';
 
 const AssessmentPage = () => {
   const { assessment, loading, error, assessmentCode, totalMarksObtained, totalPossibleMarks, setTotalMarksObtained, setTotalPossibleMarks } = useAssessment();
@@ -50,8 +52,8 @@ const AssessmentPage = () => {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Get questions of the current type
-  const mcqQuestions = assessment?.questions?.filter(q => 'type' in q && q.type === 'mcq') as MCQQuestion[] || [];
-  const codingQuestions = assessment?.questions?.filter(q => 'type' in q && q.type === 'code') as CodeQuestion[] || [];
+  const mcqQuestions = assessment?.questions?.filter(q => 'type' in q && q.type === 'mcq') as ContextMCQQuestion[] || [];
+  const codingQuestions = assessment?.questions?.filter(q => 'type' in q && q.type === 'code') as ContextCodingQuestion[] || [];
   
   // Get current question based on active tab
   const currentQuestions = activeTab === 'mcq' ? mcqQuestions : codingQuestions;
@@ -62,7 +64,7 @@ const AssessmentPage = () => {
   const mcqProgress = mcqQuestions.length > 0 ? 
     mcqQuestions.filter(q => q.selectedOption !== undefined).length / mcqQuestions.length * 100 : 0;
   const codingProgress = codingQuestions.length > 0 ? 
-    codingQuestions.filter(q => q.userSolution && Object.values(q.userSolution).some(sol => sol.trim() !== '')).length / codingQuestions.length * 100 : 0;
+    codingQuestions.filter(q => q.userSolution && Object.values(q.userSolution).some((sol: unknown) => typeof sol === 'string' && sol.trim() !== '')).length / codingQuestions.length * 100 : 0;
   
   // Format remaining time
   const formatTime = (seconds: number) => {
@@ -227,7 +229,7 @@ const AssessmentPage = () => {
       
       // Prepare coding submissions
       const codingSubmissions = codingQuestions
-        .filter(q => q.userSolution && Object.values(q.userSolution).some(sol => sol.trim() !== ''))
+        .filter(q => q.userSolution && Object.values(q.userSolution).some((sol: unknown) => typeof sol === 'string' && sol.trim() !== ''))
         .map(q => {
           // Get the first non-empty solution (assuming one language per question for simplicity)
           const language = Object.keys(q.userSolution || {})[0];
@@ -348,8 +350,7 @@ const AssessmentPage = () => {
           total_score: totalObtained,
           total_marks: totalMarks,
           percentage: percentage,
-          completed_at: new Date().toISOString(),
-          contest_name: assessment.name
+          completed_at: new Date().toISOString()
         });
       
       if (resultError) {
@@ -625,7 +626,7 @@ const AssessmentPage = () => {
                 <div className="flex justify-between mb-2">
                   <span className="text-sm font-medium">Coding Progress</span>
                   <span className="text-sm text-gray-500">
-                    {codingQuestions.filter(q => q.userSolution && Object.values(q.userSolution).some(sol => sol.trim() !== '')).length}/{codingQuestions.length} Questions
+                    {codingQuestions.filter(q => q.userSolution && Object.values(q.userSolution).some((sol: unknown) => typeof sol === 'string' && sol.trim() !== '')).length}/{codingQuestions.length} Questions
                   </span>
                 </div>
                 <Progress value={codingProgress} className="h-2" />
@@ -689,14 +690,14 @@ const AssessmentPage = () => {
                         <Button
                           key={q.id}
                           variant={currentQuestionIndex === index && activeTab === 'coding' ? 'default' : 'outline'}
-                          className={`h-10 w-full ${q.userSolution && Object.values(q.userSolution).some(sol => sol.trim() !== '') ? 'bg-blue-50 border-blue-200' : ''}`}
+                          className={`h-10 w-full ${q.userSolution && Object.values(q.userSolution).some((sol: unknown) => typeof sol === 'string' && sol.trim() !== '') ? 'bg-blue-50 border-blue-200' : ''}`}
                           onClick={() => {
                             setActiveTab('coding');
                             setCurrentQuestionIndex(index);
                           }}
                         >
                           {index + 1}
-                          {q.userSolution && Object.values(q.userSolution).some(sol => sol.trim() !== '') && (
+                          {q.userSolution && Object.values(q.userSolution).some((sol: unknown) => typeof sol === 'string' && sol.trim() !== '') && (
                             <div className="absolute -top-1 -right-1">
                               <CheckCircle className="h-3 w-3 text-blue-500" />
                             </div>
@@ -727,14 +728,14 @@ const AssessmentPage = () => {
               <CardContent>
                 {activeTab === 'mcq' && currentQuestion && (
                   <MCQQuestionCard 
-                    question={currentQuestion as MCQQuestion}
+                    question={currentQuestion as ContextMCQQuestion}
                     submissionId={submissionId}
                   />
                 )}
                 
                 {activeTab === 'coding' && currentQuestion && (
                   <CodingQuestionCard 
-                    question={currentQuestion as CodingQuestion}
+                    question={currentQuestion as ContextCodingQuestion}
                     submissionId={submissionId}
                   />
                 )}
