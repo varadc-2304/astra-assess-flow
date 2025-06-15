@@ -1,10 +1,10 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw, Shield, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Json } from '@/types/database';
@@ -77,7 +77,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   onWarning,
   assessmentStartTime
 }) => {
-  const { toast } = useToast();
   const { user } = useAuth();
   const [violationCount, setViolationCount] = useState<Record<ViolationType, number>>({
     noFaceDetected: 0,
@@ -235,14 +234,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         return 'Unknown violation';
     }
   };
-  
-  const formatViolationSummary = (violations: Record<ViolationType, number>): string => {
-    const violationEntries = Object.entries(violations)
-      .filter(([_, count]) => count > 0)
-      .map(([type, count]) => `${getViolationMessage(type as ViolationType)}: ${count} times`);
-      
-    return `VIOLATION SUMMARY: ${violationEntries.join(', ')}`;
-  };
 
   const updateViolationInDatabase = async (violationText: string) => {
     if (!submissionId || !user) return;
@@ -329,11 +320,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     if (status === 'faceDetected' && onVerificationComplete) {
       onVerificationComplete(true);
     } else if (status !== 'faceDetected' && onVerificationComplete) {
-      toast({
-        title: "Verification Failed",
-        description: "Please ensure your face is clearly visible and centered before verifying.",
-        variant: "destructive",
-      });
+      // Silently fail for verification if face not detected
+      return;
     }
   };
 

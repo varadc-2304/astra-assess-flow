@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileCode, Clock, Award, Copy, ArrowRight } from 'lucide-react';
 import { Assessment } from '@/types/database';
-import { useToast } from '@/hooks/use-toast';
 import { 
   Tooltip,
   TooltipContent,
@@ -23,7 +22,6 @@ interface PracticeAssessmentCardProps {
 
 const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 0, totalMarks = 0  }: PracticeAssessmentCardProps) => {
   const navigate = useNavigate();
-  const { toast } = useToast();
   
   const handleStart = () => {
     // Clear any previous assessment data from localStorage
@@ -31,23 +29,12 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
     // Set the new assessment code
     localStorage.setItem('assessmentCode', assessment.code);
     
-    toast({
-      title: "Loading assessment",
-      description: `Starting ${assessment.name}`,
-      duration: 1000
-    });
-    
     // Directly navigate to instructions page with the assessment code
     navigate('/instructions');
   };
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(assessment.code);
-    toast({
-      title: "Code copied",
-      description: "Assessment code copied to clipboard",
-      duration: 1000
-    });
   };
   
   return (

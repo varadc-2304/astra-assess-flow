@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { ProctoringCamera } from '@/components/ProctoringCamera';
 import { ShieldCheck, Camera, CheckCircle } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMutation } from '@tanstack/react-query';
@@ -16,10 +15,10 @@ const CameraVerificationPage = () => {
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [isCreatingSubmission, setIsCreatingSubmission] = useState(false);
   const [isCameraActivated, setIsCameraActivated] = useState(false);
+  const [error, setError] = useState('');
   
   const { assessment, startAssessment, assessmentCode, loading } = useAssessment();
   const navigate = useNavigate();
-  const { toast } = useToast();
   const { user } = useAuth();
   
   // Create submission record for tracking with retry logic
@@ -85,11 +84,7 @@ const CameraVerificationPage = () => {
     },
     onError: (error) => {
       console.error('Error creating submission after retries:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create submission record. Please try refreshing the page.",
-        variant: "destructive",
-      });
+      setError('Failed to create submission record. Please try refreshing the page.');
     }
   });
   
@@ -104,11 +99,7 @@ const CameraVerificationPage = () => {
     
     if (!loading && !assessment && assessmentCode) {
       console.log("No assessment data available, redirecting to dashboard");
-      toast({
-        title: "Error",
-        description: "Assessment data is not available. Please try again.",
-        variant: "destructive",
-      });
+      setError('Assessment data is not available. Please try again.');
       navigate('/student');
       return;
     }
@@ -118,7 +109,7 @@ const CameraVerificationPage = () => {
       console.log("Creating submission for assessment", assessment.id);
       createSubmissionMutation.mutate();
     }
-  }, [assessment, assessmentCode, loading, navigate, toast, user, createSubmissionMutation, submissionId, isCreatingSubmission, startAssessment]);
+  }, [assessment, assessmentCode, loading, navigate, user, createSubmissionMutation, submissionId, isCreatingSubmission, startAssessment]);
   
   if (loading) {
     return (
@@ -145,19 +136,6 @@ const CameraVerificationPage = () => {
     setTimeout(() => {
       setIsVerified(success);
       setIsVerifying(false);
-      
-      if (success) {
-        toast({
-          title: "Verification Successful",
-          description: "Your identity has been verified. You can now start the assessment.",
-        });
-      } else {
-        toast({
-          title: "Verification Failed",
-          description: "Please try again or contact support.",
-          variant: "destructive",
-        });
-      }
     }, 1000);
   };
   
@@ -180,6 +158,12 @@ const CameraVerificationPage = () => {
         
         <Card className="border-0 shadow-sm">
           <CardContent className="p-6">
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-800 text-sm">{error}</p>
+              </div>
+            )}
+            
             {!isCameraActivated ? (
               <div className="text-center py-8">
                 <div className="w-16 h-16 mx-auto mb-4 bg-red-50 rounded-full flex items-center justify-center">
