@@ -82,7 +82,7 @@ const AssessmentPage = () => {
   const isAiProctoringEnabled = assessment?.isAiProctored === true;
   
   // Initialize recording hook
-  const { isRecording, isUploading, startRecording, stopRecording } = useAssessmentRecording({
+  const { isRecording, isUploading, recordingUrl, startRecording, stopRecording, uploadRecording } = useAssessmentRecording({
     assessmentId: assessment?.id || '',
     submissionId: submissionId || undefined,
     userId: user?.id
@@ -238,13 +238,23 @@ const AssessmentPage = () => {
     setIsEndingAssessment(true);
     
     try {
-      // Stop recording if it's active
+      let finalRecordingUrl = recordingUrl;
+
+      // Stop recording if it's active and get the final URL
       if (isRecording) {
         console.log('Stopping recording before ending assessment');
         stopRecording();
+        
+        // Wait a bit for the recording to finish uploading
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Try to upload any remaining recording data
+        if (!recordingUrl) {
+          finalRecordingUrl = await uploadRecording();
+        }
       }
 
-      // Get the initial submission data to copy face violations and recording URL
+      // Get the initial submission data to copy violations and recording URL
       let initialSubmissionData = null;
       if (initialSubmissionId) {
         const { data: initialSubmission, error: fetchError } = await supabase
@@ -255,6 +265,7 @@ const AssessmentPage = () => {
         
         if (!fetchError && initialSubmission) {
           initialSubmissionData = initialSubmission;
+          console.log('Retrieved initial submission data:', initialSubmissionData);
         }
       }
 
@@ -275,7 +286,7 @@ const AssessmentPage = () => {
           completed_at: new Date().toISOString()
         };
 
-        // Copy face violations and recording URL from initial submission if available
+        // Copy face violations, object violations, and recording URL from initial submission if available
         if (initialSubmissionData) {
           if (initialSubmissionData.face_violations) {
             updateData.face_violations = initialSubmissionData.face_violations;
@@ -283,9 +294,14 @@ const AssessmentPage = () => {
           if (initialSubmissionData.object_violations) {
             updateData.object_violations = initialSubmissionData.object_violations;
           }
-          if (initialSubmissionData.recording_url) {
-            updateData.recording_url = initialSubmissionData.recording_url;
+          // Use the recording URL from initial submission or the final one we just created
+          if (initialSubmissionData.recording_url || finalRecordingUrl) {
+            updateData.recording_url = finalRecordingUrl || initialSubmissionData.recording_url;
+            console.log('Setting recording URL:', updateData.recording_url);
           }
+        } else if (finalRecordingUrl) {
+          // If no initial submission data but we have a recording URL, use it
+          updateData.recording_url = finalRecordingUrl;
         }
 
         const { error: updateError } = await supabase
@@ -296,7 +312,7 @@ const AssessmentPage = () => {
         if (updateError) {
           console.error('Error updating submission completion status:', updateError);
         } else {
-          console.log('Successfully copied face violations and recording URL to final submission');
+          console.log('Successfully updated final submission with all data:', updateData);
         }
       }
       
