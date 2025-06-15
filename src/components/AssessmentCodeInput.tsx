@@ -33,7 +33,7 @@ const AssessmentCodeInput = () => {
         console.log('Access denied for assessment:', assessmentCode);
         toast({
           title: "Access Denied",
-          description: `You don't have permission to access this assessment. Your assigned assessments: ${user?.assigned_assessments?.join(', ') || 'None'}`,
+          description: "You don't have permission to access this assessment.",
           variant: "destructive",
         });
         setLoading(false);
@@ -134,11 +134,6 @@ const AssessmentCodeInput = () => {
             {loading ? "Verifying..." : "Start Assessment"}
           </Button>
         </form>
-        {user?.assigned_assessments && (
-          <div className="mt-4 text-sm text-gray-600">
-            <p>Your assigned assessments: {user.assigned_assessments.join(', ')}</p>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

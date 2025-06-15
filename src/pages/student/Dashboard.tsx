@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { LogOut, Search } from 'lucide-react';
 import AssessmentCodeInput from '@/components/AssessmentCodeInput';
@@ -39,11 +40,11 @@ const StudentDashboard = () => {
 
         console.log('Dashboard: Fetching practice assessments for codes:', accessibleCodes);
 
-        // Fetch practice assessments that user has access to
+        // Fetch ALL assessments that user has access to (both practice and non-practice)
+        // Then filter for practice assessments only
         const { data: assessments, error: assessmentsError } = await supabase
           .from('assessments')
           .select('*')
-          .eq('is_practice', true)
           .in('code', accessibleCodes)
           .order('created_at', { ascending: false });
 
@@ -52,10 +53,14 @@ const StudentDashboard = () => {
           throw assessmentsError;
         }
 
-        console.log('Dashboard: Fetched assessments:', assessments);
+        console.log('Dashboard: Fetched all assessments:', assessments);
 
-        // Process assessments
-        const processedAssessments = await Promise.all((assessments || []).map(async (assessment) => {
+        // Filter for practice assessments only
+        const practiceOnly = (assessments || []).filter(assessment => assessment.is_practice === true);
+        console.log('Dashboard: Practice assessments found:', practiceOnly);
+
+        // Process practice assessments
+        const processedAssessments = await Promise.all(practiceOnly.map(async (assessment) => {
           // Count MCQ questions
           const { count: mcqCount, error: mcqError } = await supabase
             .from('mcq_questions')
@@ -84,7 +89,7 @@ const StudentDashboard = () => {
           };
         }));
 
-        console.log('Dashboard: Processed assessments:', processedAssessments);
+        console.log('Dashboard: Processed practice assessments:', processedAssessments);
         setPracticeAssessments(processedAssessments);
 
         // If user is logged in, fetch their results
@@ -210,11 +215,11 @@ const StudentDashboard = () => {
         ) : (
           <div className="text-center py-10 bg-gray-50 rounded-lg">
             <p className="text-gray-500">
-              {searchQuery ? 'No matching practice assessments found' : 'No practice assessments assigned to you'}
+              {searchQuery ? 'No matching practice assessments found' : 'No practice assessments available'}
             </p>
-            {user?.assigned_assessments && (
+            {user?.assigned_assessments && user.assigned_assessments.length > 0 && (
               <p className="text-sm text-gray-400 mt-2">
-                Your assigned assessments: {user.assigned_assessments.join(', ')}
+                Note: Practice assessments will appear here if they are marked as practice assessments in your assigned list.
               </p>
             )}
           </div>
