@@ -346,27 +346,8 @@ const AssessmentPage = () => {
             submissionId={submissionId || undefined}
             size="small"
             onWarning={showProctoringWarning}
+            assessmentStartTime={new Date(assessmentStartTime)}
           />
-        </div>
-      )}
-
-      {/* Recording indicator */}
-      {isRecording && (
-        <div className="fixed top-2 right-2 z-50">
-          <div className="flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full text-sm">
-            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-            <span>Recording</span>
-          </div>
-        </div>
-      )}
-
-      {/* Upload indicator */}
-      {isUploading && (
-        <div className="fixed top-2 right-2 z-50">
-          <div className="flex items-center gap-2 bg-blue-600 text-white px-3 py-1 rounded-full text-sm">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            <span>Saving...</span>
-          </div>
         </div>
       )}
 
@@ -501,7 +482,7 @@ const AssessmentPage = () => {
           </SheetContent>
         </Sheet>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
           {isAntiCheatingWarningActive && (
             <div className="flex items-center mr-3 animate-pulse">
               <AlertTriangle className="h-5 w-5 text-red-500 mr-1" />
@@ -511,6 +492,23 @@ const AssessmentPage = () => {
               </span>
             </div>
           )}
+          
+          {/* Recording indicator positioned next to timer */}
+          {isRecording && (
+            <div className="flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full text-sm">
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+              <span>Recording</span>
+            </div>
+          )}
+          
+          {/* Upload indicator positioned next to timer */}
+          {isUploading && (
+            <div className="flex items-center gap-2 bg-blue-600 text-white px-3 py-1 rounded-full text-sm">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Saving...</span>
+            </div>
+          )}
+          
           <Timer variant="assessment" />
         </div>
       </header>
