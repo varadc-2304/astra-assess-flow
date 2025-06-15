@@ -25,6 +25,7 @@ import { Card } from '@/components/ui/card';
 import ProctoringCamera from '@/components/ProctoringCamera';
 import { cn } from '@/lib/utils';
 import { useProctoringWarnings } from '@/hooks/useProctoringWarnings';
+import { useAssessmentRecording } from '@/hooks/useAssessmentRecording';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -61,6 +62,8 @@ const AssessmentPage = () => {
   const [testCaseStatus, setTestCaseStatus] = useState<TestCaseStatus>({});
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [assessmentStartTime] = useState(Date.now()); // Track when assessment started
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
+  
   const navigate = useNavigate();
   const { 
     enterFullscreen, 
@@ -73,10 +76,16 @@ const AssessmentPage = () => {
   } = useFullscreen();
   const { toast } = useToast();
   const { user } = useAuth();
-  const [submissionId, setSubmissionId] = useState<string | null>(null);
   
   // Check if AI proctoring is enabled
   const isAiProctoringEnabled = assessment?.isAiProctored === true;
+  
+  // Initialize recording hook
+  const { isRecording, isUploading, startRecording, stopRecording } = useAssessmentRecording({
+    assessmentId: assessment?.id || '',
+    submissionId: submissionId || undefined,
+    userId: user?.id
+  });
   
   useEffect(() => {
     if (!assessment || !assessmentStarted) {
@@ -150,6 +159,14 @@ const AssessmentPage = () => {
     
     createSubmissionRecord();
   }, [assessment, assessmentStarted, user]);
+
+  // Start recording when assessment begins with AI proctoring
+  useEffect(() => {
+    if (isAiProctoringEnabled && assessmentStarted && submissionId && user?.id && !isRecording) {
+      console.log('Starting recording for AI-proctored assessment');
+      startRecording();
+    }
+  }, [isAiProctoringEnabled, assessmentStarted, submissionId, user?.id, isRecording, startRecording]);
 
   const handleTestResultUpdate = (questionId: string, passedTests: number, totalTests: number) => {
     setTestCaseStatus(prev => ({
@@ -237,6 +254,12 @@ const AssessmentPage = () => {
     setIsEndingAssessment(true);
     
     try {
+      // Stop recording if it's active
+      if (isRecording) {
+        console.log('Stopping recording before ending assessment');
+        stopRecording();
+      }
+
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
@@ -324,6 +347,26 @@ const AssessmentPage = () => {
             size="small"
             onWarning={showProctoringWarning}
           />
+        </div>
+      )}
+
+      {/* Recording indicator */}
+      {isRecording && (
+        <div className="fixed top-2 right-2 z-50">
+          <div className="flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full text-sm">
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+            <span>Recording</span>
+          </div>
+        </div>
+      )}
+
+      {/* Upload indicator */}
+      {isUploading && (
+        <div className="fixed top-2 right-2 z-50">
+          <div className="flex items-center gap-2 bg-blue-600 text-white px-3 py-1 rounded-full text-sm">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span>Saving...</span>
+          </div>
         </div>
       )}
 
