@@ -253,9 +253,19 @@ const AssessmentPage = () => {
 
     // Stop recording if active before submitting
     if (isRecording) {
+      // This will also upload and save URL
       stopRecording();
     }
-    
+    // Wait a moment for the upload to begin before ending assessment
+    if (isUploading) {
+      toast({
+        title: "Recording uploading...",
+        description: "Please wait while your camera recording is being saved.",
+      });
+      // Optionally wait for up to 8 seconds (non-blocking)
+      await new Promise((resolve) => setTimeout(resolve, 8000));
+    }
+
     try {
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')

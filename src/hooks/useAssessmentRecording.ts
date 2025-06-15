@@ -52,22 +52,33 @@ export function useAssessmentRecording({
 
       mediaRecorderRef.current = recorder;
       recorder.start();
+      console.info("Camera recording started for submissionId:", submissionId);
     } catch (err) {
       toast({ title: "Error starting camera", description: String((err as Error).message), variant: "destructive" });
+      console.error("Error starting camera recording", err);
     }
-  }, [enabled, isRecording, toast]);
+  }, [enabled, isRecording, toast, submissionId, uploadRecording]);
 
   // Stop recording and trigger upload
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
+      console.info("Camera recording stopped for submissionId:", submissionId);
+    } else {
+      // Call uploadRecording with what we have if possible
+      if (videoChunksRef.current.length > 0) {
+        const blob = new Blob(videoChunksRef.current, { type: "video/webm" });
+        uploadRecording(blob);
+      }
+      setIsRecording(false);
     }
-  }, [isRecording]);
+  }, [isRecording, uploadRecording, submissionId]);
 
   // Upload the blob to Supabase Storage and link to submission
   const uploadRecording = useCallback(async (blob: Blob) => {
     if (!submissionId) {
       toast({ title: "Error", description: "Submission ID not set. Video not uploaded.", variant: "destructive" });
+      console.error("uploadRecording: no submissionId, aborting upload");
       return;
     }
     setIsUploading(true);
@@ -85,13 +96,26 @@ export function useAssessmentRecording({
         });
 
       if (error) {
-        throw error;
+        toast({ title: "Recording upload failed", description: error.message, variant: "destructive" });
+        console.error("Recording upload failed:", error);
+        return;
       }
 
       // Get public URL
-      const { data: urlData } = supabase.storage.from("proctering_recordings").getPublicUrl(filePath);
+      const { data: urlData, error: getUrlError } = supabase
+        .storage
+        .from("proctering_recordings")
+        .getPublicUrl(filePath);
+
+      if (getUrlError) {
+        toast({ title: "Recording upload failed (URL)", description: getUrlError.message, variant: "destructive" });
+        console.error("Error getting public URL:", getUrlError);
+        return;
+      }
+
       const publicUrl = urlData?.publicUrl ?? null;
       setVideoUrl(publicUrl);
+      console.info("Recording uploaded, public URL:", publicUrl);
 
       // Store URL in submission
       const { error: updateError } = await supabase
@@ -100,12 +124,15 @@ export function useAssessmentRecording({
         .eq("id", submissionId);
 
       if (updateError) {
-        throw updateError;
+        toast({ title: "Failed to save URL in submission", description: updateError.message, variant: "destructive" });
+        console.error("Failed to update submission recording_url:", updateError);
+        return;
       }
 
       toast({ title: "Recording saved", description: "Your assessment session has been recorded and saved for review." });
     } catch (err) {
       toast({ title: "Recording upload failed", description: String((err as Error).message), variant: "destructive" });
+      console.error("Recording upload failed: catch", err);
     } finally {
       setIsUploading(false);
     }
@@ -118,7 +145,7 @@ export function useAssessmentRecording({
     }
     // Don't auto-stop here, we want to control stop with API (call stopRecording())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]); 
+  }, [enabled]);
 
   // Clean up on unmount
   useEffect(() => {
