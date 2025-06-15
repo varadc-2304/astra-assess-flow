@@ -25,7 +25,6 @@ import { Card } from '@/components/ui/card';
 import ProctoringCamera from '@/components/ProctoringCamera';
 import { cn } from '@/lib/utils';
 import { useProctoringWarnings } from '@/hooks/useProctoringWarnings';
-import { useAssessmentRecording } from '@/hooks/useAssessmentRecording';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -78,20 +77,6 @@ const AssessmentPage = () => {
   
   // Check if AI proctoring is enabled
   const isAiProctoringEnabled = assessment?.isAiProctored === true;
-
-  // Start recording only if AI proctoring enabled and assessment started and submissionId set
-  const recordingEnabled = isAiProctoringEnabled && assessmentStarted && !!submissionId;
-
-  // Hook for camera recording
-  const {
-    isRecording,
-    isUploading,
-    videoUrl,
-    stopRecording
-  } = useAssessmentRecording({
-    submissionId,
-    enabled: recordingEnabled,
-  });
   
   useEffect(() => {
     if (!assessment || !assessmentStarted) {
@@ -250,22 +235,7 @@ const AssessmentPage = () => {
   
   const confirmEndAssessment = async () => {
     setIsEndingAssessment(true);
-
-    // Stop recording if active before submitting
-    if (isRecording) {
-      // This will also upload and save URL
-      stopRecording();
-    }
-    // Wait a moment for the upload to begin before ending assessment
-    if (isUploading) {
-      toast({
-        title: "Recording uploading...",
-        description: "Please wait while your camera recording is being saved.",
-      });
-      // Optionally wait for up to 8 seconds (non-blocking)
-      await new Promise((resolve) => setTimeout(resolve, 8000));
-    }
-
+    
     try {
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
