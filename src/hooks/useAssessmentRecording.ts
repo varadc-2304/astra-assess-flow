@@ -16,7 +16,6 @@ export const useAssessmentRecording = ({
 }: UseAssessmentRecordingOptions) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -89,7 +88,7 @@ export const useAssessmentRecording = ({
   const uploadRecording = useCallback(async () => {
     if (chunksRef.current.length === 0 || !submissionId || !userId) {
       console.log('No recording data to upload or missing IDs');
-      return null;
+      return;
     }
 
     setIsUploading(true);
@@ -118,28 +117,23 @@ export const useAssessmentRecording = ({
         .from('proctoring_recordings')
         .getPublicUrl(fileName);
 
-      const recordingPublicUrl = urlData.publicUrl;
-      console.log('Recording uploaded successfully:', recordingPublicUrl);
+      const recordingUrl = urlData.publicUrl;
+      console.log('Recording uploaded successfully:', recordingUrl);
 
-      // Update current submission with recording URL immediately
+      // Update submission with recording URL
       const { error: updateError } = await supabase
         .from('submissions')
-        .update({ recording_url: recordingPublicUrl })
+        .update({ recording_url: recordingUrl })
         .eq('id', submissionId);
 
       if (updateError) {
-        console.error('Error updating submission with recording URL:', updateError);
-      } else {
-        console.log('Successfully updated current submission with recording URL');
-        setRecordingUrl(recordingPublicUrl);
+        throw updateError;
       }
 
       toast({
         title: "Recording Saved",
         description: "Assessment recording has been saved successfully.",
       });
-
-      return recordingPublicUrl;
 
     } catch (error) {
       console.error('Error uploading recording:', error);
@@ -148,7 +142,6 @@ export const useAssessmentRecording = ({
         description: "Failed to save recording. Please contact support if this persists.",
         variant: "destructive",
       });
-      return null;
     } finally {
       setIsUploading(false);
       chunksRef.current = [];
@@ -158,9 +151,7 @@ export const useAssessmentRecording = ({
   return {
     isRecording,
     isUploading,
-    recordingUrl,
     startRecording,
-    stopRecording,
-    uploadRecording
+    stopRecording
   };
 };
