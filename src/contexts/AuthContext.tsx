@@ -35,8 +35,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         // Check if we have user data in localStorage
         const userData = localStorage.getItem('user');
+        console.log('Raw user data from localStorage:', userData);
+        
         if (userData) {
-          setUser(JSON.parse(userData));
+          const parsedUser = JSON.parse(userData);
+          console.log('Parsed user data:', parsedUser);
+          console.log('User assigned assessments in AuthContext:', parsedUser.assigned_assessments);
+          setUser(parsedUser);
+        } else {
+          console.log('No user data found in localStorage');
         }
       } catch (error) {
         console.error("Auth check error:", error);

@@ -98,12 +98,14 @@ const AutoLogin = () => {
             assigned_assessments: (fallbackUserData as any).assigned_assessments || [],
           };
 
+          console.log('Storing fallback user data:', userDataObj);
           localStorage.setItem('user', JSON.stringify(userDataObj));
           navigate('/student', { replace: true });
           return;
         }
 
         console.log('Auto-login successful for user:', userData.email);
+        console.log('User assigned assessments from auth table:', userData.assigned_assessments);
 
         // Store user data in localStorage
         const userDataObj = {
@@ -119,6 +121,8 @@ const AutoLogin = () => {
           assigned_assessments: userData.assigned_assessments || [],
         };
 
+        console.log('Storing user data in localStorage:', userDataObj);
+        console.log('Assigned assessments being stored:', userDataObj.assigned_assessments);
         localStorage.setItem('user', JSON.stringify(userDataObj));
 
         // Redirect to student dashboard
