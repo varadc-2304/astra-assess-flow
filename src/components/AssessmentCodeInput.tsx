@@ -25,17 +25,22 @@ const AssessmentCodeInput = () => {
 
     try {
       const assessmentCode = code.trim().toUpperCase();
+      console.log('Attempting to access assessment:', assessmentCode);
+      console.log('User assigned assessments:', user?.assigned_assessments);
 
       // First check if user has access to this assessment
       if (!canAccessAssessment(assessmentCode)) {
+        console.log('Access denied for assessment:', assessmentCode);
         toast({
           title: "Access Denied",
-          description: "You don't have permission to access this assessment.",
+          description: `You don't have permission to access this assessment. Your assigned assessments: ${user?.assigned_assessments?.join(', ') || 'None'}`,
           variant: "destructive",
         });
         setLoading(false);
         return;
       }
+
+      console.log('Access granted, checking if assessment exists...');
 
       // Check if the assessment exists and get its details
       const { data: assessmentData, error: assessmentError } = await supabase
@@ -45,6 +50,7 @@ const AssessmentCodeInput = () => {
         .single();
 
       if (assessmentError || !assessmentData) {
+        console.log('Assessment not found:', assessmentError);
         toast({
           title: "Invalid Code",
           description: "Please check the assessment code and try again.",
@@ -53,6 +59,8 @@ const AssessmentCodeInput = () => {
         setLoading(false);
         return;
       }
+
+      console.log('Assessment found:', assessmentData);
 
       // Check if user has already completed this assessment
       const { data: results, error: resultsError } = await supabase
@@ -126,6 +134,11 @@ const AssessmentCodeInput = () => {
             {loading ? "Verifying..." : "Start Assessment"}
           </Button>
         </form>
+        {user?.assigned_assessments && (
+          <div className="mt-4 text-sm text-gray-600">
+            <p>Your assigned assessments: {user.assigned_assessments.join(', ')}</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
