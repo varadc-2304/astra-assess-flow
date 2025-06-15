@@ -121,7 +121,7 @@ export const useAssessmentRecording = ({
       const recordingPublicUrl = urlData.publicUrl;
       console.log('Recording uploaded successfully:', recordingPublicUrl);
 
-      // Update submission with recording URL
+      // Update current submission with recording URL immediately
       const { error: updateError } = await supabase
         .from('submissions')
         .update({ recording_url: recordingPublicUrl })
@@ -129,11 +129,10 @@ export const useAssessmentRecording = ({
 
       if (updateError) {
         console.error('Error updating submission with recording URL:', updateError);
-        throw updateError;
+      } else {
+        console.log('Successfully updated current submission with recording URL');
+        setRecordingUrl(recordingPublicUrl);
       }
-
-      console.log('Successfully updated submission with recording URL');
-      setRecordingUrl(recordingPublicUrl);
 
       toast({
         title: "Recording Saved",

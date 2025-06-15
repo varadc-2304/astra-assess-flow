@@ -240,16 +240,17 @@ const AssessmentPage = () => {
     try {
       let finalRecordingUrl = recordingUrl;
 
-      // Stop recording if it's active and get the final URL
+      // Stop recording if it's active and wait for upload
       if (isRecording) {
         console.log('Stopping recording before ending assessment');
         stopRecording();
         
-        // Wait a bit for the recording to finish uploading
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Wait longer for the recording to finish uploading
+        await new Promise(resolve => setTimeout(resolve, 5000));
         
-        // Try to upload any remaining recording data
+        // Try to upload any remaining recording data if no URL exists yet
         if (!recordingUrl) {
+          console.log('Attempting to upload remaining recording data');
           finalRecordingUrl = await uploadRecording();
         }
       }
@@ -266,6 +267,12 @@ const AssessmentPage = () => {
         if (!fetchError && initialSubmission) {
           initialSubmissionData = initialSubmission;
           console.log('Retrieved initial submission data:', initialSubmissionData);
+          
+          // Use the recording URL from initial submission if we don't have a final one
+          if (!finalRecordingUrl && initialSubmission.recording_url) {
+            finalRecordingUrl = initialSubmission.recording_url;
+            console.log('Using recording URL from initial submission:', finalRecordingUrl);
+          }
         }
       }
 
@@ -286,22 +293,22 @@ const AssessmentPage = () => {
           completed_at: new Date().toISOString()
         };
 
-        // Copy face violations, object violations, and recording URL from initial submission if available
+        // Copy violations and recording URL from initial submission if available
         if (initialSubmissionData) {
           if (initialSubmissionData.face_violations) {
             updateData.face_violations = initialSubmissionData.face_violations;
+            console.log('Copying face violations:', initialSubmissionData.face_violations);
           }
           if (initialSubmissionData.object_violations) {
             updateData.object_violations = initialSubmissionData.object_violations;
+            console.log('Copying object violations:', initialSubmissionData.object_violations);
           }
-          // Use the recording URL from initial submission or the final one we just created
-          if (initialSubmissionData.recording_url || finalRecordingUrl) {
-            updateData.recording_url = finalRecordingUrl || initialSubmissionData.recording_url;
-            console.log('Setting recording URL:', updateData.recording_url);
-          }
-        } else if (finalRecordingUrl) {
-          // If no initial submission data but we have a recording URL, use it
+        }
+
+        // Set recording URL (prefer finalRecordingUrl, then initial submission URL)
+        if (finalRecordingUrl) {
           updateData.recording_url = finalRecordingUrl;
+          console.log('Setting final recording URL:', finalRecordingUrl);
         }
 
         const { error: updateError } = await supabase
