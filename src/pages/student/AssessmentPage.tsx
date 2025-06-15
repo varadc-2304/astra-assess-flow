@@ -63,6 +63,7 @@ const AssessmentPage = () => {
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [assessmentStartTime] = useState(Date.now()); // Track when assessment started
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [initialSubmissionId, setInitialSubmissionId] = useState<string | null>(null);
   
   const navigate = useNavigate();
   const { 
@@ -101,30 +102,6 @@ const AssessmentPage = () => {
   }, [assessmentStarted, isFullscreen, enterFullscreen]);
 
   useEffect(() => {
-    const fetchSubmissionRecord = async () => {
-      if (assessment && assessmentStarted && user) {
-        try {
-          const { data: submissions } = await supabase
-            .from('submissions')
-            .select('*')
-            .eq('assessment_id', assessment.id)
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(1);
-            
-          if (submissions && submissions.length > 0) {
-            setSubmissionId(submissions[0].id);
-          }
-        } catch (error) {
-          console.error('Error fetching submission record:', error);
-        }
-      }
-    };
-    
-    fetchSubmissionRecord();
-  }, [assessment, assessmentStarted, user]);
-
-  useEffect(() => {
     const createSubmissionRecord = async () => {
       if (assessment && assessmentStarted && user) {
         try {
@@ -136,6 +113,8 @@ const AssessmentPage = () => {
             .is('completed_at', null);
             
           if (existingSubmissions && existingSubmissions.length > 0) {
+            setSubmissionId(existingSubmissions[0].id);
+            setInitialSubmissionId(existingSubmissions[0].id);
             return;
           }
           
@@ -146,10 +125,15 @@ const AssessmentPage = () => {
               user_id: user.id,
               started_at: new Date().toISOString(),
               fullscreen_violations: 0
-            });
+            })
+            .select()
+            .single();
             
           if (error) {
             console.error('Error creating submission record:', error);
+          } else if (data) {
+            setSubmissionId(data.id);
+            setInitialSubmissionId(data.id);
           }
         } catch (error) {
           console.error('Error creating submission record:', error);
@@ -260,6 +244,21 @@ const AssessmentPage = () => {
         stopRecording();
       }
 
+      // Get the initial submission data to copy face violations and recording URL
+      let initialSubmissionData = null;
+      if (initialSubmissionId) {
+        const { data: initialSubmission, error: fetchError } = await supabase
+          .from('submissions')
+          .select('face_violations, object_violations, recording_url')
+          .eq('id', initialSubmissionId)
+          .single();
+        
+        if (!fetchError && initialSubmission) {
+          initialSubmissionData = initialSubmission;
+        }
+      }
+
+      // Find or create final submission record
       const { data: submissions, error: submissionError } = await supabase
         .from('submissions')
         .select('*')
@@ -271,15 +270,33 @@ const AssessmentPage = () => {
       if (submissionError || !submissions || submissions.length === 0) {
         console.error('Error finding submission to update:', submissionError);
       } else {
+        // Prepare update data
+        const updateData: any = { 
+          completed_at: new Date().toISOString()
+        };
+
+        // Copy face violations and recording URL from initial submission if available
+        if (initialSubmissionData) {
+          if (initialSubmissionData.face_violations) {
+            updateData.face_violations = initialSubmissionData.face_violations;
+          }
+          if (initialSubmissionData.object_violations) {
+            updateData.object_violations = initialSubmissionData.object_violations;
+          }
+          if (initialSubmissionData.recording_url) {
+            updateData.recording_url = initialSubmissionData.recording_url;
+          }
+        }
+
         const { error: updateError } = await supabase
           .from('submissions')
-          .update({ 
-            completed_at: new Date().toISOString()
-          })
+          .update(updateData)
           .eq('id', submissions[0].id);
         
         if (updateError) {
           console.error('Error updating submission completion status:', updateError);
+        } else {
+          console.log('Successfully copied face violations and recording URL to final submission');
         }
       }
       
@@ -366,46 +383,6 @@ const AssessmentPage = () => {
           <div className="flex items-center gap-2 bg-blue-600 text-white px-3 py-1 rounded-full text-sm">
             <Loader2 className="w-3 h-3 animate-spin" />
             <span>Saving...</span>
-          </div>
-        </div>
-      )}
-
-      {/* Visible Proctoring Warning Display */}
-      {isAiProctoringEnabled && proctoringWarning && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-full mx-4">
-          <div className={cn(
-            "p-4 rounded-lg border-2 animate-pulse",
-            "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
-          )}>
-            <div className="flex items-start justify-between">
-              <div className="flex items-start space-x-3">
-                <div className="flex-shrink-0">
-                  <Shield className="h-6 w-6 text-red-600 dark:text-red-400" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-1">
-                    Proctoring Alert
-                  </h3>
-                  <p className="text-sm text-red-700 dark:text-red-300">
-                    {proctoringWarning.message}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={dismissProctoringWarning}
-                className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200 p-1 h-6 w-6"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="mt-3 flex items-center space-x-2">
-              <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-              <span className="text-xs text-red-600 dark:text-red-400 font-medium">
-                Timestamp: {new Date(proctoringWarning.timestamp).toLocaleTimeString()}
-              </span>
-            </div>
           </div>
         </div>
       )}
