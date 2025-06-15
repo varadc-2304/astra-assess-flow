@@ -207,7 +207,6 @@ const CameraVerificationPage = () => {
                   assessmentId={assessment.id}
                   submissionId={submissionId || undefined}
                   size="default"
-                  enableRecording={false} // No recording during verification
                 />
                 
                 {/* Minimal Guidelines */}

@@ -1,10 +1,7 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
-import { useVideoRecording, RecordingConfig } from '@/hooks/useVideoRecording';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RecordingIndicator } from '@/components/RecordingIndicator';
 import { Loader2, Camera, CheckCircle2, AlertCircle, Users, X, Eye, EyeOff, RefreshCw, Shield, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -22,11 +19,6 @@ interface ProctoringCameraProps {
   submissionId?: string;
   size?: 'default' | 'small' | 'large';
   onWarning?: (type: string, message: string) => void;
-  // New recording props
-  enableRecording?: boolean;
-  recordingConfig?: RecordingConfig;
-  onRecordingStart?: (success: boolean) => void;
-  onRecordingStop?: (recordingUrl: string | null) => void;
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -81,25 +73,10 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   assessmentId,
   submissionId,
   size = 'default',
-  onWarning,
-  enableRecording = false,
-  recordingConfig,
-  onRecordingStart,
-  onRecordingStop
+  onWarning
 }) => {
-  console.log('ProctoringCamera: Rendered with props:', {
-    enableRecording,
-    hasRecordingConfig: !!recordingConfig,
-    recordingConfig,
-    assessmentId,
-    submissionId,
-    size
-  });
-
   const { toast } = useToast();
   const { user } = useAuth();
-  const { isRecording, isUploading, startRecording, stopRecording, cleanup } = useVideoRecording();
-  
   const [violationCount, setViolationCount] = useState<Record<ViolationType, number>>({
     noFaceDetected: 0,
     multipleFacesDetected: 0,
@@ -154,14 +131,14 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   // Initialize the camera when component mounts
   useEffect(() => {
     if (!autoInitRef.current) {
-      console.log("ProctoringCamera: Initializing camera...");
+      console.log("Initializing camera...");
       reinitialize();
       autoInitRef.current = true;
     }
     
     // Cleanup function that will run when component unmounts
     return () => {
-      console.log("ProctoringCamera: Stopping camera detection...");
+      console.log("Stopping camera detection...");
       stopDetection();
     };
   }, [reinitialize, stopDetection]);
@@ -337,84 +314,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }, 100);
   };
 
-  const handleStartRecording = async () => {
-    console.log('ProctoringCamera: handleStartRecording called');
-    
-    if (!enableRecording) {
-      console.log('ProctoringCamera: Recording not enabled');
-      return;
-    }
-    
-    if (!recordingConfig) {
-      console.log('ProctoringCamera: No recording config provided');
-      return;
-    }
-    
-    if (!videoRef.current) {
-      console.log('ProctoringCamera: Video reference not available');
-      return;
-    }
-    
-    if (!user) {
-      console.log('ProctoringCamera: User not authenticated');
-      return;
-    }
-    
-    console.log('ProctoringCamera: Starting recording with config:', recordingConfig);
-    
-    const success = await startRecording(videoRef.current, recordingConfig);
-    console.log('ProctoringCamera: Recording start result:', success);
-    onRecordingStart?.(success);
-  };
-
-  const handleStopRecording = async () => {
-    if (!recordingConfig) {
-      console.log('ProctoringCamera: Cannot stop recording: no config');
-      return;
-    }
-    
-    console.log('ProctoringCamera: Stopping recording...');
-    const recordingUrl = await stopRecording(recordingConfig);
-    console.log('ProctoringCamera: Recording stopped, URL:', recordingUrl);
-    onRecordingStop?.(recordingUrl);
-  };
-
-  // Start recording automatically when camera is ready and recording is enabled
-  useEffect(() => {
-    console.log('ProctoringCamera: Recording auto-start check:', {
-      enableRecording,
-      hasRecordingConfig: !!recordingConfig,
-      isCameraReady,
-      isModelLoaded,
-      isRecording,
-      hasVideoRef: !!videoRef.current,
-      hasUser: !!user,
-      videoRefSrcObject: !!videoRef.current?.srcObject
-    });
-
-    if (enableRecording && recordingConfig && isCameraReady && isModelLoaded && !isRecording && videoRef.current?.srcObject && user) {
-      console.log('ProctoringCamera: All conditions met, auto-starting recording');
-      // Add a small delay to ensure camera is fully ready
-      setTimeout(() => {
-        console.log('ProctoringCamera: Executing delayed recording start');
-        handleStartRecording();
-      }, 1500); // Increased delay to 1.5 seconds
-    } else {
-      console.log('ProctoringCamera: Recording auto-start conditions not met');
-    }
-  }, [enableRecording, recordingConfig, isCameraReady, isModelLoaded, isRecording, user, videoRef.current?.srcObject]);
-
-  // Cleanup recording on unmount
-  useEffect(() => {
-    return () => {
-      if (enableRecording && isRecording) {
-        console.log('ProctoringCamera: Component unmounting, stopping recording...');
-        handleStopRecording();
-      }
-      cleanup();
-    };
-  }, [cleanup, enableRecording, isRecording]);
-
   const statusConfig = statusMessages[status] || statusMessages.initializing;
   
   // Determine container size based on the size prop
@@ -430,17 +329,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
 
   return (
     <div className="proctoring-camera-container">
-      {/* Recording indicator */}
-      {(enableRecording && (isRecording || isUploading)) && (
-        <div className="mb-4 flex justify-center">
-          <RecordingIndicator 
-            isRecording={isRecording} 
-            isUploading={isUploading}
-            size={size === 'small' ? 'small' : 'default'}
-          />
-        </div>
-      )}
-
       {/* Violation Warning Display - Only show if showWarnings is true */}
       {showWarnings && activeWarning && (
         <div className="mb-4 relative">
