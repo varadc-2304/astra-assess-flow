@@ -7,7 +7,6 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAssessment } from '@/contexts/AssessmentContext';
-import { useAssessmentAccess } from '@/hooks/useAssessmentAccess';
 import { supabase } from '@/integrations/supabase/client';
 
 const AssessmentCodeInput = () => {
@@ -17,40 +16,20 @@ const AssessmentCodeInput = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { loadAssessment } = useAssessment();
-  const { canAccessAssessment } = useAssessmentAccess();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const assessmentCode = code.trim().toUpperCase();
-      console.log('Attempting to access assessment:', assessmentCode);
-      console.log('User assigned assessments:', user?.assigned_assessments);
-
-      // First check if user has access to this assessment
-      if (!canAccessAssessment(assessmentCode)) {
-        console.log('Access denied for assessment:', assessmentCode);
-        toast({
-          title: "Access Denied",
-          description: "You don't have permission to access this assessment.",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
-      console.log('Access granted, checking if assessment exists...');
-
       // Check if the assessment exists and get its details
       const { data: assessmentData, error: assessmentError } = await supabase
         .from('assessments')
         .select('*')
-        .eq('code', assessmentCode)
+        .eq('code', code.trim().toUpperCase())
         .single();
 
       if (assessmentError || !assessmentData) {
-        console.log('Assessment not found:', assessmentError);
         toast({
           title: "Invalid Code",
           description: "Please check the assessment code and try again.",
@@ -59,8 +38,6 @@ const AssessmentCodeInput = () => {
         setLoading(false);
         return;
       }
-
-      console.log('Assessment found:', assessmentData);
 
       // Check if user has already completed this assessment
       const { data: results, error: resultsError } = await supabase

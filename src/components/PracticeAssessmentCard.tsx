@@ -105,15 +105,6 @@ const PracticeAssessmentCard = ({ assessment, isSolved = false, marksObtained = 
         </div>
       </CardContent>
       
-      <CardFooter className="pt-0">
-        <Button 
-          onClick={handleStart}
-          className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white button-hover"
-        >
-          <ArrowRight className="mr-2 h-4 w-4" />
-          {isSolved ? "Retake Assessment" : "Start Assessment"}
-        </Button>
-      </CardFooter>
     </Card>
   );
 };

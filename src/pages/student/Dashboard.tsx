@@ -9,12 +9,10 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { Assessment, Result } from '@/types/database';
 import PracticeAssessmentCard from '@/components/PracticeAssessmentCard';
-import { useAssessmentAccess } from '@/hooks/useAssessmentAccess';
 
 const StudentDashboard = () => {
   const { logout, user } = useAuth();
   const { toast } = useToast();
-  const { getAccessibleAssessmentCodes } = useAssessmentAccess();
   const [practiceAssessments, setPracticeAssessments] = useState<Assessment[]>([]);
   const [results, setResults] = useState<Result[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -24,43 +22,17 @@ const StudentDashboard = () => {
     const fetchPracticeAssessments = async () => {
       setIsLoading(true);
       try {
-        console.log('Dashboard: User data:', user);
-        console.log('Dashboard: User assigned assessments:', user?.assigned_assessments);
-        
-        const accessibleCodes = getAccessibleAssessmentCodes();
-        console.log('Dashboard: Accessible assessment codes:', accessibleCodes);
-        
-        // If user has no assigned assessments, show empty state
-        if (accessibleCodes.length === 0) {
-          console.log('Dashboard: No accessible assessment codes found');
-          setPracticeAssessments([]);
-          setIsLoading(false);
-          return;
-        }
-
-        console.log('Dashboard: Fetching practice assessments for codes:', accessibleCodes);
-
-        // Fetch ALL assessments that user has access to (both practice and non-practice)
-        // Then filter for practice assessments only
+        // Fetch practice assessments
         const { data: assessments, error: assessmentsError } = await supabase
           .from('assessments')
           .select('*')
-          .in('code', accessibleCodes)
+          .eq('is_practice', true)
           .order('created_at', { ascending: false });
 
-        if (assessmentsError) {
-          console.error('Dashboard: Error fetching assessments:', assessmentsError);
-          throw assessmentsError;
-        }
+        if (assessmentsError) throw assessmentsError;
 
-        console.log('Dashboard: Fetched all assessments:', assessments);
-
-        // Filter for practice assessments only
-        const practiceOnly = (assessments || []).filter(assessment => assessment.is_practice === true);
-        console.log('Dashboard: Practice assessments found:', practiceOnly);
-
-        // Process practice assessments
-        const processedAssessments = await Promise.all(practiceOnly.map(async (assessment) => {
+        // Process assessments
+        const processedAssessments = await Promise.all((assessments || []).map(async (assessment) => {
           // Count MCQ questions
           const { count: mcqCount, error: mcqError } = await supabase
             .from('mcq_questions')
@@ -89,7 +61,6 @@ const StudentDashboard = () => {
           };
         }));
 
-        console.log('Dashboard: Processed practice assessments:', processedAssessments);
         setPracticeAssessments(processedAssessments);
 
         // If user is logged in, fetch their results
@@ -105,35 +76,19 @@ const StudentDashboard = () => {
         }
       } catch (error) {
         console.error('Error fetching practice assessments:', error);
-        
-        // Handle network errors gracefully
-        if (error instanceof Error && error.message.includes('Failed to fetch')) {
-          toast({
-            title: 'Network Error',
-            description: 'Unable to connect to the server. Please check your internet connection and try again.',
-            variant: 'destructive',
-            duration: 3000,
-          });
-        } else {
-          toast({
-            title: 'Failed to load practice assessments',
-            description: 'Please try refreshing the page',
-            variant: 'destructive',
-            duration: 1000,
-          });
-        }
+        toast({
+          title: 'Failed to load practice assessments',
+          description: 'Please try refreshing the page',
+          variant: 'destructive',
+          duration: 1000,
+        });
       } finally {
         setIsLoading(false);
       }
     };
 
-    // Only fetch if user is available
-    if (user) {
-      fetchPracticeAssessments();
-    } else {
-      console.log('Dashboard: No user available, skipping assessment fetch');
-    }
-  }, [user, toast, getAccessibleAssessmentCodes]);
+    fetchPracticeAssessments();
+  }, [user, toast]);
 
   const handleLogout = async () => {
     try {
@@ -217,11 +172,6 @@ const StudentDashboard = () => {
             <p className="text-gray-500">
               {searchQuery ? 'No matching practice assessments found' : 'No practice assessments available'}
             </p>
-            {user?.assigned_assessments && user.assigned_assessments.length > 0 && (
-              <p className="text-sm text-gray-400 mt-2">
-                Note: Practice assessments will appear here if they are marked as practice assessments in your assigned list.
-              </p>
-            )}
           </div>
         )}
       </div>
