@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,15 +12,14 @@ import { supabase } from '@/integrations/supabase/client';
 const AssessmentCodeInput = () => {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { user } = useAuth();
   const { loadAssessment } = useAssessment();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
     try {
       // Check if the assessment exists and get its details
@@ -30,7 +30,11 @@ const AssessmentCodeInput = () => {
         .single();
 
       if (assessmentError || !assessmentData) {
-        setError('Please check the assessment code and try again.');
+        toast({
+          title: "Invalid Code",
+          description: "Please check the assessment code and try again.",
+          variant: "destructive",
+        });
         setLoading(false);
         return;
       }
@@ -43,14 +47,22 @@ const AssessmentCodeInput = () => {
         .single();
 
       if (authError || !authData) {
-        setError('Unable to verify your assessment permissions.');
+        toast({
+          title: "Access Denied",
+          description: "Unable to verify your assessment permissions.",
+          variant: "destructive",
+        });
         setLoading(false);
         return;
       }
 
       const assignedAssessments = authData.assigned_assessments || [];
       if (!assignedAssessments.includes(assessmentData.code)) {
-        setError('You are not authorized to access this assessment.');
+        toast({
+          title: "Access Denied",
+          description: "You are not authorized to access this assessment.",
+          variant: "destructive",
+        });
         setLoading(false);
         return;
       }
@@ -64,14 +76,22 @@ const AssessmentCodeInput = () => {
 
       if (resultsError) {
         console.error('Error checking previous attempts:', resultsError);
-        setError('Failed to verify your previous attempts. Please try again.');
+        toast({
+          title: "Error",
+          description: "Failed to verify your previous attempts. Please try again.",
+          variant: "destructive",
+        });
         setLoading(false);
         return;
       }
 
       // If results exist and reattempt is not allowed, prevent access
       if (results && results.length > 0 && !assessmentData.reattempt) {
-        setError('You have already completed this assessment and retakes are not allowed.');
+        toast({
+          title: "Assessment Already Completed",
+          description: "You have already completed this assessment and retakes are not allowed.",
+          variant: "destructive",
+        });
         setLoading(false);
         return;
       }
@@ -79,12 +99,20 @@ const AssessmentCodeInput = () => {
       // Load the assessment and navigate to instructions
       const success = await loadAssessment(code);
       if (success) {
+        toast({
+          title: "Assessment Loaded",
+          description: "The assessment has been loaded successfully.",
+        });
         navigate('/instructions');
       }
 
     } catch (error) {
       console.error('Error verifying assessment code:', error);
-      setError('An error occurred while verifying the assessment code.');
+      toast({
+        title: "Error",
+        description: "An error occurred while verifying the assessment code.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -107,9 +135,6 @@ const AssessmentCodeInput = () => {
             className="uppercase"
             disabled={loading}
           />
-          {error && (
-            <p className="text-sm text-red-600">{error}</p>
-          )}
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Verifying..." : "Start Assessment"}
           </Button>
