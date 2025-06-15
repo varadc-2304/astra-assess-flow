@@ -21,7 +21,7 @@ export const AssessmentRecording: React.FC<AssessmentRecordingProps> = ({
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log('AssessmentRecording: Configuration check:', {
+    console.log('AssessmentRecording: Props check:', {
       isAssessmentStarted,
       assessmentId,
       submissionId,
@@ -36,7 +36,6 @@ export const AssessmentRecording: React.FC<AssessmentRecordingProps> = ({
       console.log('AssessmentRecording: Setting recording config:', config);
       setRecordingConfig(config);
       
-      // Show immediate feedback that recording setup is starting
       toast({
         title: "Recording Setup",
         description: "Initializing assessment recording...",
@@ -78,7 +77,7 @@ export const AssessmentRecording: React.FC<AssessmentRecordingProps> = ({
     } else {
       console.warn('Assessment recording failed to save');
       toast({
-        title: "Recording Issue",
+        title: "Recording Issue", 
         description: "There was an issue saving the recording. Please contact support if this affects your assessment.",
         variant: "destructive",
       });
@@ -86,13 +85,17 @@ export const AssessmentRecording: React.FC<AssessmentRecordingProps> = ({
     onRecordingStatusChange?.(false);
   };
 
-  // Always render the camera when we have the required props, regardless of recording config
-  if (!isAssessmentStarted) {
-    console.log('AssessmentRecording: Not rendering - assessment not started');
+  // Only render when assessment is started
+  if (!isAssessmentStarted || !assessmentId || !submissionId) {
+    console.log('AssessmentRecording: Not rendering - missing requirements:', {
+      isAssessmentStarted,
+      assessmentId,
+      submissionId
+    });
     return null;
   }
 
-  console.log('AssessmentRecording: Rendering camera with recording enabled');
+  console.log('AssessmentRecording: Rendering camera with recording enabled, config:', recordingConfig);
 
   return (
     <div className="fixed bottom-4 right-4 z-50">

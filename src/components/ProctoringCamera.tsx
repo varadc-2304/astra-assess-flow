@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useProctoring, ProctoringStatus, ViolationType } from '@/hooks/useProctoring';
 import { useVideoRecording, RecordingConfig } from '@/hooks/useVideoRecording';
@@ -86,6 +87,15 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   onRecordingStart,
   onRecordingStop
 }) => {
+  console.log('ProctoringCamera: Rendered with props:', {
+    enableRecording,
+    hasRecordingConfig: !!recordingConfig,
+    recordingConfig,
+    assessmentId,
+    submissionId,
+    size
+  });
+
   const { toast } = useToast();
   const { user } = useAuth();
   const { isRecording, isUploading, startRecording, stopRecording, cleanup } = useVideoRecording();
@@ -328,24 +338,32 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   };
 
   const handleStartRecording = async () => {
-    if (!enableRecording || !recordingConfig || !videoRef.current) {
-      console.log('ProctoringCamera: Cannot start recording:', { 
-        enableRecording, 
-        hasRecordingConfig: !!recordingConfig, 
-        hasVideoRef: !!videoRef.current,
-        hasUser: !!user
-      });
+    console.log('ProctoringCamera: handleStartRecording called');
+    
+    if (!enableRecording) {
+      console.log('ProctoringCamera: Recording not enabled');
+      return;
+    }
+    
+    if (!recordingConfig) {
+      console.log('ProctoringCamera: No recording config provided');
+      return;
+    }
+    
+    if (!videoRef.current) {
+      console.log('ProctoringCamera: Video reference not available');
+      return;
+    }
+    
+    if (!user) {
+      console.log('ProctoringCamera: User not authenticated');
       return;
     }
     
     console.log('ProctoringCamera: Starting recording with config:', recordingConfig);
-    toast({
-      title: "Starting Recording",
-      description: "Please wait while we initialize the recording...",
-    });
     
     const success = await startRecording(videoRef.current, recordingConfig);
-    console.log('ProctoringCamera: Recording start success:', success);
+    console.log('ProctoringCamera: Recording start result:', success);
     onRecordingStart?.(success);
   };
 
@@ -356,11 +374,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }
     
     console.log('ProctoringCamera: Stopping recording...');
-    toast({
-      title: "Stopping Recording",
-      description: "Please wait while we save your recording...",
-    });
-    
     const recordingUrl = await stopRecording(recordingConfig);
     console.log('ProctoringCamera: Recording stopped, URL:', recordingUrl);
     onRecordingStop?.(recordingUrl);
@@ -375,17 +388,21 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       isModelLoaded,
       isRecording,
       hasVideoRef: !!videoRef.current,
-      hasUser: !!user
+      hasUser: !!user,
+      videoRefSrcObject: !!videoRef.current?.srcObject
     });
 
-    if (enableRecording && recordingConfig && isCameraReady && isModelLoaded && !isRecording && videoRef.current && user) {
-      console.log('ProctoringCamera: Auto-starting recording for assessment');
+    if (enableRecording && recordingConfig && isCameraReady && isModelLoaded && !isRecording && videoRef.current?.srcObject && user) {
+      console.log('ProctoringCamera: All conditions met, auto-starting recording');
       // Add a small delay to ensure camera is fully ready
       setTimeout(() => {
+        console.log('ProctoringCamera: Executing delayed recording start');
         handleStartRecording();
-      }, 1000);
+      }, 1500); // Increased delay to 1.5 seconds
+    } else {
+      console.log('ProctoringCamera: Recording auto-start conditions not met');
     }
-  }, [enableRecording, recordingConfig, isCameraReady, isModelLoaded, isRecording, user]);
+  }, [enableRecording, recordingConfig, isCameraReady, isModelLoaded, isRecording, user, videoRef.current?.srcObject]);
 
   // Cleanup recording on unmount
   useEffect(() => {

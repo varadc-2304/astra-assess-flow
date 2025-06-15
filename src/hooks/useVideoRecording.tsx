@@ -19,8 +19,20 @@ export const useVideoRecording = () => {
   const { user } = useAuth();
 
   const startRecording = useCallback(async (videoElement: HTMLVideoElement, config: RecordingConfig) => {
-    if (!videoElement.srcObject || !user) {
-      console.error('useVideoRecording: No video stream available or user not authenticated');
+    console.log('useVideoRecording: Starting recording with config:', config);
+    console.log('useVideoRecording: Video element check:', {
+      hasVideoElement: !!videoElement,
+      hasSrcObject: !!videoElement?.srcObject,
+      hasUser: !!user,
+      userId: user?.id
+    });
+
+    if (!videoElement?.srcObject || !user) {
+      console.error('useVideoRecording: Missing requirements:', {
+        hasVideoElement: !!videoElement,
+        hasSrcObject: !!videoElement?.srcObject,
+        hasUser: !!user
+      });
       toast({
         title: "Recording Error",
         description: "Camera not ready or user not authenticated",
@@ -33,19 +45,19 @@ export const useVideoRecording = () => {
       const stream = videoElement.srcObject as MediaStream;
       streamRef.current = stream;
       
-      console.log('useVideoRecording: Setting up MediaRecorder with stream:', stream);
+      console.log('useVideoRecording: Stream details:', {
+        streamId: stream.id,
+        videoTracks: stream.getVideoTracks().length,
+        audioTracks: stream.getAudioTracks().length
+      });
       
-      // Configure MediaRecorder with optimized settings
-      let options: MediaRecorderOptions = {
-        videoBitsPerSecond: 1000000, // 1 Mbps for reasonable quality/size balance
-      };
-
-      // Try different MIME types in order of preference
+      // Test different MIME types in order of preference
       const mimeTypes = [
-        'video/webm;codecs=vp9,opus',
-        'video/webm;codecs=vp8,opus',
-        'video/webm;codecs=h264,opus',
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8', 
+        'video/webm;codecs=h264',
         'video/webm',
+        'video/mp4;codecs=h264',
         'video/mp4'
       ];
 
@@ -53,26 +65,40 @@ export const useVideoRecording = () => {
       for (const mimeType of mimeTypes) {
         if (MediaRecorder.isTypeSupported(mimeType)) {
           selectedMimeType = mimeType;
-          options.mimeType = mimeType;
           break;
         }
       }
 
+      if (!selectedMimeType) {
+        console.error('useVideoRecording: No supported MIME types found');
+        toast({
+          title: "Recording Error",
+          description: "Browser does not support video recording",
+          variant: "destructive",
+        });
+        return false;
+      }
+
       console.log('useVideoRecording: Using MIME type:', selectedMimeType);
+
+      const options: MediaRecorderOptions = {
+        mimeType: selectedMimeType,
+        videoBitsPerSecond: 500000, // 500kbps for smaller files
+      };
 
       const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       recordedChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
+        console.log('useVideoRecording: Data available:', event.data.size, 'bytes');
         if (event.data && event.data.size > 0) {
           recordedChunksRef.current.push(event.data);
-          console.log('useVideoRecording: Recording chunk received:', event.data.size, 'bytes');
         }
       };
 
       mediaRecorder.onstart = () => {
-        console.log('useVideoRecording: MediaRecorder started');
+        console.log('useVideoRecording: Recording started successfully');
         setIsRecording(true);
         toast({
           title: "Recording Active",
@@ -84,20 +110,26 @@ export const useVideoRecording = () => {
         console.error('useVideoRecording: MediaRecorder error:', event);
         toast({
           title: "Recording Error",
-          description: "An error occurred during recording",
+          description: "Recording encountered an error",
           variant: "destructive",
         });
+        setIsRecording(false);
       };
 
-      mediaRecorder.start(1000); // Collect data every second
+      mediaRecorder.onstop = () => {
+        console.log('useVideoRecording: Recording stopped');
+      };
+
+      // Start recording with smaller intervals
+      mediaRecorder.start(2000); // Collect data every 2 seconds
       
-      console.log('useVideoRecording: Recording started for assessment:', config.assessmentId, 'user:', user.id);
+      console.log('useVideoRecording: MediaRecorder started for user:', user.id);
       return true;
     } catch (error) {
       console.error('useVideoRecording: Error starting recording:', error);
       toast({
         title: "Recording Error",
-        description: "Failed to start recording. Assessment will continue without recording.",
+        description: `Failed to start recording: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive",
       });
       return false;
@@ -105,8 +137,14 @@ export const useVideoRecording = () => {
   }, [user, toast]);
 
   const stopRecording = useCallback(async (config: RecordingConfig): Promise<string | null> => {
+    console.log('useVideoRecording: Stopping recording for config:', config);
+    
     if (!mediaRecorderRef.current || !isRecording || !user) {
-      console.log('useVideoRecording: Cannot stop recording - no recorder, not recording, or no user');
+      console.log('useVideoRecording: Cannot stop recording:', {
+        hasRecorder: !!mediaRecorderRef.current,
+        isRecording,
+        hasUser: !!user
+      });
       return null;
     }
 
@@ -118,7 +156,7 @@ export const useVideoRecording = () => {
           setIsRecording(false);
           setIsUploading(true);
 
-          console.log('useVideoRecording: Recording stopped, processing chunks:', recordedChunksRef.current.length);
+          console.log('useVideoRecording: Processing', recordedChunksRef.current.length, 'chunks');
 
           if (recordedChunksRef.current.length === 0) {
             console.warn('useVideoRecording: No recorded chunks available');
@@ -137,14 +175,14 @@ export const useVideoRecording = () => {
             type: 'video/webm'
           });
 
-          const sizeInMB = Math.round(recordedBlob.size / 1024 / 1024);
+          const sizeInMB = Math.round(recordedBlob.size / 1024 / 1024 * 100) / 100;
           console.log('useVideoRecording: Recording blob created:', sizeInMB, 'MB');
 
           // Generate filename with timestamp
           const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
           const fileName = `${user.id}/${config.assessmentId}/${config.submissionId}/recording-${timestamp}.webm`;
 
-          console.log('useVideoRecording: Uploading recording to:', fileName);
+          console.log('useVideoRecording: Uploading to:', fileName);
 
           // Upload to Supabase storage
           const { data: uploadData, error: uploadError } = await supabase.storage
@@ -169,8 +207,9 @@ export const useVideoRecording = () => {
 
           console.log('useVideoRecording: Upload successful:', uploadData);
 
-          // Get the file path for the recording URL using the hardcoded Supabase URL
+          // Get the file URL
           const recordingUrl = `https://tafvjwurzgpugcfidbfv.supabase.co/storage/v1/object/public/proctoring_recordings/${fileName}`;
+          console.log('useVideoRecording: Recording URL:', recordingUrl);
 
           // Update submission with recording URL
           const { error: updateError } = await supabase
@@ -186,10 +225,10 @@ export const useVideoRecording = () => {
               variant: "destructive",
             });
           } else {
-            console.log('useVideoRecording: Recording successfully saved:', recordingUrl);
+            console.log('useVideoRecording: Recording successfully saved and linked');
             toast({
               title: "Recording Complete",
-              description: "Assessment recording has been saved successfully.",
+              description: `Assessment recording saved successfully (${sizeInMB}MB)`,
             });
           }
 
@@ -201,21 +240,21 @@ export const useVideoRecording = () => {
           setIsUploading(false);
           toast({
             title: "Processing Error",
-            description: "Failed to process recording. Please contact support.",
+            description: `Failed to process recording: ${error instanceof Error ? error.message : 'Unknown error'}`,
             variant: "destructive",
           });
           resolve(null);
         }
       };
 
-      console.log('useVideoRecording: Stopping media recorder...');
+      console.log('useVideoRecording: Stopping MediaRecorder...');
       mediaRecorder.stop();
     });
   }, [isRecording, user, toast]);
 
   const cleanup = useCallback(() => {
+    console.log('useVideoRecording: Cleaning up...');
     if (mediaRecorderRef.current && isRecording) {
-      console.log('useVideoRecording: Cleaning up recording...');
       mediaRecorderRef.current.stop();
     }
     mediaRecorderRef.current = null;
