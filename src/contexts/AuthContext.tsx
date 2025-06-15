@@ -12,6 +12,7 @@ type UserData = {
   department?: string;
   division?: string;
   batch?: string;
+  assignedAssessments?: string[];
 };
 
 interface AuthContextType {

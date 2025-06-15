@@ -3,112 +3,142 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Lock, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { useAssessment } from '@/contexts/AssessmentContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useAssessmentAccess } from '@/hooks/useAssessmentAccess';
 
 const AssessmentCodeInput = () => {
   const [code, setCode] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
-  const { loadAssessment } = useAssessment();
+  const { canAccessAssessment } = useAssessmentAccess();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    
+    if (!code.trim()) {
+      toast({
+        title: "Invalid Code",
+        description: "Please enter an assessment code",
+        variant: "destructive",
+        duration: 1000,
+      });
+      return;
+    }
+
+    // Check if user has access to this assessment
+    if (!canAccessAssessment(code.trim().toUpperCase())) {
+      toast({
+        title: "Access Denied",
+        description: "You don't have access to this assessment. Please contact your instructor.",
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
-      // Check if the assessment exists and get its details
-      const { data: assessmentData, error: assessmentError } = await supabase
+      // Validate assessment code exists and is active
+      const { data: assessment, error } = await supabase
         .from('assessments')
         .select('*')
         .eq('code', code.trim().toUpperCase())
         .single();
 
-      if (assessmentError || !assessmentData) {
+      if (error || !assessment) {
         toast({
           title: "Invalid Code",
-          description: "Please check the assessment code and try again.",
+          description: "Assessment not found. Please check the code and try again.",
           variant: "destructive",
+          duration: 1000,
         });
-        setLoading(false);
         return;
       }
 
-      // Check if user has already completed this assessment
-      const { data: results, error: resultsError } = await supabase
-        .from('results')
-        .select('*')
-        .eq('user_id', user?.id)
-        .eq('assessment_id', assessmentData.id);
+      // Check if assessment is active
+      const now = new Date();
+      const startTime = new Date(assessment.start_time);
+      const endTime = assessment.end_time ? new Date(assessment.end_time) : null;
 
-      if (resultsError) {
-        console.error('Error checking previous attempts:', resultsError);
+      if (now < startTime) {
         toast({
-          title: "Error",
-          description: "Failed to verify your previous attempts. Please try again.",
+          title: "Assessment Not Started",
+          description: "This assessment hasn't started yet.",
           variant: "destructive",
+          duration: 1000,
         });
-        setLoading(false);
         return;
       }
 
-      // If results exist and reattempt is not allowed, prevent access
-      if (results && results.length > 0 && !assessmentData.reattempt) {
+      if (endTime && now > endTime) {
         toast({
-          title: "Assessment Already Completed",
-          description: "You have already completed this assessment and retakes are not allowed.",
+          title: "Assessment Ended",
+          description: "This assessment has already ended.",
           variant: "destructive",
+          duration: 1000,
         });
-        setLoading(false);
         return;
       }
 
-      // Load the assessment and navigate to instructions
-      const success = await loadAssessment(code);
-      if (success) {
-        toast({
-          title: "Assessment Loaded",
-          description: "The assessment has been loaded successfully.",
-        });
-        navigate('/instructions');
-      }
+      // Store assessment code and navigate
+      localStorage.setItem('assessmentCode', code.trim().toUpperCase());
+      
+      toast({
+        title: "Code Accepted",
+        description: "Redirecting to instructions...",
+        duration: 1000,
+      });
 
+      navigate('/instructions');
     } catch (error) {
-      console.error('Error verifying assessment code:', error);
+      console.error('Error validating assessment code:', error);
       toast({
         title: "Error",
-        description: "An error occurred while verifying the assessment code.",
+        description: "Something went wrong. Please try again.",
         variant: "destructive",
+        duration: 1000,
       });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
     <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle>Enter Assessment Code</CardTitle>
-        <CardDescription>
-          Please enter your assessment code to begin
-        </CardDescription>
+      <CardHeader className="text-center">
+        <CardTitle className="flex items-center justify-center gap-2">
+          <Lock className="h-5 w-5" />
+          Enter Assessment Code
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
-            placeholder="Enter code..."
+            type="text"
+            placeholder="Enter assessment code"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="uppercase"
-            disabled={loading}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            className="text-center text-lg font-mono"
+            disabled={isLoading}
           />
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Verifying..." : "Start Assessment"}
+          <Button 
+            type="submit" 
+            className="w-full" 
+            disabled={isLoading || !code.trim()}
+          >
+            {isLoading ? (
+              "Validating..."
+            ) : (
+              <>
+                Continue
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
           </Button>
         </form>
       </CardContent>

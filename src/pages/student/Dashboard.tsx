@@ -9,9 +9,11 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { Assessment, Result } from '@/types/database';
 import PracticeAssessmentCard from '@/components/PracticeAssessmentCard';
+import { useAssessmentAccess } from '@/hooks/useAssessmentAccess';
 
 const StudentDashboard = () => {
   const { logout, user } = useAuth();
+  const { canAccessAssessment } = useAssessmentAccess();
   const { toast } = useToast();
   const [practiceAssessments, setPracticeAssessments] = useState<Assessment[]>([]);
   const [results, setResults] = useState<Result[]>([]);
@@ -31,8 +33,13 @@ const StudentDashboard = () => {
 
         if (assessmentsError) throw assessmentsError;
 
+        // Filter assessments based on user access
+        const accessibleAssessments = (assessments || []).filter(assessment => 
+          canAccessAssessment(assessment.code)
+        );
+
         // Process assessments
-        const processedAssessments = await Promise.all((assessments || []).map(async (assessment) => {
+        const processedAssessments = await Promise.all(accessibleAssessments.map(async (assessment) => {
           // Count MCQ questions
           const { count: mcqCount, error: mcqError } = await supabase
             .from('mcq_questions')
@@ -87,8 +94,10 @@ const StudentDashboard = () => {
       }
     };
 
-    fetchPracticeAssessments();
-  }, [user, toast]);
+    if (user) {
+      fetchPracticeAssessments();
+    }
+  }, [user, toast, canAccessAssessment]);
 
   const handleLogout = async () => {
     try {
@@ -170,7 +179,9 @@ const StudentDashboard = () => {
         ) : (
           <div className="text-center py-10 bg-gray-50 rounded-lg">
             <p className="text-gray-500">
-              {searchQuery ? 'No matching practice assessments found' : 'No practice assessments available'}
+              {searchQuery ? 'No matching practice assessments found' : user?.assignedAssessments?.length === 0 
+                ? 'No assessments have been assigned to you yet' 
+                : 'No accessible practice assessments available'}
             </p>
           </div>
         )}
