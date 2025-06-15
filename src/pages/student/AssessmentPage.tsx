@@ -25,6 +25,7 @@ import { Card } from '@/components/ui/card';
 import ProctoringCamera from '@/components/ProctoringCamera';
 import { cn } from '@/lib/utils';
 import { useProctoringWarnings } from '@/hooks/useProctoringWarnings';
+import { useAssessmentRecording } from '@/hooks/useAssessmentRecording';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -77,6 +78,20 @@ const AssessmentPage = () => {
   
   // Check if AI proctoring is enabled
   const isAiProctoringEnabled = assessment?.isAiProctored === true;
+
+  // Start recording only if AI proctoring enabled and assessment started and submissionId set
+  const recordingEnabled = isAiProctoringEnabled && assessmentStarted && !!submissionId;
+
+  // Hook for camera recording
+  const {
+    isRecording,
+    isUploading,
+    videoUrl,
+    stopRecording
+  } = useAssessmentRecording({
+    submissionId,
+    enabled: recordingEnabled,
+  });
   
   useEffect(() => {
     if (!assessment || !assessmentStarted) {
@@ -235,6 +250,11 @@ const AssessmentPage = () => {
   
   const confirmEndAssessment = async () => {
     setIsEndingAssessment(true);
+
+    // Stop recording if active before submitting
+    if (isRecording) {
+      stopRecording();
+    }
     
     try {
       const { data: submissions, error: submissionError } = await supabase
