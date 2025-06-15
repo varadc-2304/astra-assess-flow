@@ -95,6 +95,7 @@ const AutoLogin = () => {
             department: fallbackUserData.department || undefined,
             division: undefined,
             batch: undefined,
+            assigned_assessments: (fallbackUserData as any).assigned_assessments || [],
           };
 
           localStorage.setItem('user', JSON.stringify(userDataObj));
@@ -115,6 +116,7 @@ const AutoLogin = () => {
           department: userData.department || undefined,
           division: userData.division || undefined,
           batch: userData.batch || undefined,
+          assigned_assessments: userData.assigned_assessments || [],
         };
 
         localStorage.setItem('user', JSON.stringify(userDataObj));

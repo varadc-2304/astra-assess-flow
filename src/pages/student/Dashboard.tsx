@@ -9,10 +9,12 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { Assessment, Result } from '@/types/database';
 import PracticeAssessmentCard from '@/components/PracticeAssessmentCard';
+import { useAssessmentAccess } from '@/hooks/useAssessmentAccess';
 
 const StudentDashboard = () => {
   const { logout, user } = useAuth();
   const { toast } = useToast();
+  const { getAccessibleAssessmentCodes } = useAssessmentAccess();
   const [practiceAssessments, setPracticeAssessments] = useState<Assessment[]>([]);
   const [results, setResults] = useState<Result[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,11 +24,21 @@ const StudentDashboard = () => {
     const fetchPracticeAssessments = async () => {
       setIsLoading(true);
       try {
-        // Fetch practice assessments
+        const accessibleCodes = getAccessibleAssessmentCodes();
+        
+        // If user has no assigned assessments, show empty state
+        if (accessibleCodes.length === 0) {
+          setPracticeAssessments([]);
+          setIsLoading(false);
+          return;
+        }
+
+        // Fetch practice assessments that user has access to
         const { data: assessments, error: assessmentsError } = await supabase
           .from('assessments')
           .select('*')
           .eq('is_practice', true)
+          .in('code', accessibleCodes)
           .order('created_at', { ascending: false });
 
         if (assessmentsError) throw assessmentsError;
@@ -88,7 +100,7 @@ const StudentDashboard = () => {
     };
 
     fetchPracticeAssessments();
-  }, [user, toast]);
+  }, [user, toast, getAccessibleAssessmentCodes]);
 
   const handleLogout = async () => {
     try {
@@ -170,7 +182,7 @@ const StudentDashboard = () => {
         ) : (
           <div className="text-center py-10 bg-gray-50 rounded-lg">
             <p className="text-gray-500">
-              {searchQuery ? 'No matching practice assessments found' : 'No practice assessments available'}
+              {searchQuery ? 'No matching practice assessments found' : 'No practice assessments assigned to you'}
             </p>
           </div>
         )}

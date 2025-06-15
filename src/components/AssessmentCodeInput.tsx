@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAssessment } from '@/contexts/AssessmentContext';
+import { useAssessmentAccess } from '@/hooks/useAssessmentAccess';
 import { supabase } from '@/integrations/supabase/client';
 
 const AssessmentCodeInput = () => {
@@ -16,17 +17,31 @@ const AssessmentCodeInput = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { loadAssessment } = useAssessment();
+  const { canAccessAssessment } = useAssessmentAccess();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      const assessmentCode = code.trim().toUpperCase();
+
+      // First check if user has access to this assessment
+      if (!canAccessAssessment(assessmentCode)) {
+        toast({
+          title: "Access Denied",
+          description: "You don't have permission to access this assessment.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       // Check if the assessment exists and get its details
       const { data: assessmentData, error: assessmentError } = await supabase
         .from('assessments')
         .select('*')
-        .eq('code', code.trim().toUpperCase())
+        .eq('code', assessmentCode)
         .single();
 
       if (assessmentError || !assessmentData) {
