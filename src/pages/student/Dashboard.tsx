@@ -1,9 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { LogOut, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import AssessmentCodeInput from '@/components/AssessmentCodeInput';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,7 +10,7 @@ import { Assessment, Result } from '@/types/database';
 import PracticeAssessmentCard from '@/components/PracticeAssessmentCard';
 
 const StudentDashboard = () => {
-  const { logout, user } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [practiceAssessments, setPracticeAssessments] = useState<Assessment[]>([]);
   const [results, setResults] = useState<Result[]>([]);
@@ -20,13 +19,41 @@ const StudentDashboard = () => {
 
   useEffect(() => {
     const fetchPracticeAssessments = async () => {
+      if (!user?.id) return;
+      
       setIsLoading(true);
       try {
-        // Fetch practice assessments
+        // First, get user's assigned assessments
+        const { data: authData, error: authError } = await supabase
+          .from('auth')
+          .select('assigned_assessments')
+          .eq('id', user.id)
+          .single();
+
+        if (authError) {
+          console.error('Error fetching user assignments:', authError);
+          toast({
+            title: 'Failed to load assignments',
+            description: 'Please try refreshing the page',
+            variant: 'destructive',
+            duration: 1000,
+          });
+          return;
+        }
+
+        const assignedAssessmentCodes = authData?.assigned_assessments || [];
+
+        if (assignedAssessmentCodes.length === 0) {
+          setPracticeAssessments([]);
+          return;
+        }
+
+        // Fetch practice assessments that are assigned to the user
         const { data: assessments, error: assessmentsError } = await supabase
           .from('assessments')
           .select('*')
           .eq('is_practice', true)
+          .in('code', assignedAssessmentCodes)
           .order('created_at', { ascending: false });
 
         if (assessmentsError) throw assessmentsError;
@@ -63,17 +90,16 @@ const StudentDashboard = () => {
 
         setPracticeAssessments(processedAssessments);
 
-        // If user is logged in, fetch their results
-        if (user) {
-          const { data: userResults, error: resultsError } = await supabase
-            .from('results')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false });
-          
-          if (resultsError) throw resultsError;
-          setResults(userResults || []);
-        }
+        // Fetch user's results for these assessments
+        const { data: userResults, error: resultsError } = await supabase
+          .from('results')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+        
+        if (resultsError) throw resultsError;
+        setResults(userResults || []);
+
       } catch (error) {
         console.error('Error fetching practice assessments:', error);
         toast({
@@ -89,24 +115,6 @@ const StudentDashboard = () => {
 
     fetchPracticeAssessments();
   }, [user, toast]);
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      toast({
-        title: "Logged Out",
-        description: "You have been successfully logged out",
-        duration: 1000,
-      });
-    } catch (error) {
-      toast({
-        title: "Logout Failed",
-        description: "An error occurred during logout",
-        variant: "destructive",
-        duration: 1000,
-      });
-    }
-  };
 
   const filteredAssessments = practiceAssessments.filter(assessment => 
     assessment.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -170,7 +178,7 @@ const StudentDashboard = () => {
         ) : (
           <div className="text-center py-10 bg-gray-50 rounded-lg">
             <p className="text-gray-500">
-              {searchQuery ? 'No matching practice assessments found' : 'No practice assessments available'}
+              {searchQuery ? 'No matching assigned practice assessments found' : 'No practice assessments assigned to you'}
             </p>
           </div>
         )}

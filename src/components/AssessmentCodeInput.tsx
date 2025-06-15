@@ -39,6 +39,34 @@ const AssessmentCodeInput = () => {
         return;
       }
 
+      // Check if user has this assessment assigned
+      const { data: authData, error: authError } = await supabase
+        .from('auth')
+        .select('assigned_assessments')
+        .eq('id', user?.id)
+        .single();
+
+      if (authError || !authData) {
+        toast({
+          title: "Access Denied",
+          description: "Unable to verify your assessment permissions.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      const assignedAssessments = authData.assigned_assessments || [];
+      if (!assignedAssessments.includes(assessmentData.code)) {
+        toast({
+          title: "Access Denied",
+          description: "You are not authorized to access this assessment.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       // Check if user has already completed this assessment
       const { data: results, error: resultsError } = await supabase
         .from('results')
