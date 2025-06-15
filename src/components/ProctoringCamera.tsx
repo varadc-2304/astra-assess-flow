@@ -19,6 +19,7 @@ interface ProctoringCameraProps {
   submissionId?: string;
   size?: 'default' | 'small' | 'large';
   onWarning?: (type: string, message: string) => void;
+  assessmentStartTime?: Date;
 }
 
 const statusMessages: Record<ProctoringStatus, { message: string; icon: React.ReactNode; color: string }> = {
@@ -73,7 +74,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   assessmentId,
   submissionId,
   size = 'default',
-  onWarning
+  onWarning,
+  assessmentStartTime
 }) => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -128,6 +130,21 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     }
   });
 
+  // Helper function to get assessment time
+  const getAssessmentTime = () => {
+    if (!assessmentStartTime) return new Date().toLocaleTimeString();
+    
+    const now = new Date();
+    const startTime = new Date(assessmentStartTime);
+    const elapsedMs = now.getTime() - startTime.getTime();
+    
+    // Convert to minutes:seconds format
+    const minutes = Math.floor(elapsedMs / 60000);
+    const seconds = Math.floor((elapsedMs % 60000) / 1000);
+    
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   // Initialize the camera when component mounts
   useEffect(() => {
     if (!autoInitRef.current) {
@@ -177,8 +194,8 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
             
             // New violation occurred
             newViolationsDetected = true;
-            const timestamp = new Date().toLocaleTimeString();
-            const violationMessage = `[${timestamp}] ${getViolationMessage(violationType)}`;
+            const assessmentTime = getAssessmentTime();
+            const violationMessage = `[${assessmentTime}] ${getViolationMessage(violationType)}`;
             setViolationLog(prev => [...prev, violationMessage]);
             
             if (trackViolations && user && submissionId) {
@@ -193,14 +210,14 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         setViolationCount(newViolationCount);
       }
       
-      // Check for total violations exceeding threshold
+      // Check for total violations exceeding threshold - but don't send summary, just mark as terminated
       const totalViolations = Object.values(newViolationCount).reduce((sum, count) => sum + count, 0);
       if (totalViolations >= 3 && trackViolations && user && submissionId) {
-        const violationSummary = formatViolationSummary(newViolationCount);
-        updateViolationInDatabase(violationSummary, true);
+        // Just mark as terminated without sending a summary
+        markSubmissionAsTerminated();
       }
     }
-  }, [violations, trackViolations, user, submissionId]);
+  }, [violations, trackViolations, user, submissionId, assessmentStartTime]);
 
   const getViolationMessage = (violationType: ViolationType): string => {
     switch (violationType) {
@@ -227,7 +244,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
     return `VIOLATION SUMMARY: ${violationEntries.join(', ')}`;
   };
 
-  const updateViolationInDatabase = async (violationText: string, isFinal: boolean = false) => {
+  const updateViolationInDatabase = async (violationText: string) => {
     if (!submissionId || !user) return;
     
     try {
@@ -276,21 +293,34 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
       const { error: updateError } = await supabase
         .from('submissions')
         .update({ 
-          face_violations: currentViolations,
-          is_terminated: isFinal ? true : undefined
+          face_violations: currentViolations
         })
         .eq('id', submissionId);
       
       if (updateError) {
         console.error("Error updating face violations:", updateError);
       }
-      
-      // If this is the final violation that terminates the session
-      if (isFinal) {
-
-      }
     } catch (err) {
       console.error("Error updating face violations:", err);
+    }
+  };
+
+  const markSubmissionAsTerminated = async () => {
+    if (!submissionId || !user) return;
+    
+    try {
+      const { error: updateError } = await supabase
+        .from('submissions')
+        .update({ 
+          is_terminated: true
+        })
+        .eq('id', submissionId);
+      
+      if (updateError) {
+        console.error("Error marking submission as terminated:", updateError);
+      }
+    } catch (err) {
+      console.error("Error marking submission as terminated:", err);
     }
   };
 
@@ -362,7 +392,7 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
             <div className="mt-3 flex items-center space-x-2">
               <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
               <span className="text-xs text-red-600 dark:text-red-400 font-medium">
-                Timestamp: {new Date(activeWarning.timestamp).toLocaleTimeString()}
+                Assessment Time: {getAssessmentTime()}
               </span>
             </div>
           </div>
