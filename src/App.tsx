@@ -13,6 +13,7 @@ import AssessmentPage from "./pages/student/AssessmentPage";
 import SummaryPage from "./pages/student/SummaryPage";
 import NotFound from "./pages/NotFound";
 import AutoLogin from "./pages/AutoLogin";
+import LoginPage from "./pages/LoginPage";
 import { Toaster } from "@/components/ui/toaster";
 import { useIsMobile } from "./hooks/use-mobile";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
@@ -34,9 +35,9 @@ const queryClient = new QueryClient({
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
 
-  // If no user, redirect to auto-login page
+  // If no user, redirect to login page
   if (!user) {
-    return <Navigate to="/auto-login" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   // User is authenticated
@@ -88,8 +89,9 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      {/* Default route redirects to auto-login */}
-      <Route path="/" element={<Navigate to="/auto-login" replace />} />
+      {/* Default route redirects to login */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/login" element={<LoginPage />} />
       <Route path="/auto-login" element={<AutoLogin />} />
       
       {/* Student Routes */}
