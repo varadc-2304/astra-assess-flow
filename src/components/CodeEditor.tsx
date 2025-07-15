@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -575,7 +574,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
     lightbulb: {
-      enabled: true
+      enabled: 'on' as const
     }
   };
 

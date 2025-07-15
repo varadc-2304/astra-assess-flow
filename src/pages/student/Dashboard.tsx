@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -143,7 +142,6 @@ const StudentDashboard = () => {
                 <PracticeAssessmentCard
                   key={assessment.id}
                   assessment={assessment}
-                  onStartAssessment={() => navigate('/instructions', { state: { assessmentId: assessment.id } })}
                 />
               ))}
             </div>
