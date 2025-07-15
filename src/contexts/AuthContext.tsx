@@ -1,5 +1,6 @@
 
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 type UserData = {
   id: string;
@@ -23,11 +24,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<UserData | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const { toast } = useToast();
 
   // Check for existing login on mount
   useEffect(() => {
     const checkAuth = async () => {
+      setIsLoading(true);
       try {
         // Check if we have user data in localStorage
         const userData = localStorage.getItem('user');
@@ -36,8 +39,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (error) {
         console.error("Auth check error:", error);
-        // Clear invalid data
-        localStorage.removeItem('user');
       } finally {
         setIsLoading(false);
       }
@@ -48,12 +49,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Logout function
   const logout = async () => {
+    setIsLoading(true);
     try {
       // Clear localStorage
       localStorage.removeItem('user');
       setUser(null);
-    } catch (error) {
-      console.error("Error logging out:", error);
+      toast({
+        title: "Logged out",
+        description: "You have been logged out successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error logging out",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
