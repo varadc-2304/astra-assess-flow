@@ -1,286 +1,281 @@
-import React, { useRef, useEffect, useState } from 'react';
-import Editor from '@monaco-editor/react';
+
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, Play, RotateCcw, Download, Upload, Copy, Check } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CodeQuestion } from '@/contexts/AssessmentContext';
+import { Terminal, Play, Check, Loader2 } from 'lucide-react';
+import { createSubmission, waitForSubmissionResult } from '@/services/judge0Service';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { TestCase, QuestionSubmission, TestResult, Json } from '@/types/database';
+import Editor from '@monaco-editor/react';
 
-interface CodeEditorProps {
-  initialCode?: string;
-  language?: string;
-  onChange?: (code: string) => void;
-  onLanguageChange?: (language: string) => void;
-  onRun?: (code: string, language: string) => void;
-  readOnly?: boolean;
-  height?: string;
-  testCases?: Array<{
-    input: string;
-    output: string;
-    isHidden?: boolean;
-  }>;
-  questionId?: string;
-  assessmentId?: string;
-  userId?: string;
-  autoSave?: boolean;
-  showRunButton?: boolean;
-  showLanguageSelector?: boolean;
-  showTestCases?: boolean;
-  allowDownload?: boolean;
-  allowUpload?: boolean;
+export interface CodeEditorProps {
+  question: CodeQuestion;
+  onCodeChange: (language: string, code: string) => void;
+  onMarksUpdate: (questionId: string, marks: number) => void;
+  onTestResultsUpdate?: (passedTests: number, totalTests: number) => void;
 }
 
-interface TestResult {
-  input: string;
-  expectedOutput: string;
-  actualOutput: string;
-  passed: boolean;
-  isHidden?: boolean;
-}
-
-const CodeEditor: React.FC<CodeEditorProps> = ({
-  initialCode = '',
-  language = 'python',
-  onChange,
-  onLanguageChange,
-  onRun,
-  readOnly = false,
-  height = '400px',
-  testCases = [],
-  questionId,
-  assessmentId,
-  userId,
-  autoSave = false,
-  showRunButton = true,
-  showLanguageSelector = true,
-  showTestCases = true,
-  allowDownload = false,
-  allowUpload = false,
-}) => {
-  const editorRef = useRef<any>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [code, setCode] = useState(initialCode);
-  const [currentLanguage, setCurrentLanguage] = useState(language);
-  const [isRunning, setIsRunning] = useState(false);
-  const [output, setOutput] = useState('');
+const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarksUpdate, onTestResultsUpdate }) => {
+  const [selectedLanguage, setSelectedLanguage] = useState<string>(
+    Object.keys(question.solutionTemplate)[0] || 'python'
+  );
+  const [output, setOutput] = useState<string>('');
+  const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
+  
+  const [currentCode, setCurrentCode] = useState<string>(
+    question.userSolution[selectedLanguage] ||
+    question.solutionTemplate[selectedLanguage] ||
+    ''
+  );
 
-  // Language configurations
-  const languageConfigs = {
-    python: {
-      id: 71,
-      name: 'Python',
-      template: '# Write your Python code here\n\ndef solution():\n    pass\n\n# Test your solution\nprint(solution())',
-      extension: '.py'
-    },
-    javascript: {
-      id: 63,
-      name: 'JavaScript',
-      template: '// Write your JavaScript code here\n\nfunction solution() {\n    // Your code here\n}\n\n// Test your solution\nconsole.log(solution());',
-      extension: '.js'
-    },
-    java: {
-      id: 62,
-      name: 'Java',
-      template: 'public class Main {\n    public static void main(String[] args) {\n        // Write your Java code here\n        System.out.println("Hello World");\n    }\n}',
-      extension: '.java'
-    },
-    cpp: {
-      id: 54,
-      name: 'C++',
-      template: '#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your C++ code here\n    cout << "Hello World" << endl;\n    return 0;\n}',
-      extension: '.cpp'
-    },
-    c: {
-      id: 50,
-      name: 'C',
-      template: '#include <stdio.h>\n\nint main() {\n    // Write your C code here\n    printf("Hello World\\n");\n    return 0;\n}',
-      extension: '.c'
-    }
-  };
-
-  // Save code automatically
-  const saveCode = async (codeToSave: string) => {
-    if (!autoSave || !questionId || !assessmentId || !userId) return;
-    
-    try {
-      setIsSaving(true);
-      const { error } = await supabase.rpc('save_user_code', {
-        p_user_id: userId,
-        p_assessment_id: assessmentId,
-        p_question_id: questionId,
-        p_language: currentLanguage,
-        p_code: codeToSave
-      });
-
-      if (error) {
-        console.error('Error saving code:', error);
-        toast({
-          title: "Save Failed",
-          description: "Failed to save your code automatically",
-          variant: "destructive",
-        });
-      } else {
-        setLastSaved(new Date());
-        console.log('Code saved successfully');
-      }
-    } catch (error) {
-      console.error('Error saving code:', error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Debounced save
+  // Effect to handle language changes when question changes
   useEffect(() => {
-    if (!autoSave) return;
-    
-    const timeoutId = setTimeout(() => {
-      if (code !== initialCode) {
-        saveCode(code);
-      }
-    }, 2000); // Save after 2 seconds of inactivity
+    const fetchTemplate = async () => {
+      const availableLanguages = Object.keys(question.solutionTemplate);
+      if (availableLanguages.length === 0) return;
 
-    return () => clearTimeout(timeoutId);
-  }, [code, currentLanguage, autoSave, initialCode]);
+      const newLanguage = availableLanguages.includes(selectedLanguage)
+        ? selectedLanguage
+        : availableLanguages[0];
 
-  // Load saved code on mount
-  useEffect(() => {
-    const loadSavedCode = async () => {
-      if (!questionId || !assessmentId || !userId) return;
-      
+      setSelectedLanguage(newLanguage);
+
       try {
-        const { data, error } = await supabase
-          .from('user_code_snippets')
-          .select('code, language')
-          .eq('user_id', userId)
-          .eq('assessment_id', assessmentId)
-          .eq('question_id', questionId)
-          .eq('language', currentLanguage)
-          .single();
-
-        if (data && data.code && !error) {
-          setCode(data.code);
-          if (onChange) {
-            onChange(data.code);
+        // First check if there's a saved code snippet for this question and language
+        if (user && question.assessmentId) {
+          const { data: savedCode, error: savedCodeError } = await supabase
+            .from('user_code_snippets')
+            .select('code')
+            .eq('user_id', user.id)
+            .eq('assessment_id', question.assessmentId)
+            .eq('question_id', question.id)
+            .eq('language', newLanguage)
+            .maybeSingle();
+            
+          if (!savedCodeError && savedCode) {
+            setCurrentCode(savedCode.code);
+            onCodeChange(newLanguage, savedCode.code);
+            return;
           }
         }
-      } catch (error) {
-        console.log('No saved code found or error loading:', error);
+
+        // If no saved code, get the template or use existing solution
+        if (question.userSolution[newLanguage]) {
+          setCurrentCode(question.userSolution[newLanguage]);
+          onCodeChange(newLanguage, question.userSolution[newLanguage]);
+        } else {
+          const templateCode = question.solutionTemplate[newLanguage] || '';
+          setCurrentCode(templateCode);
+          onCodeChange(newLanguage, templateCode);
+        }
+      } catch (err) {
+        console.error('Error in template fetch:', err);
+        // Fallback to template if there's an error
+        const templateCode = question.solutionTemplate[newLanguage] || '';
+        setCurrentCode(templateCode);
+        onCodeChange(newLanguage, templateCode);
       }
     };
 
-    loadSavedCode();
-  }, [questionId, assessmentId, userId, currentLanguage]);
+    fetchTemplate();
+  }, [question.id, question.assessmentId, user]);
 
-  const handleEditorDidMount = (editor: any) => {
-    editorRef.current = editor;
-  };
-
-  const handleCodeChange = (value: string | undefined) => {
-    const newCode = value || '';
-    setCode(newCode);
-    if (onChange) {
-      onChange(newCode);
-    }
-  };
-
-  const handleLanguageChange = (newLanguage: string) => {
-    setCurrentLanguage(newLanguage);
-    if (onLanguageChange) {
-      onLanguageChange(newLanguage);
-    }
-    
-    // Load template for new language if no code exists
-    if (!code.trim() || code === languageConfigs[currentLanguage as keyof typeof languageConfigs]?.template) {
-      const template = languageConfigs[newLanguage as keyof typeof languageConfigs]?.template || '';
-      setCode(template);
-      if (onChange) {
-        onChange(template);
-      }
-    }
-  };
-
-  const runCode = async () => {
-    setIsRunning(true);
-    setOutput('');
-    setTestResults([]);
+  const handleLanguageChange = async (language: string) => {
+    setSelectedLanguage(language);
 
     try {
-      if (testCases.length > 0) {
-        // Run against test cases
-        const results: TestResult[] = [];
-        
-        for (const testCase of testCases) {
-          try {
-            const response = await fetch('/api/execute', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                code,
-                language: currentLanguage,
-                input: testCase.input,
-              }),
-            });
+      // First check if there's a saved code snippet for this question and language
+      if (user && question.assessmentId) {
+        const { data: savedCode, error: savedCodeError } = await supabase
+          .from('user_code_snippets')
+          .select('code')
+          .eq('user_id', user.id)
+          .eq('assessment_id', question.assessmentId)
+          .eq('question_id', question.id)
+          .eq('language', language)
+          .maybeSingle();
+          
+        if (!savedCodeError && savedCode) {
+          setCurrentCode(savedCode.code);
+          onCodeChange(language, savedCode.code);
+          return;
+        }
+      }
 
-            const result = await response.json();
-            
-            results.push({
-              input: testCase.input,
-              expectedOutput: testCase.output.trim(),
-              actualOutput: result.output?.trim() || result.error || 'No output',
-              passed: result.output?.trim() === testCase.output.trim(),
-              isHidden: testCase.isHidden
-            });
-          } catch (error) {
-            results.push({
-              input: testCase.input,
-              expectedOutput: testCase.output,
-              actualOutput: 'Execution error',
-              passed: false,
-              isHidden: testCase.isHidden
-            });
+      // If no saved code, check if there's a user solution already
+      if (question.userSolution[language]) {
+        setCurrentCode(question.userSolution[language]);
+        onCodeChange(language, question.userSolution[language]);
+        return;
+      }
+
+      // If no user solution, use the template
+      const templateCode = question.solutionTemplate[language] || '';
+      setCurrentCode(templateCode);
+      onCodeChange(language, templateCode);
+    } catch (err) {
+      console.error('Error in template fetch:', err);
+      // Fallback to template if there's an error
+      const templateCode = question.solutionTemplate[language] || '';
+      setCurrentCode(templateCode);
+      onCodeChange(language, templateCode);
+    }
+  };
+
+  // Save code snippet when code changes
+  const handleCodeChange = async (value: string | undefined) => {
+    if (value !== undefined) {
+      setCurrentCode(value);
+      onCodeChange(selectedLanguage, value);
+      
+      // Save code to database
+      if (user && question.assessmentId) {
+        try {
+          const { data, error } = await supabase
+            .from('user_code_snippets')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('assessment_id', question.assessmentId)
+            .eq('question_id', question.id)
+            .eq('language', selectedLanguage);
+
+          if (error) {
+            console.error('Error checking existing code snippet:', error);
+            return;
           }
+
+          if (data && data.length > 0) {
+            // Update existing code snippet
+            await supabase
+              .from('user_code_snippets')
+              .update({
+                code: value,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', data[0].id);
+          } else {
+            // Insert new code snippet
+            await supabase
+              .from('user_code_snippets')
+              .insert({
+                user_id: user.id,
+                assessment_id: question.assessmentId,
+                question_id: question.id,
+                language: selectedLanguage,
+                code: value
+              });
+          }
+        } catch (err) {
+          console.error('Error saving code snippet:', err);
+        }
+      }
+    }
+  };
+
+  const cleanErrorOutput = (errorOutput: string): string => {
+    return errorOutput
+      .replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI color codes
+      .replace(/[\r\n]+/g, '\n')      // Normalize line endings
+      .trim();
+  };
+
+  const handleRunCode = async () => {
+    if (!currentCode.trim()) {
+      toast({
+        title: "Error",
+        description: "Please write some code before running.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsRunning(true);
+    setOutput('Running code on visible test cases...\n');
+    
+    try {
+      const { data: testCases, error: testCasesError } = await supabase
+        .from('test_cases')
+        .select('*')
+        .eq('coding_question_id', question.id)
+        .eq('is_hidden', false)
+        .order('order_index', { ascending: true });
+        
+      if (testCasesError) {
+        throw new Error(`Failed to load test cases: ${testCasesError.message}`);
+      }
+      
+      if (!testCases || testCases.length === 0) {
+        throw new Error('No visible test cases found for this question');
+      }
+      
+      let passedCount = 0;
+      let totalTestCases = testCases.length;
+      
+      for (let i = 0; i < testCases.length; i++) {
+        const testCase = testCases[i];
+        setOutput(prev => `${prev}\nRunning test case ${i + 1}/${totalTestCases}...\n`);
+        
+        const token = await createSubmission(currentCode, selectedLanguage, testCase.input);
+        const result = await waitForSubmissionResult(token);
+        
+        if (result.status.id >= 6) {
+          const errorOutput = cleanErrorOutput(
+            result.compile_output || result.stderr || 'An error occurred while running your code'
+          );
+            
+          setOutput(prev => `${prev}\nError in test case ${i + 1}:\n${errorOutput}\n`);
+          continue;
         }
         
-        setTestResults(results);
+        const actualOutput = result.stdout?.trim() || '';
+        const expectedOutput = testCase.output.trim().replace(/\r\n/g, '\n');
+        const passed = actualOutput === expectedOutput;
         
-        const passedTests = results.filter(r => r.passed).length;
-        setOutput(`Test Results: ${passedTests}/${results.length} tests passed`);
+        if (passed) {
+          passedCount++;
+        }
         
-      } else {
-        // Simple code execution
-        const response = await fetch('/api/execute', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            code,
-            language: currentLanguage,
-          }),
-        });
-
-        const result = await response.json();
-        setOutput(result.output || result.error || 'No output');
+        setOutput(prev => `${prev}Test case ${i + 1}/${totalTestCases}: ${passed ? 'Passed' : 'Failed'}\n`);
+        if (!passed) {
+          setOutput(prev => `${prev}Expected Output: "${expectedOutput}"\nYour Output: "${actualOutput}"\n`);
+        }
       }
-
-      if (onRun) {
-        onRun(code, currentLanguage);
+      
+      setOutput(prev => `${prev}\n${passedCount}/${totalTestCases} test cases passed\n`);
+      
+      // Update test results to parent component
+      if (onTestResultsUpdate) {
+        onTestResultsUpdate(passedCount, totalTestCases);
       }
-    } catch (error) {
-      setOutput('Error executing code');
+      
       toast({
-        title: "Execution Error",
-        description: "Failed to execute code",
+        title: passedCount === totalTestCases ? "Success!" : "Test Cases Completed",
+        description: `${passedCount}/${totalTestCases} test cases passed.`,
+        variant: passedCount === totalTestCases ? "default" : "destructive",
+      });
+      
+    } catch (error) {
+      console.error('Error running code:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setOutput(`Error: ${errorMessage}`);
+      
+      toast({
+        title: "Error",
+        description: "Failed to run code. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -288,277 +283,387 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     }
   };
 
-  const resetCode = () => {
-    const template = languageConfigs[currentLanguage as keyof typeof languageConfigs]?.template || '';
-    setCode(template);
-    setOutput('');
-    setTestResults([]);
-    if (onChange) {
-      onChange(template);
+  const fetchTestCases = async (questionId: string): Promise<TestCase[]> => {
+    try {
+      const { data: testCases, error } = await supabase
+        .from('test_cases')
+        .select('*')
+        .eq('coding_question_id', questionId)
+        .order('order_index', { ascending: true });
+        
+      if (error) {
+        throw error;
+      }
+      
+      return testCases || [];
+    } catch (error) {
+      console.error('Error fetching test cases:', error);
+      return [];
     }
   };
 
-  const copyCode = async () => {
+  const processTestCase = async (
+    index: number, 
+    testCases: TestCase[], 
+    allResults: TestResult[] = [], 
+    totalMarks: number = 0
+  ): Promise<{results: TestResult[], totalMarksEarned: number}> => {
+    if (index >= testCases.length) {
+      return { results: allResults, totalMarksEarned: totalMarks };
+    }
+    
     try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      toast({
-        title: "Copied",
-        description: "Code copied to clipboard",
-      });
+      const testCase = testCases[index];
+      const isHidden = testCase.is_hidden;
+      const testMarks = testCase.marks || 0;
+      
+      setOutput(prev => `${prev}\n\nProcessing test case ${index + 1}/${testCases.length}...\n`);
+      
+      const token = await createSubmission(currentCode, selectedLanguage, testCase.input);
+      
+      const result = await waitForSubmissionResult(token);
+      
+      if (result.status.id >= 6) {
+        const cleanErrorOutput = (result.compile_output || result.stderr || 'An error occurred while running your code')
+          .replace(/\x1b\[[0-9;]*m/g, '')  // Remove ANSI color codes
+          .replace(/[\r\n]+/g, '\n')       // Normalize line endings
+          .trim();
+        
+        setOutput(prev => `${prev}\nError in test case ${index + 1}: ${cleanErrorOutput}`);
+        
+        const newResult: TestResult = { 
+          passed: false, 
+          actualOutput: `Error: ${cleanErrorOutput}`,
+          marks: 0,
+          isHidden
+        };
+        const updatedResults = [...allResults, newResult];
+        setTestResults(updatedResults);
+        
+        if (!isHidden) {
+          setOutput(prev => `${prev}\n\nTest case ${index + 1}/${testCases.length}: Failed (Error)\n`);
+        } else {
+          setOutput(prev => `${prev}\n\nHidden test case ${index + 1}/${testCases.length}: Failed (Error)\n`);
+        }
+        
+        return processTestCase(index + 1, testCases, updatedResults, totalMarks);
+      }
+      
+      const actualOutput = result.stdout?.trim() || '';
+      const expectedOutput = testCase.output.trim().replace(/\r\n/g, '\n');
+      const passed = actualOutput === expectedOutput;
+      
+      const marksEarned = passed ? testMarks : 0;
+      const updatedTotalMarks = totalMarks + marksEarned;
+      
+      const newResult: TestResult = { 
+        passed, 
+        actualOutput,
+        marks: marksEarned,
+        isHidden
+      };
+      const updatedResults = [...allResults, newResult];
+      setTestResults(updatedResults);
+      
+      if (!isHidden) {
+        const testResultOutput = `Test case ${index + 1}/${testCases.length} (${testMarks} marks): ${passed ? 'Passed' : 'Failed'}\n` + 
+          (!passed ? `Expected Output: "${expectedOutput}"\nYour Output: "${actualOutput}"\n` : '');
+        setOutput(prev => `${prev}\n${testResultOutput}`);
+      } else {
+        setOutput(prev => `${prev}\nHidden test case ${index + 1}/${testCases.length} (${testMarks} marks): ${passed ? 'Passed' : 'Failed'}\n`);
+      }
+      
+      return processTestCase(index + 1, testCases, updatedResults, updatedTotalMarks);
     } catch (error) {
+      console.error(`Error processing test case ${index + 1}:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setOutput(prev => `${prev}\nError processing test case ${index + 1}: ${errorMessage}\n`);
+      
+      const newResult: TestResult = { 
+        passed: false, 
+        actualOutput: `Error: ${errorMessage}`,
+        marks: 0,
+        isHidden: testCases[index]?.is_hidden
+      };
+      const updatedResults = [...allResults, newResult];
+      setTestResults(updatedResults);
+      
+      return processTestCase(index + 1, testCases, updatedResults, totalMarks);
+    }
+  };
+
+  const handleSubmitCode = async () => {
+    if (!currentCode.trim()) {
       toast({
-        title: "Copy Failed",
-        description: "Failed to copy code to clipboard",
+        title: "Error",
+        description: "Please write some code before submitting.",
         variant: "destructive",
       });
+      return;
     }
-  };
+    
+    setIsSubmitting(true);
+    setOutput('Submitting solution...\n');
+    setTestResults([]);
+    
+    try {
+      const testCases = await fetchTestCases(question.id);
+      console.log('Fetched test cases:', testCases);
+      
+      if (testCases.length === 0) {
+        throw new Error('No test cases found for this question');
+      }
+      
+      const { results: finalResults, totalMarksEarned } = await processTestCase(0, testCases);
+      const allPassed = finalResults.every(r => r.passed);
+      const totalPossibleMarks = testCases.reduce((sum, tc) => sum + (tc.marks || 0), 0);
+      const correctPercentage = totalPossibleMarks > 0 ? (totalMarksEarned / totalPossibleMarks) * 100 : 0;
+    
+      if (onMarksUpdate) {
+        onMarksUpdate(question.id, totalMarksEarned);
+      }
+      
+      // Update test results status
+      const passedTests = finalResults.filter(r => r.passed).length;
+      if (onTestResultsUpdate) {
+        onTestResultsUpdate(passedTests, testCases.length);
+      }
+      
+      if (user) {
+        try {
+          const { data: submissions, error: submissionError } = await supabase
+            .from('submissions')
+            .select('*')
+            .eq('assessment_id', question.assessmentId || '')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+            
+          if (submissionError) {
+            throw submissionError;
+          }
+          
+          let submissionId: string;
+          
+          if (!submissions || submissions.length === 0) {
+            const { data: newSubmission, error: submissionError } = await supabase
+              .from('submissions')
+              .insert({
+                assessment_id: question.assessmentId || '',
+                user_id: user.id,
+                started_at: new Date().toISOString()
+              })
+              .select()
+              .single();
 
-  const downloadCode = () => {
-    const blob = new Blob([code], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `solution${languageConfigs[currentLanguage as keyof typeof languageConfigs]?.extension || '.txt'}`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
+            if (submissionError || !newSubmission) {
+              console.error('Error creating submission:', submissionError);
+              throw new Error('No submission result returned');
+            }
 
-  const uploadCode = () => {
-    fileInputRef.current?.click();
-  };
+            submissionId = newSubmission.id;
+          } else {
+            submissionId = submissions[0].id;
+          }
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        setCode(content);
-        if (onChange) {
-          onChange(content);
+          const { data: existingSubmission, error: existingError } = await supabase
+            .from('question_submissions')
+            .select('*')
+            .eq('submission_id', submissionId)
+            .eq('question_id', question.id)
+            .eq('question_type', 'code');
+            
+          if (existingError) {
+            throw existingError;
+          }
+
+          // Convert test results to a format that matches the Json type
+          const testResultsForJson = finalResults.map(result => ({
+            passed: result.passed,
+            actualOutput: result.actualOutput,
+            marks: result.marks,
+            isHidden: result.isHidden
+          }));
+
+          const questionSubmissionData = {
+            submission_id: submissionId,
+            question_id: question.id,
+            question_type: 'code' as const,
+            code_solution: currentCode,
+            language: selectedLanguage,
+            is_correct: allPassed,
+            marks_obtained: totalMarksEarned,
+            test_results: testResultsForJson as unknown as Json
+          };
+
+          if (existingSubmission && existingSubmission.length > 0) {
+            const { error: updateError } = await supabase
+              .from('question_submissions')
+              .update(questionSubmissionData)
+              .eq('id', existingSubmission[0].id);
+              
+            if (updateError) {
+              console.error('Error updating question submission:', updateError);
+              throw updateError;
+            }
+          } else {
+            const { error: insertError } = await supabase
+              .from('question_submissions')
+              .insert(questionSubmissionData);
+
+            if (insertError) {
+              console.error('Error storing question submission:', insertError);
+              throw insertError;
+            }
+          }
+          
+          toast({
+            title: "Submission Successful",
+            description: `Your solution was evaluated. You scored ${totalMarksEarned}/${totalPossibleMarks} marks.`,
+            variant: allPassed ? "default" : "default",
+          });
+          
+        } catch (dbError) {
+          console.error('Error storing results:', dbError);
+          toast({
+            title: "Warning",
+            description: "Your solution was evaluated but there was an error saving your submission.",
+            variant: "destructive",
+          });
         }
-      };
-      reader.readAsText(file);
+      } else {
+        toast({
+          title: "Authentication Warning",
+          description: "Your solution was evaluated but not saved. You must be logged in to submit solutions.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error submitting code:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setOutput(`Error: ${errorMessage}`);
+      
+      toast({
+        title: "Error",
+        description: "Failed to submit solution. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const editorOptions = {
-    minimap: { enabled: false },
+    minimap: { enabled: true },
     scrollBeyondLastLine: false,
     fontSize: 14,
-    wordWrap: 'on' as const,
+    wordWrap: 'on' as 'on',
     automaticLayout: true,
-    tabSize: 4,
+    tabSize: 2,
     formatOnPaste: true,
-    formatOnType: true,
-    autoIndent: 'advanced' as const,
-    bracketMatching: 'always' as const,
-    autoClosingBrackets: 'always' as const,
-    autoClosingQuotes: 'always' as const,
-    folding: true,
+    formatOnType: false,
+    autoIndent: 'advanced' as 'advanced',
+    quickSuggestions: true,
+    suggestOnTriggerCharacters: true,
+    fixedOverflowWidgets: true,
+    cursorBlinking: 'smooth' as 'smooth',
+    cursorSmoothCaretAnimation: 'off' as 'off',
+    cursorStyle: 'line' as 'line',
+    mouseWheelZoom: true,
+    renderWhitespace: 'selection' as 'selection',
+    renderLineHighlight: 'all' as 'all',
     lineNumbers: 'on' as const,
-    roundedSelection: false,
-    scrollbar: {
-      verticalScrollbarSize: 10,
-      horizontalScrollbarSize: 10,
-    },
+    renderValidationDecorations: 'on' as const,
     lightbulb: {
-      enabled: 'on' as const,
-    },
+      enabled: true
+    }
+  };
+
+  const handleEditorDidMount = (editor: any) => {
+    setTimeout(() => {
+      editor.layout();
+    }, 100);
   };
 
   return (
-    <div className="w-full space-y-4">
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Code Editor</CardTitle>
-            <div className="flex items-center gap-2">
-              {autoSave && (
-                <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Saving...
-                    </>
-                  ) : lastSaved ? (
-                    <>Saved {lastSaved.toLocaleTimeString()}</>
-                  ) : null}
-                </div>
-              )}
-              
-              {showLanguageSelector && (
-                <Select value={currentLanguage} onValueChange={handleLanguageChange}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(languageConfigs).map(([key, config]) => (
-                      <SelectItem key={key} value={key}>
-                        {config.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+    <div className="flex flex-col h-full">
+      <div className="flex justify-between items-center mb-3 gap-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+        <Select value={selectedLanguage} onValueChange={handleLanguageChange}>
+          <SelectTrigger className="h-8 w-fit min-w-[100px] max-w-[160px] flex-shrink-0 text-xs border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-700 shadow-sm">
+            <SelectValue placeholder="Language" />
+          </SelectTrigger>
+          <SelectContent className="max-w-[160px]">
+            {Object.keys(question.solutionTemplate).map((lang) => (
+              <SelectItem value={lang} key={lang} className="truncate text-xs">
+                {lang.charAt(0).toUpperCase() + lang.slice(1)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="flex gap-2 flex-shrink-0">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleRunCode}
+            disabled={isRunning || isSubmitting}
+            className="h-8 px-3 text-xs whitespace-nowrap border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 shadow-sm"
+          >
+            {isRunning ? (
+              <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+            ) : (
+              <Play className="h-3 w-3 mr-1.5" />
+            )}
+            Run
+          </Button>
+          <Button 
+            className="h-8 px-3 text-xs bg-astra-red hover:bg-red-600 text-white whitespace-nowrap shadow-sm"
+            size="sm"
+            onClick={handleSubmitCode}
+            disabled={isRunning || isSubmitting}
+          >
+            {isSubmitting ? (
+              <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+            ) : (
+              <Check className="h-3 w-3 mr-1.5" />
+            )}
+            Submit
+          </Button>
+        </div>
+      </div>
+
+      <Tabs defaultValue="code" className="flex-1 flex flex-col">
+        <TabsList className="mb-2">
+          <TabsTrigger value="code">Code</TabsTrigger>
+          <TabsTrigger value="output">Output</TabsTrigger>
+        </TabsList>
+        <div className="flex-1 flex">
+          <TabsContent value="code" className="flex-1 h-full m-0">
+            <div className="h-[calc(100vh-280px)] border border-gray-200 rounded-md overflow-hidden">
+              <Editor
+                height="100%"
+                defaultLanguage={selectedLanguage}
+                language={selectedLanguage}
+                value={currentCode}
+                onChange={handleCodeChange}
+                theme="vs-dark"
+                options={editorOptions}
+                className="monaco-editor"
+                onMount={handleEditorDidMount}
+              />
             </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="border rounded-lg overflow-hidden">
-            <Editor
-              height={height}
-              language={currentLanguage}
-              value={code}
-              onChange={handleCodeChange}
-              onMount={handleEditorDidMount}
-              options={{
-                ...editorOptions,
-                readOnly,
-              }}
-              theme="vs-dark"
-            />
-          </div>
-          
-          <div className="flex items-center gap-2 flex-wrap">
-            {showRunButton && (
-              <Button 
-                onClick={runCode} 
-                disabled={isRunning || readOnly}
-                className="flex items-center gap-2"
-              >
-                {isRunning ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Play className="h-4 w-4" />
-                )}
-                {isRunning ? 'Running...' : 'Run Code'}
-              </Button>
-            )}
-            
-            <Button 
-              variant="outline" 
-              onClick={resetCode} 
-              disabled={readOnly}
-              className="flex items-center gap-2"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Reset
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              onClick={copyCode}
-              className="flex items-center gap-2"
-            >
-              {copied ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
-              {copied ? 'Copied!' : 'Copy'}
-            </Button>
-            
-            {allowDownload && (
-              <Button 
-                variant="outline" 
-                onClick={downloadCode}
-                className="flex items-center gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Download
-              </Button>
-            )}
-            
-            {allowUpload && !readOnly && (
-              <>
-                <Button 
-                  variant="outline" 
-                  onClick={uploadCode}
-                  className="flex items-center gap-2"
-                >
-                  <Upload className="h-4 w-4" />
-                  Upload
-                </Button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".py,.js,.java,.cpp,.c,.txt"
-                  onChange={handleFileUpload}
-                  style={{ display: 'none' }}
-                />
-              </>
-            )}
-          </div>
-          
-          {output && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Output</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <pre className="text-sm bg-muted p-3 rounded overflow-x-auto whitespace-pre-wrap">
-                  {output}
-                </pre>
-              </CardContent>
-            </Card>
-          )}
-          
-          {showTestCases && testResults.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Test Results</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {testResults.map((result, index) => (
-                  !result.isHidden && (
-                    <div key={index} className="border rounded p-3 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={result.passed ? "default" : "destructive"}>
-                          Test {index + 1}: {result.passed ? 'PASSED' : 'FAILED'}
-                        </Badge>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                        <div>
-                          <div className="font-medium text-muted-foreground">Input:</div>
-                          <pre className="bg-muted p-2 rounded text-xs overflow-x-auto">
-                            {result.input}
-                          </pre>
-                        </div>
-                        <div>
-                          <div className="font-medium text-muted-foreground">Expected:</div>
-                          <pre className="bg-muted p-2 rounded text-xs overflow-x-auto">
-                            {result.expectedOutput}
-                          </pre>
-                        </div>
-                        <div>
-                          <div className="font-medium text-muted-foreground">Actual:</div>
-                          <pre className={`p-2 rounded text-xs overflow-x-auto ${
-                            result.passed ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-                          }`}>
-                            {result.actualOutput}
-                          </pre>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                ))}
-                
-                {testResults.some(r => r.isHidden) && (
-                  <div className="text-sm text-muted-foreground">
-                    Some test cases are hidden and will be evaluated during submission.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </CardContent>
-      </Card>
+          </TabsContent>
+          <TabsContent value="output" className="flex-1 h-full m-0">
+            <div className="h-[calc(100vh-280px)] bg-gray-900 text-gray-100 p-4 rounded-md font-mono text-sm overflow-y-auto whitespace-pre-wrap">
+              <div className="flex items-center mb-2">
+                <Terminal className="h-4 w-4 mr-2" />
+                <span>Output</span>
+              </div>
+              <pre className="whitespace-pre-wrap break-words">{output || 'Run your code to see output here'}</pre>
+            </div>
+          </TabsContent>
+        </div>
+      </Tabs>
     </div>
   );
 };
