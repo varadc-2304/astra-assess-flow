@@ -11,12 +11,11 @@ import InstructionsPage from "./pages/student/InstructionsPage";
 import CameraVerificationPage from "./pages/student/CameraVerificationPage";
 import AssessmentPage from "./pages/student/AssessmentPage";
 import SummaryPage from "./pages/student/SummaryPage";
+import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
-import AutoLogin from "./pages/AutoLogin";
 import { Toaster } from "@/components/ui/toaster";
 import { useIsMobile } from "./hooks/use-mobile";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
-import { useToast } from "./hooks/use-toast";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,9 +33,9 @@ const queryClient = new QueryClient({
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
 
-  // If no user, redirect to auto-login page
+  // If no user, redirect to login page
   if (!user) {
-    return <Navigate to="/auto-login" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   // User is authenticated
@@ -88,9 +87,9 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      {/* Default route redirects to auto-login */}
-      <Route path="/" element={<Navigate to="/auto-login" replace />} />
-      <Route path="/auto-login" element={<AutoLogin />} />
+      {/* Default route redirects to login */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/login" element={<LoginPage />} />
       
       {/* Student Routes */}
       <Route path="/student" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
@@ -107,7 +106,6 @@ const AppRoutes = () => {
 
 function App() {
   const { isMobile } = useIsMobile();
-  const { toast } = useToast();
   
   useEffect(() => {
     // Run database migrations on app load
