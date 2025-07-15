@@ -1,17 +1,16 @@
 
 import React, { useState, useEffect } from 'react';
-import { Search, LogOut } from 'lucide-react';
+import { Search } from 'lucide-react';
 import AssessmentCodeInput from '@/components/AssessmentCodeInput';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { Assessment, Result } from '@/types/database';
 import PracticeAssessmentCard from '@/components/PracticeAssessmentCard';
 
 const StudentDashboard = () => {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [practiceAssessments, setPracticeAssessments] = useState<Assessment[]>([]);
   const [results, setResults] = useState<Result[]>([]);
@@ -136,19 +135,8 @@ const StudentDashboard = () => {
     return result ? result.total_marks : 0;
   };
 
-  const handleLogout = async () => {
-    await logout();
-  };
-
   return (
     <div className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-bold">Student Dashboard</h1>
-        <Button onClick={handleLogout} variant="outline" size="sm">
-          <LogOut className="w-4 h-4 mr-2" />
-          Logout
-        </Button>
-      </div>
       
       <div className="mb-8">
         <h2 className="text-lg font-semibold mb-4">Enter Assessment Code</h2>

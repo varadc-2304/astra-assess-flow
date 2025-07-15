@@ -575,7 +575,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     lineNumbers: 'on' as const,
     renderValidationDecorations: 'on' as const,
     lightbulb: {
-      enabled: 'on' as const
+      enabled: true
     }
   };
 
