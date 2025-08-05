@@ -23,62 +23,74 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+const handleLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
 
-    try {
-      // Query the auth table to validate credentials
-      const { data: authData, error: authError } = await supabase
-        .from('auth')
-        .select('*')
-        .eq('email', email)
-        .eq('password', password)
-        .single();
+  try {
+    // Query the auth table to validate credentials
+    const { data: authData, error: authError } = await supabase
+      .from('auth')
+      .select('*')
+      .eq('email', email)
+      .eq('password', password)
+      .single();
 
-      if (authError || !authData) {
-        toast({
-          title: 'Login Failed',
-          description: 'Invalid email or password',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      // Store user data in localStorage
-      const userData = {
-        id: authData.id,
-        name: authData.name || authData.username || authData.email?.split('@')[0] || '',
-        email: authData.email,
-        role: 'student' as const,
-        prn: authData.prn || undefined,
-        year: authData.year || undefined,
-        department: authData.department || undefined,
-        division: authData.division || undefined,
-        batch: authData.batch || undefined,
-      };
-
-      localStorage.setItem('user', JSON.stringify(userData));
-
-      toast({
-        title: 'Login Successful',
-        description: 'Welcome back!',
-      });
-
-      // Redirect to student dashboard
-      navigate('/student', { replace: true });
-
-    } catch (error) {
-      console.error('Login error:', error);
+    if (authError || !authData) {
       toast({
         title: 'Login Failed',
-        description: 'An error occurred during login',
+        description: 'Invalid email or password',
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
+      return;
     }
-  };
+
+    // Store user data in localStorage
+    const userData = {
+      id: authData.id,
+      name: authData.name || authData.username || authData.email?.split('@')[0] || '',
+      email: authData.email,
+      role: 'student' as const,
+      prn: authData.prn || undefined,
+      year: authData.year || undefined,
+      department: authData.department || undefined,
+      division: authData.division || undefined,
+      batch: authData.batch || undefined,
+    };
+
+    localStorage.setItem('user', JSON.stringify(userData));
+
+    // Show success message
+    toast({
+      title: 'Login Successful',
+      description: 'Welcome back!',
+    });
+
+    // Add a small delay to ensure toast is shown and then navigate
+    setTimeout(() => {
+      try {
+        navigate('/student', { replace: true });
+      } catch (navError) {
+        console.error('Navigation error:', navError);
+        toast({
+          title: 'Navigation Error',
+          description: 'Login successful but navigation failed. Please try refreshing.',
+          variant: 'destructive',
+        });
+      }
+    }, 100);
+
+  } catch (error) {
+    console.error('Login error:', error);
+    toast({
+      title: 'Login Failed',
+      description: 'An error occurred during login',
+      variant: 'destructive',
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
