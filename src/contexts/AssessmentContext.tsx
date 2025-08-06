@@ -13,6 +13,7 @@ import {
   TestCase,
   QuestionOption
 } from '@/types/database';
+import { shuffleArray } from '@/lib/utils';
 
 export type MCQQuestion = {
   id: string;
@@ -223,17 +224,20 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             continue;
           }
         
+          // Randomize the order of options
+          const shuffledOptions = shuffleArray(options.map(option => ({
+            id: option.id,
+            text: option.text,
+            isCorrect: option.is_correct
+          })));
+
           const question: MCQQuestion = {
             id: mcqQuestion.id,
             type: 'mcq',
             title: mcqQuestion.title,
             description: mcqQuestion.description,
             imageUrl: mcqQuestion.image_url,
-            options: options.map(option => ({
-              id: option.id,
-              text: option.text,
-              isCorrect: option.is_correct
-            })),
+            options: shuffledOptions,
             marks: mcqQuestion.marks
           };
         
@@ -398,7 +402,10 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       }
       
       console.log(`Generated ${questions.length} dynamic questions total`);
-      return questions;
+      // Randomize the order of questions
+      const shuffledQuestions = shuffleArray(questions);
+      console.log('Questions order randomized for dynamic assessment');
+      return shuffledQuestions;
       
     } catch (error) {
       console.error('Error generating dynamic questions:', error);
@@ -494,17 +501,20 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           console.log(`Found ${optionsData?.length || 0} options for MCQ question ID:`, mcqQuestion.id);
           console.log('MCQ options data:', optionsData);
           
+          // Randomize the order of options for static assessment too
+          const shuffledOptions = shuffleArray(optionsData?.map(option => ({
+            id: option.id,
+            text: option.text,
+            isCorrect: option.is_correct
+          })) || []);
+
           const question: MCQQuestion = {
             id: mcqQuestion.id,
             type: 'mcq',
             title: mcqQuestion.title,
             description: mcqQuestion.description,
             imageUrl: mcqQuestion.image_url,
-            options: optionsData?.map(option => ({
-              id: option.id,
-              text: option.text,
-              isCorrect: option.is_correct
-            })) || [],
+            options: shuffledOptions,
             marks: mcqQuestion.marks
           };
           
@@ -599,17 +609,21 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('No questions found for this assessment. Please contact your administrator.');
       }
       
+      // Randomize the order of questions for static assessments too
+      const shuffledQuestions = shuffleArray(questions);
+      console.log('Questions order randomized for static assessment');
+      
       const loadedAssessment: Assessment = {
         id: assessmentData.id,
         code: assessmentData.code,
         name: assessmentData.name,
         instructions: assessmentData.instructions || '',
-        mcqCount: questions.filter(q => q.type === 'mcq').length,
-        codingCount: questions.filter(q => q.type === 'code').length,
+        mcqCount: shuffledQuestions.filter(q => q.type === 'mcq').length,
+        codingCount: shuffledQuestions.filter(q => q.type === 'code').length,
         durationMinutes: assessmentData.duration_minutes,
         startTime: assessmentData.start_time,
         endTime: assessmentData.end_time,
-        questions: questions,
+        questions: shuffledQuestions,
         isAiProctored: assessmentData.is_ai_proctored !== undefined ? assessmentData.is_ai_proctored : true
       };
       
