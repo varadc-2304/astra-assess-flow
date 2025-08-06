@@ -51,19 +51,8 @@ const LoginPage = () => {
         description: 'Welcome back!',
       });
 
-      // Add a small delay to ensure toast is shown and then navigate
-      setTimeout(() => {
-        try {
-          navigate('/student', { replace: true });
-        } catch (navError) {
-          console.error('Navigation error:', navError);
-          toast({
-            title: 'Navigation Error',
-            description: 'Login successful but navigation failed. Please try refreshing.',
-            variant: 'destructive',
-          });
-        }
-      }, 100);
+      // Navigate immediately without delay for better mobile experience
+      navigate('/student', { replace: true });
 
     } catch (error) {
       console.error('Login error:', error);
