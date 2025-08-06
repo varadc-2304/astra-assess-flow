@@ -80,13 +80,6 @@ const MobileRestriction = () => {
 };
 
 const AppRoutes = () => {
-  const { isMobile } = useIsMobile();
-
-  // If on mobile, show restriction message instead of routes
-  if (isMobile) {
-    return <MobileRestriction />;
-  }
-
   return (
     <Routes>
       {/* Default route redirects to login */}
@@ -108,7 +101,6 @@ const AppRoutes = () => {
 };
 
 function App() {
-  const { isMobile } = useIsMobile();
   const { toast } = useToast();
   
   useEffect(() => {
@@ -130,14 +122,8 @@ function App() {
         <BrowserRouter>
           <AuthProvider>
             <AssessmentProvider>
-              {isMobile ? (
-                <MobileRestriction />
-              ) : (
-                <>
-                  <AppRoutes />
-                  <Toaster />
-                </>
-              )}
+              <AppRoutes />
+              <Toaster />
             </AssessmentProvider>
           </AuthProvider>
         </BrowserRouter>
