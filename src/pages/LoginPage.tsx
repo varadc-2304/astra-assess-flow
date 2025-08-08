@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -22,6 +23,7 @@ const LoginPage = () => {
   
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { login } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,8 +44,8 @@ const LoginPage = () => {
         return;
       }
 
-      // Store user data in localStorage
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // Update auth context and localStorage
+      login(data.user);
 
       // Show success message
       toast({

@@ -16,6 +16,7 @@ type UserData = {
 
 interface AuthContextType {
   user: UserData | null;
+  login: (userData: UserData) => void;
   logout: () => Promise<void>;
   isLoading: boolean;
 }
@@ -47,6 +48,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     checkAuth();
   }, []);
 
+  // Login function
+  const login = (userData: UserData) => {
+    localStorage.setItem('user', JSON.stringify(userData));
+    setUser(userData);
+  };
+
   // Logout function
   const logout = async () => {
     setIsLoading(true);
@@ -70,7 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
