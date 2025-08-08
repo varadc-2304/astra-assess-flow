@@ -24,62 +24,25 @@ export const useFullscreen = () => {
       (document as any).webkitFullscreenElement ||
       (document as any).mozFullScreenElement ||
       (document as any).msFullscreenElement;
-    
-    // Additional mobile fullscreen detection
-    const isMobileFullscreen = window.innerHeight === window.screen.height ||
-      window.innerWidth === window.screen.width ||
-      (window.navigator as any).standalone === true; // iOS Safari
-    
-    return !!isDocumentFullscreen || (isMobileFullscreen && /Mobi|Android/i.test(navigator.userAgent));
+    return !!isDocumentFullscreen;
   }, []);
 
   const enterFullscreen = useCallback(async () => {
     try {
       const docElm = document.documentElement;
-      
-      // Try different fullscreen methods for better mobile compatibility
-      if (docElm.requestFullscreen) {
-        await docElm.requestFullscreen();
-      } else if ((docElm as any).webkitRequestFullscreen) {
-        await (docElm as any).webkitRequestFullscreen();
-      } else if ((docElm as any).mozRequestFullScreen) {
-        await (docElm as any).mozRequestFullScreen();
-      } else if ((docElm as any).msRequestFullscreen) {
-        await (docElm as any).msRequestFullscreen();
-      }
-      
-      // Additional mobile-specific fullscreen handling
-      if (window.screen?.orientation && 'lock' in window.screen.orientation) {
-        try {
-          await (window.screen.orientation as any).lock('portrait-primary');
-        } catch (orientationError) {
-          console.log('Orientation lock not supported or failed:', orientationError);
-        }
-      }
-      
+      await docElm.requestFullscreen();
       setIsFullscreen(true);
       setShowExitWarning(false);
       fullscreenExitHandledRef.current = false;
     } catch (error) {
       console.error('Failed to enter fullscreen mode:', error);
-      toast({
-        title: "Fullscreen Required",
-        description: "Please enable fullscreen mode to continue with the assessment.",
-        variant: "destructive",
-      });
     }
-  }, [toast]);
+  }, []);
 
   const exitFullscreen = useCallback(() => {
     try {
       if (document.exitFullscreen) {
         document.exitFullscreen();
-      } else if ((document as any).webkitExitFullscreen) {
-        (document as any).webkitExitFullscreen();
-      } else if ((document as any).mozCancelFullScreen) {
-        (document as any).mozCancelFullScreen();
-      } else if ((document as any).msExitFullscreen) {
-        (document as any).msExitFullscreen();
       }
       setIsFullscreen(false);
     } catch (error) {
@@ -231,18 +194,12 @@ export const useFullscreen = () => {
     document.addEventListener('webkitfullscreenchange', handler);
     document.addEventListener('mozfullscreenchange', handler);
     document.addEventListener('MSFullscreenChange', handler);
-    
-    // Mobile-specific event listeners
-    window.addEventListener('orientationchange', handler);
-    window.addEventListener('resize', handler);
 
     return () => {
       document.removeEventListener('fullscreenchange', handler);
       document.removeEventListener('webkitfullscreenchange', handler);
       document.removeEventListener('mozfullscreenchange', handler);
       document.removeEventListener('MSFullscreenChange', handler);
-      window.removeEventListener('orientationchange', handler);
-      window.removeEventListener('resize', handler);
     };
   }, [handleFullscreenChange]);
 
