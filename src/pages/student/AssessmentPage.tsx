@@ -9,7 +9,7 @@ import {
   SheetTrigger
 } from '@/components/ui/sheet';
 import { useAssessment } from '@/contexts/AssessmentContext';
-import { useFullscreen, MAX_WARNINGS } from '@/hooks/useFullscreen';
+import { useTabSwitching, MAX_WARNINGS } from '@/hooks/useFullscreen';
 import { Timer } from '@/components/Timer';
 import MCQQuestion from '@/components/MCQQuestion';
 import CodeEditor from '@/components/CodeEditor';
@@ -67,14 +67,10 @@ const AssessmentPage = () => {
   
   const navigate = useNavigate();
   const { 
-    enterFullscreen, 
-    isFullscreen, 
-    showExitWarning, 
     tabSwitchWarning,
-    fullscreenWarnings,
     visibilityViolations,
     terminateAssessment
-  } = useFullscreen();
+  } = useTabSwitching();
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -91,13 +87,9 @@ const AssessmentPage = () => {
   // Mobile anti-cheating hook
   const {
     isMobileDevice,
-    isMobileFullscreen,
-    showMobileExitWarning,
     mobileTabSwitchWarning,
     mobileViolations,
-    enterMobileFullscreen,
   } = useMobileAntiCheating({
-    enforceFullscreen: true,
     trackTabSwitching: true,
     trackOrientationChanges: true
   });
@@ -109,20 +101,6 @@ const AssessmentPage = () => {
     }
   }, [assessment, assessmentStarted, navigate]);
 
-  useEffect(() => {
-    if (assessmentStarted && !isFullscreen && !isMobileDevice) {
-      console.log("Assessment started but not in fullscreen - entering fullscreen");
-      enterFullscreen();
-    }
-  }, [assessmentStarted, isFullscreen, enterFullscreen, isMobileDevice]);
-
-  // Mobile fullscreen enforcement
-  useEffect(() => {
-    if (assessmentStarted && isMobileDevice && !isMobileFullscreen) {
-      console.log("Mobile assessment started but not in fullscreen - entering mobile fullscreen");
-      enterMobileFullscreen();
-    }
-  }, [assessmentStarted, isMobileDevice, isMobileFullscreen, enterMobileFullscreen]);
 
   useEffect(() => {
     const fetchSubmissionRecord = async () => {
@@ -342,8 +320,8 @@ const AssessmentPage = () => {
     updateMarksObtained(questionId, marks);
   };
 
-  // Anti-cheating warning is active when either fullscreen or tab warnings are shown (including mobile)
-  const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning || showMobileExitWarning || mobileTabSwitchWarning;
+  // Anti-cheating warning is active when tab warnings are shown (including mobile)
+  const isAntiCheatingWarningActive = tabSwitchWarning || mobileTabSwitchWarning;
   
   const { warning: proctoringWarning, showWarning: showProctoringWarning, dismissWarning: dismissProctoringWarning } = useProctoringWarnings();
   
@@ -512,8 +490,7 @@ const AssessmentPage = () => {
             <div className="flex items-center mr-3 animate-pulse">
               <AlertTriangle className="h-5 w-5 text-red-500 mr-1" />
               <span className="text-sm font-medium text-red-700 dark:text-red-400">
-                {showExitWarning ? `Fullscreen Warning: ${fullscreenWarnings}/${MAX_WARNINGS}` : 
-                 tabSwitchWarning ? `Tab Switch Warning: ${visibilityViolations}/${MAX_WARNINGS}` : ''}
+                Tab Switch Warning: {visibilityViolations}/${MAX_WARNINGS}
               </span>
             </div>
           )}
@@ -720,30 +697,25 @@ const AssessmentPage = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showExitWarning || tabSwitchWarning}>
+      <AlertDialog open={tabSwitchWarning}>
         <AlertDialogContent className="dark:bg-gray-800 dark:border-gray-700">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center text-red-600 dark:text-red-400">
               <AlertTriangle className="h-5 w-5 text-amber-500 mr-2" />
-              {showExitWarning ? 'Fullscreen Mode Required' : 'Assessment Tab Focus Required'}
+              Assessment Tab Focus Required
             </AlertDialogTitle>
             <AlertDialogDescription>
               <p>
-                {showExitWarning 
-                  ? `You have exited fullscreen mode. This is violation ${fullscreenWarnings}/${MAX_WARNINGS}.
-                     Please return to fullscreen immediately or your test will be terminated.`
-                  : `You switched away from the assessment tab. This is violation ${visibilityViolations}/${MAX_WARNINGS}.
-                     Please stay on this tab or your test will be terminated.`
-                }
+                You switched away from the assessment tab. This is violation {visibilityViolations}/${MAX_WARNINGS}.
+                Please stay on this tab or your test will be terminated.
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction
-              onClick={showExitWarning ? enterFullscreen : undefined}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {showExitWarning ? 'Return to Fullscreen' : 'Continue Assessment'}
+              Continue Assessment
             </AlertDialogAction>
             <AlertDialogAction
               onClick={terminateAssessment}

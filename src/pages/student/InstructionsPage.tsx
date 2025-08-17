@@ -115,8 +115,8 @@ const InstructionsPage = () => {
             <CardTitle className="text-lg">Important Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <p>• You must stay in fullscreen mode during the entire assessment (mobile and desktop).</p>
-            <p>• Exiting fullscreen mode or switching tabs/apps 3 times will automatically terminate your assessment.</p>
+            <p>• Tab switching and app switching detection is active on all devices.</p>
+            <p>• Switching tabs/apps 3 times will automatically terminate your assessment.</p>
             <p>• All browsers are supported with robust anti-cheating measures.</p>
             <p>• The assessment will start automatically when the countdown reaches zero.</p>
             <p>• You can navigate between questions using the navigation panel.</p>

@@ -7,20 +7,16 @@ import { supabase } from '@/integrations/supabase/client';
 export const MAX_MOBILE_WARNINGS = 2;
 
 interface MobileAntiCheatingOptions {
-  enforceFullscreen?: boolean;
   trackTabSwitching?: boolean;
   trackOrientationChanges?: boolean;
 }
 
 export const useMobileAntiCheating = (options: MobileAntiCheatingOptions = {}) => {
   const {
-    enforceFullscreen = true,
     trackTabSwitching = true,
     trackOrientationChanges = true
   } = options;
 
-  const [isMobileFullscreen, setIsMobileFullscreen] = useState(false);
-  const [showMobileExitWarning, setShowMobileExitWarning] = useState(false);
   const [mobileTabSwitchWarning, setMobileTabSwitchWarning] = useState(false);
   const [mobileViolations, setMobileViolations] = useState(0);
   
@@ -29,82 +25,14 @@ export const useMobileAntiCheating = (options: MobileAntiCheatingOptions = {}) =
   const navigate = useNavigate();
   
   const lastVisibilityState = useRef<boolean>(true);
-  const fullscreenExitHandledRef = useRef<boolean>(false);
-  const orientationChangeHandledRef = useRef<boolean>(false);
 
   // Detect if device is mobile
   const isMobileDevice = useCallback(() => {
     return /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   }, []);
 
-  // Check if mobile is in fullscreen-like mode
-  const checkMobileFullscreen = useCallback(() => {
-    if (!isMobileDevice()) return true; // Non-mobile devices always pass
-    
-    const viewportHeight = window.innerHeight;
-    const screenHeight = window.screen.height;
-    const isStandalone = (window.navigator as any).standalone === true; // iOS Safari
-    const isFullHeight = viewportHeight >= screenHeight * 0.90; // Allow some tolerance for mobile browsers
-    
-    // Check if address bar is hidden (mobile fullscreen indicators)
-    const hasMinimalUI = window.outerHeight - window.innerHeight < 100;
-    
-    return isStandalone || isFullHeight || hasMinimalUI;
-  }, [isMobileDevice]);
-
-  // Enter mobile fullscreen mode
-  const enterMobileFullscreen = useCallback(async () => {
-    if (!isMobileDevice()) return;
-    
-    try {
-      // Hide address bar on mobile browsers
-      if ('scrollTo' in window) {
-        window.scrollTo(0, 1);
-      }
-
-      // Request fullscreen if available
-      const docElm = document.documentElement;
-      if (docElm.requestFullscreen) {
-        await docElm.requestFullscreen();
-      } else if ((docElm as any).webkitRequestFullscreen) {
-        await (docElm as any).webkitRequestFullscreen();
-      }
-
-      // Lock orientation if supported (portrait mode for assessment)
-      if (window.screen?.orientation && 'lock' in window.screen.orientation) {
-        try {
-          await (window.screen.orientation as any).lock('portrait-primary');
-        } catch (error) {
-          console.log('Orientation lock not supported:', error);
-        }
-      }
-
-      // Additional mobile-specific adjustments
-      const viewport = document.querySelector('meta[name=viewport]');
-      if (viewport) {
-        viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
-      }
-
-      setIsMobileFullscreen(true);
-      setShowMobileExitWarning(false);
-      fullscreenExitHandledRef.current = false;
-      
-      toast({
-        title: "Mobile Fullscreen Mode",
-        description: "Assessment is now in fullscreen mode for anti-cheating protection.",
-      });
-    } catch (error) {
-      console.error('Failed to enter mobile fullscreen:', error);
-      toast({
-        title: "Fullscreen Required",
-        description: "Please enable fullscreen mode to continue with the assessment on mobile.",
-        variant: "destructive",
-      });
-    }
-  }, [isMobileDevice, toast]);
-
   // Record mobile violation
-  const recordMobileViolation = useCallback(async (violationType: 'fullscreen' | 'visibility' | 'orientation') => {
+  const recordMobileViolation = useCallback(async (violationType: 'visibility' | 'orientation') => {
     if (!assessment) return;
 
     try {
@@ -158,43 +86,6 @@ export const useMobileAntiCheating = (options: MobileAntiCheatingOptions = {}) =
     }
   }, [assessment]);
 
-  // Handle mobile fullscreen changes
-  const handleMobileFullscreenChange = useCallback(() => {
-    if (!isMobileDevice() || !enforceFullscreen) return;
-    
-    const isFullscreen = checkMobileFullscreen();
-    setIsMobileFullscreen(isFullscreen);
-    
-    if (!isFullscreen && !fullscreenExitHandledRef.current) {
-      fullscreenExitHandledRef.current = true;
-      setShowMobileExitWarning(true);
-      recordMobileViolation('fullscreen');
-      
-      const newViolationCount = mobileViolations + 1;
-      
-      toast({
-        title: "Mobile Fullscreen Warning",
-        description: `Please return to fullscreen mode immediately. Mobile violation ${newViolationCount}/${MAX_MOBILE_WARNINGS}`,
-        variant: "destructive",
-      });
-      
-      if (newViolationCount >= MAX_MOBILE_WARNINGS) {
-        toast({
-          title: "Assessment Terminated",
-          description: "Too many mobile fullscreen violations. Assessment is being terminated.",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          endAssessment();
-          navigate('/summary');
-        }, 2000);
-      }
-    } else if (isFullscreen) {
-      fullscreenExitHandledRef.current = false;
-      setShowMobileExitWarning(false);
-    }
-  }, [isMobileDevice, enforceFullscreen, checkMobileFullscreen, mobileViolations, recordMobileViolation, toast, endAssessment, navigate]);
-
   // Handle mobile visibility changes (app switching)
   const handleMobileVisibilityChange = useCallback(() => {
     if (!isMobileDevice() || !trackTabSwitching || !assessment) return;
@@ -243,43 +134,17 @@ export const useMobileAntiCheating = (options: MobileAntiCheatingOptions = {}) =
     if (!isMobileDevice() || !trackOrientationChanges) return;
     
     setTimeout(() => {
-      if (!orientationChangeHandledRef.current) {
-        orientationChangeHandledRef.current = true;
-        
-        // Re-check fullscreen after orientation change
-        handleMobileFullscreenChange();
-        
-        toast({
-          title: "Mobile Orientation Change",
-          description: "Please ensure you remain in fullscreen mode after orientation change.",
-        });
-        
-        setTimeout(() => {
-          orientationChangeHandledRef.current = false;
-        }, 1000);
-      }
+      toast({
+        title: "Mobile Orientation Change",
+        description: "Please keep the device in the same orientation during assessment.",
+      });
     }, 100); // Small delay to let orientation settle
-  }, [isMobileDevice, trackOrientationChanges, handleMobileFullscreenChange, toast]);
+  }, [isMobileDevice, trackOrientationChanges, toast]);
 
   // Set up event listeners
   useEffect(() => {
     if (!isMobileDevice()) return;
 
-    // Fullscreen change listeners
-    const fullscreenEvents = [
-      'fullscreenchange',
-      'webkitfullscreenchange', 
-      'mozfullscreenchange',
-      'MSFullscreenChange'
-    ];
-
-    fullscreenEvents.forEach(event => {
-      document.addEventListener(event, handleMobileFullscreenChange);
-    });
-
-    // Mobile-specific listeners
-    window.addEventListener('resize', handleMobileFullscreenChange);
-    
     if (trackTabSwitching) {
       document.addEventListener('visibilitychange', handleMobileVisibilityChange);
     }
@@ -288,16 +153,7 @@ export const useMobileAntiCheating = (options: MobileAntiCheatingOptions = {}) =
       window.addEventListener('orientationchange', handleOrientationChange);
     }
 
-    // Initial check
-    handleMobileFullscreenChange();
-
     return () => {
-      fullscreenEvents.forEach(event => {
-        document.removeEventListener(event, handleMobileFullscreenChange);
-      });
-      
-      window.removeEventListener('resize', handleMobileFullscreenChange);
-      
       if (trackTabSwitching) {
         document.removeEventListener('visibilitychange', handleMobileVisibilityChange);
       }
@@ -308,7 +164,6 @@ export const useMobileAntiCheating = (options: MobileAntiCheatingOptions = {}) =
     };
   }, [
     isMobileDevice,
-    handleMobileFullscreenChange,
     handleMobileVisibilityChange,
     handleOrientationChange,
     trackTabSwitching,
@@ -317,11 +172,7 @@ export const useMobileAntiCheating = (options: MobileAntiCheatingOptions = {}) =
 
   return {
     isMobileDevice: isMobileDevice(),
-    isMobileFullscreen,
-    showMobileExitWarning,
     mobileTabSwitchWarning,
     mobileViolations,
-    enterMobileFullscreen,
-    checkMobileFullscreen,
   };
 };
