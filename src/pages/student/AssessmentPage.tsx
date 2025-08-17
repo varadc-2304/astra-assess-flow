@@ -26,6 +26,9 @@ import ProctoringCamera from '@/components/ProctoringCamera';
 import { cn } from '@/lib/utils';
 import { useProctoringWarnings } from '@/hooks/useProctoringWarnings';
 import { useAssessmentRecording } from '@/hooks/useAssessmentRecording';
+import { useMobileAntiCheating } from '@/hooks/useMobileAntiCheating';
+import { isBrowserAllowed } from '@/utils/browserDetection';
+import BrowserRestriction from '@/components/BrowserRestriction';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -63,6 +66,7 @@ const AssessmentPage = () => {
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [assessmentStartTime] = useState(Date.now()); // Track when assessment started
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [browserAllowed, setBrowserAllowed] = useState(true);
   
   const navigate = useNavigate();
   const { 
@@ -86,7 +90,27 @@ const AssessmentPage = () => {
     submissionId: submissionId || undefined,
     userId: user?.id
   });
+
+  // Mobile anti-cheating hook
+  const {
+    isMobileDevice,
+    isMobileFullscreen,
+    showMobileExitWarning,
+    mobileTabSwitchWarning,
+    mobileViolations,
+    enterMobileFullscreen,
+  } = useMobileAntiCheating({
+    enforceFullscreen: true,
+    trackTabSwitching: true,
+    trackOrientationChanges: true
+  });
   
+  // Check browser compatibility on component mount
+  useEffect(() => {
+    const allowed = isBrowserAllowed();
+    setBrowserAllowed(allowed);
+  }, []);
+
   useEffect(() => {
     if (!assessment || !assessmentStarted) {
       navigate('/student');
@@ -94,11 +118,19 @@ const AssessmentPage = () => {
   }, [assessment, assessmentStarted, navigate]);
 
   useEffect(() => {
-    if (assessmentStarted && !isFullscreen) {
+    if (assessmentStarted && !isFullscreen && !isMobileDevice) {
       console.log("Assessment started but not in fullscreen - entering fullscreen");
       enterFullscreen();
     }
-  }, [assessmentStarted, isFullscreen, enterFullscreen]);
+  }, [assessmentStarted, isFullscreen, enterFullscreen, isMobileDevice]);
+
+  // Mobile fullscreen enforcement
+  useEffect(() => {
+    if (assessmentStarted && isMobileDevice && !isMobileFullscreen) {
+      console.log("Mobile assessment started but not in fullscreen - entering mobile fullscreen");
+      enterMobileFullscreen();
+    }
+  }, [assessmentStarted, isMobileDevice, isMobileFullscreen, enterMobileFullscreen]);
 
   useEffect(() => {
     const fetchSubmissionRecord = async () => {
@@ -318,8 +350,8 @@ const AssessmentPage = () => {
     updateMarksObtained(questionId, marks);
   };
 
-  // Anti-cheating warning is active when either fullscreen or tab warnings are shown
-  const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning;
+  // Anti-cheating warning is active when either fullscreen or tab warnings are shown (including mobile)
+  const isAntiCheatingWarningActive = showExitWarning || tabSwitchWarning || showMobileExitWarning || mobileTabSwitchWarning;
   
   const { warning: proctoringWarning, showWarning: showProctoringWarning, dismissWarning: dismissProctoringWarning } = useProctoringWarnings();
   
@@ -331,6 +363,11 @@ const AssessmentPage = () => {
     const seconds = totalSeconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  // Show browser restriction if browser is not allowed
+  if (!browserAllowed) {
+    return <BrowserRestriction onForceAccess={() => setBrowserAllowed(true)} showForceAccess={true} />;
+  }
   
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
