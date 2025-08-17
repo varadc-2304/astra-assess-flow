@@ -7,21 +7,13 @@ import { Timer } from '@/components/Timer';
 import { Separator } from '@/components/ui/separator';
 import { ClipboardList, Clock, Code, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { isBrowserAllowed } from '@/utils/browserDetection';
-import BrowserRestriction from '@/components/BrowserRestriction';
 
 const InstructionsPage = () => {
   const { assessment, assessmentCode, loading, startAssessment } = useAssessment();
   const navigate = useNavigate();
   const [countdownEnded, setCountdownEnded] = useState(false);
-  const [browserAllowed, setBrowserAllowed] = useState(true);
   const { toast } = useToast();
   
-  // Check browser compatibility on component mount
-  useEffect(() => {
-    const allowed = isBrowserAllowed();
-    setBrowserAllowed(allowed);
-  }, []);
 
   useEffect(() => {
     if (!loading && !assessment && assessmentCode) {
@@ -63,10 +55,6 @@ const InstructionsPage = () => {
     setCountdownEnded(true);
   };
 
-  // Show browser restriction if browser is not allowed
-  if (!browserAllowed) {
-    return <BrowserRestriction onForceAccess={() => setBrowserAllowed(true)} showForceAccess={true} />;
-  }
   
   return (
     <div className="min-h-screen bg-gray-50 py-12">
@@ -129,7 +117,7 @@ const InstructionsPage = () => {
           <CardContent className="space-y-2 text-sm">
             <p>• You must stay in fullscreen mode during the entire assessment (mobile and desktop).</p>
             <p>• Exiting fullscreen mode or switching tabs/apps 3 times will automatically terminate your assessment.</p>
-            <p>• Only Google Chrome browser is allowed for this assessment.</p>
+            <p>• All browsers are supported with robust anti-cheating measures.</p>
             <p>• The assessment will start automatically when the countdown reaches zero.</p>
             <p>• You can navigate between questions using the navigation panel.</p>
             <p>• Your answers are auto-saved as you progress.</p>
