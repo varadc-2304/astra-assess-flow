@@ -53,7 +53,7 @@ export const useTabSwitching = () => {
         const { error: resultError } = await supabase
           .from('results')
           .update({ 
-            isTerminated: true,
+            is_cheated: true,
             completed_at: new Date().toISOString()
           })
           .eq('assessment_id', assessment.id)
