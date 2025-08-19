@@ -40,16 +40,6 @@ const InstructionsPage = () => {
   }
   
   const handleStartAssessment = () => {
-    // Check if assessment has ended
-    if (assessment?.endTime && new Date() > new Date(assessment.endTime)) {
-      toast({
-        title: "Assessment Expired",
-        description: "This assessment has already ended and cannot be started.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     // Check if proctoring is required based on the is_ai_proctored flag
     if (assessment?.isAiProctored) {
       // If AI proctoring is enabled, navigate to camera verification
@@ -125,8 +115,8 @@ const InstructionsPage = () => {
             <CardTitle className="text-lg">Important Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <p>• Tab switching and app switching detection is active on all devices.</p>
-            <p>• Switching tabs/apps 3 times will automatically terminate your assessment.</p>
+            <p>• You must stay in fullscreen mode during the entire assessment (mobile and desktop).</p>
+            <p>• Exiting fullscreen mode or switching tabs/apps 3 times will automatically terminate your assessment.</p>
             <p>• All browsers are supported with robust anti-cheating measures.</p>
             <p>• The assessment will start automatically when the countdown reaches zero.</p>
             <p>• You can navigate between questions using the navigation panel.</p>
@@ -154,17 +144,13 @@ const InstructionsPage = () => {
           <CardFooter className="flex justify-center pb-6">
             <Button 
               onClick={handleStartAssessment}
-              disabled={!countdownEnded || (assessment?.endTime && new Date() > new Date(assessment.endTime))}
+              disabled={!countdownEnded}
               size="lg"
               className={`bg-astra-red hover:bg-red-600 text-white transition-all ${
-                countdownEnded && (!assessment?.endTime || new Date() <= new Date(assessment.endTime)) ? 'animate-pulse' : 'opacity-50'
+                countdownEnded ? 'animate-pulse' : 'opacity-50'
               }`}
             >
-              {assessment?.endTime && new Date() > new Date(assessment.endTime) 
-                ? 'Assessment Expired' 
-                : countdownEnded 
-                  ? (assessment?.isAiProctored ? 'Proceed to Camera Setup' : 'Start Assessment') 
-                  : 'Please Wait...'}
+              {countdownEnded ? (assessment?.isAiProctored ? 'Proceed to Camera Setup' : 'Start Assessment') : 'Please Wait...'}
             </Button>
           </CardFooter>
         </Card>
