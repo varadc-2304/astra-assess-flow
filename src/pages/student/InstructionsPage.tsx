@@ -40,6 +40,16 @@ const InstructionsPage = () => {
   }
   
   const handleStartAssessment = () => {
+    // Check if assessment has ended
+    if (assessment?.endTime && new Date() > new Date(assessment.endTime)) {
+      toast({
+        title: "Assessment Expired",
+        description: "This assessment has already ended and cannot be started.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Check if proctoring is required based on the is_ai_proctored flag
     if (assessment?.isAiProctored) {
       // If AI proctoring is enabled, navigate to camera verification
@@ -144,13 +154,17 @@ const InstructionsPage = () => {
           <CardFooter className="flex justify-center pb-6">
             <Button 
               onClick={handleStartAssessment}
-              disabled={!countdownEnded}
+              disabled={!countdownEnded || (assessment?.endTime && new Date() > new Date(assessment.endTime))}
               size="lg"
               className={`bg-astra-red hover:bg-red-600 text-white transition-all ${
-                countdownEnded ? 'animate-pulse' : 'opacity-50'
+                countdownEnded && (!assessment?.endTime || new Date() <= new Date(assessment.endTime)) ? 'animate-pulse' : 'opacity-50'
               }`}
             >
-              {countdownEnded ? (assessment?.isAiProctored ? 'Proceed to Camera Setup' : 'Start Assessment') : 'Please Wait...'}
+              {assessment?.endTime && new Date() > new Date(assessment.endTime) 
+                ? 'Assessment Expired' 
+                : countdownEnded 
+                  ? (assessment?.isAiProctored ? 'Proceed to Camera Setup' : 'Start Assessment') 
+                  : 'Please Wait...'}
             </Button>
           </CardFooter>
         </Card>
