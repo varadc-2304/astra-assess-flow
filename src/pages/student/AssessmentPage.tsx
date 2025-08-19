@@ -27,6 +27,8 @@ import { cn } from '@/lib/utils';
 import { useProctoringWarnings } from '@/hooks/useProctoringWarnings';
 import { useAssessmentRecording } from '@/hooks/useAssessmentRecording';
 import { useMobileAntiCheating } from '@/hooks/useMobileAntiCheating';
+import { isBrowserAllowed } from '@/utils/browserDetection';
+import BrowserRestriction from '@/components/BrowserRestriction';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -64,6 +66,7 @@ const AssessmentPage = () => {
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
   const [assessmentStartTime] = useState(Date.now()); // Track when assessment started
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [browserAllowed, setBrowserAllowed] = useState(true);
   
   const navigate = useNavigate();
   const { 
@@ -102,6 +105,11 @@ const AssessmentPage = () => {
     trackOrientationChanges: true
   });
   
+  // Check browser compatibility on component mount
+  useEffect(() => {
+    const allowed = isBrowserAllowed();
+    setBrowserAllowed(allowed);
+  }, []);
 
   useEffect(() => {
     if (!assessment || !assessmentStarted) {
@@ -356,6 +364,10 @@ const AssessmentPage = () => {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  // Show browser restriction if browser is not allowed
+  if (!browserAllowed) {
+    return <BrowserRestriction onForceAccess={() => setBrowserAllowed(true)} showForceAccess={true} />;
+  }
   
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
