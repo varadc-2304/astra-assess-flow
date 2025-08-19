@@ -672,106 +672,42 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         console.log('Assessment ended successfully');
         console.log(`Total marks obtained: ${totalMarksObtained}/${totalPossibleMarks}`);
         
-        // Find the existing submission for this assessment attempt
-        const { data: existingSubmissions, error: submissionError } = await supabase
+        // Always create a new submission for each assessment attempt
+        const { data: newSubmission, error: newSubmissionError } = await supabase
           .from('submissions')
-          .select('*')
-          .eq('assessment_id', assessment.id)
-          .eq('user_id', user.id)
-          .is('completed_at', null)
-          .order('created_at', { ascending: false })
-          .limit(1);
+          .insert({
+            assessment_id: assessment.id,
+            user_id: user.id,
+            started_at: new Date().toISOString(),
+            completed_at: new Date().toISOString(),
+            fullscreen_violations: fullscreenWarnings
+          })
+          .select()
+          .single();
             
-        if (submissionError) {
-          console.error('Error finding existing submission:', submissionError);
+        if (newSubmissionError || !newSubmission) {
+          console.error('Error creating submission:', newSubmissionError);
           toast({
             title: "Error",
-            description: "There was an error finding your submission.",
+            description: "There was an error creating your submission.",
             variant: "destructive",
             duration: 1000,
           });
           return false;
         }
-
-        let submissionToUse;
-        
-        if (!existingSubmissions || existingSubmissions.length === 0) {
-          // Create submission if none exists (edge case)
-          const { data: newSubmission, error: newSubmissionError } = await supabase
-            .from('submissions')
-            .insert({
-              assessment_id: assessment.id,
-              user_id: user.id,
-              started_at: new Date().toISOString(),
-              completed_at: new Date().toISOString(),
-              fullscreen_violations: fullscreenWarnings
-            })
-            .select()
-            .single();
-            
-          if (newSubmissionError || !newSubmission) {
-            console.error('Error creating submission:', newSubmissionError);
-            toast({
-              title: "Error",
-              description: "There was an error creating your submission.",
-              variant: "destructive",
-              duration: 1000,
-            });
-            return false;
-          }
-          
-          submissionToUse = newSubmission;
-        } else {
-          // Update existing submission to mark as completed
-          const { data: updatedSubmission, error: updateError } = await supabase
-            .from('submissions')
-            .update({
-              completed_at: new Date().toISOString(),
-              fullscreen_violations: fullscreenWarnings
-            })
-            .eq('id', existingSubmissions[0].id)
-            .select()
-            .single();
-            
-          if (updateError || !updatedSubmission) {
-            console.error('Error updating submission:', updateError);
-            toast({
-              title: "Error",
-              description: "There was an error updating your submission.",
-              variant: "destructive",
-              duration: 1000,
-            });
-            return false;
-          }
-          
-          submissionToUse = updatedSubmission;
-        }
-        
-        // Calculate actual total marks from question submissions
-        const { data: questionSubmissions, error: questionsError } = await supabase
-          .from('question_submissions')
-          .select('marks_obtained')
-          .eq('submission_id', submissionToUse.id);
-          
-        if (questionsError) {
-          console.error('Error fetching question submissions for final calculation:', questionsError);
-        }
-        
-        const actualTotalMarks = questionSubmissions?.reduce((sum, qs) => sum + (qs.marks_obtained || 0), 0) || 0;
-        console.log(`Actual total marks from submissions: ${actualTotalMarks}`);
         
         const percentage = totalPossibleMarks > 0
-          ? Math.round((actualTotalMarks / totalPossibleMarks) * 100)
+          ? Math.round((totalMarksObtained / totalPossibleMarks) * 100)
           : 0;
         
-        // Create a new result entry for this attempt using the correct submission
+        // Create a new result entry for this attempt
         const { error: resultError } = await supabase
           .from('results')
           .insert({
             user_id: user.id,
             assessment_id: assessment.id,
-            submission_id: submissionToUse.id,
-            total_score: actualTotalMarks,
+            submission_id: newSubmission.id,
+            total_score: totalMarksObtained,
             total_marks: totalPossibleMarks,
             percentage: percentage,
             is_cheated: fullscreenWarnings >= 3, // Mark as cheated if too many fullscreen violations
@@ -791,7 +727,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         
         toast({
           title: "Assessment Completed",
-          description: `Your results have been saved. You scored ${actualTotalMarks}/${totalPossibleMarks} (${percentage}%).`,
+          description: `Your results have been saved. You scored ${totalMarksObtained}/${totalPossibleMarks} (${percentage}%).`,
           duration: 1000,
         });
         
