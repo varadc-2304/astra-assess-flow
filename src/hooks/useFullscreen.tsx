@@ -15,6 +15,7 @@ export const useTabSwitching = () => {
   const lastVisibilityState = useRef<boolean>(true);
   const visibilityViolations = useRef<number>(0);
 
+
   const recordTabSwitchViolation = useCallback(async () => {
     if (!assessment) return;
 
@@ -47,48 +48,19 @@ export const useTabSwitching = () => {
         console.error('Error updating submission with tab switch violation:', updateError);
       }
 
-      // If this violation leads to termination, update the results table immediately
+      // Update the results table if this violation leads to termination
       if (isTerminated) {
-        // Check if result already exists
-        const { data: existingResults, error: resultCheckError } = await supabase
+        const { error: resultError } = await supabase
           .from('results')
-          .select('*')
+          .update({ 
+            is_cheated: true,
+            completed_at: new Date().toISOString()
+          })
           .eq('assessment_id', assessment.id)
-          .eq('user_id', submission.user_id)
-          .eq('submission_id', submission.id)
-          .limit(1);
+          .eq('user_id', submission.user_id);
 
-        if (!resultCheckError && existingResults && existingResults.length > 0) {
-          // Update existing result
-          const { error: resultError } = await supabase
-            .from('results')
-            .update({ 
-              is_cheated: true,
-              completed_at: new Date().toISOString()
-            })
-            .eq('id', existingResults[0].id);
-
-          if (resultError) {
-            console.error('Error updating existing result termination status:', resultError);
-          }
-        } else {
-          // Create new result with cheating flag
-          const { error: resultError } = await supabase
-            .from('results')
-            .insert({
-              user_id: submission.user_id,
-              assessment_id: assessment.id,
-              submission_id: submission.id,
-              total_score: 0, // Will be updated by endAssessment with actual score
-              total_marks: 0, // Will be updated by endAssessment
-              percentage: 0,  // Will be updated by endAssessment
-              is_cheated: true,
-              completed_at: new Date().toISOString()
-            });
-
-          if (resultError) {
-            console.error('Error creating result with termination status:', resultError);
-          }
+        if (resultError) {
+          console.error('Error updating result termination status:', resultError);
         }
       }
     } catch (error) {

@@ -51,9 +51,11 @@ export const Timer: React.FC<TimerProps> = ({
         if (timeRemaining <= 1) {
           // End assessment when time runs out
           clearInterval(intervalId);
-          endAssessment().then(() => {
+          endAssessment().then(success => {
             // Navigate to results page after assessment ends
-            navigate('/summary');
+            if (success) {
+              navigate('/summary');
+            }
           });
         }
       }, 1000);

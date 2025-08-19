@@ -46,7 +46,7 @@ const InstructionsPage = () => {
       navigate('/camera-verification');
     } else {
       // If AI proctoring is disabled, start assessment directly
-      startAssessment(assessment);
+      startAssessment();
       navigate('/assessment');
     }
   };
