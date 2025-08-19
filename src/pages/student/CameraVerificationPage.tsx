@@ -97,7 +97,7 @@ const CameraVerificationPage = () => {
     // Check if assessment requires AI proctoring, if not, redirect to assessment page
     if (!loading && assessment && !assessment.isAiProctored) {
       console.log("Assessment doesn't require AI proctoring, redirecting to assessment page");
-      startAssessment();
+      startAssessment(assessment);
       navigate('/assessment');
       return;
     }
@@ -162,7 +162,7 @@ const CameraVerificationPage = () => {
   };
   
   const handleStartAssessment = () => {
-    startAssessment();
+    startAssessment(assessment);
     navigate('/assessment');
   };
 

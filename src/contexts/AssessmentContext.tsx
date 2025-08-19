@@ -19,7 +19,7 @@ interface AssessmentContextType {
   assessment: AssessmentType | null;
   assessments: AssessmentType[] | null;
   assessmentStarted: boolean;
-  startAssessment: (assessment: AssessmentType) => void;
+  startAssessment: (assessment?: AssessmentType) => void;
   endAssessment: () => Promise<void>;
   currentQuestionIndex: number;
   setCurrentQuestionIndex: (index: number) => void;
@@ -30,6 +30,11 @@ interface AssessmentContextType {
   totalPossibleMarks: number;
   fullscreenWarnings: number;
   addFullscreenWarning: () => void;
+  loadAssessment: (code: string) => Promise<boolean>;
+  assessmentCode: string | null;
+  loading: boolean;
+  timeRemaining: number;
+  setTimeRemaining: (time: number) => void;
 }
 
 const AssessmentContext = createContext<AssessmentContextType | undefined>(undefined);
@@ -42,6 +47,9 @@ export const AssessmentProvider: React.FC<{ children: ReactNode }> = ({ children
   const [fullscreenWarnings, setFullscreenWarnings] = useState(0);
   const [totalMarksObtained, setTotalMarksObtained] = useState(0);
   const [totalPossibleMarks, setTotalPossibleMarks] = useState(0);
+  const [assessmentCode, setAssessmentCode] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(0);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -65,13 +73,77 @@ export const AssessmentProvider: React.FC<{ children: ReactNode }> = ({ children
     fetchAssessments();
   }, []);
 
-  const startAssessment = (assessment: AssessmentType) => {
-    const mcqCount = assessment.questions?.filter(q => q.type === 'mcq').length || 0;
-    const codingCount = assessment.questions?.filter(q => q.type === 'code').length || 0;
-    const durationMinutes = assessment.duration_minutes;
-    const startTime = assessment.start_time;
+  const loadAssessment = async (code: string): Promise<boolean> => {
+    setLoading(true);
+    setAssessmentCode(code);
+    
+    try {
+      const { data: assessmentData, error } = await supabase
+        .from('assessments')
+        .select(`
+          *,
+          mcq_questions(*,
+            mcq_options(*)
+          ),
+          coding_questions(*,
+            coding_languages(*),
+            coding_examples(*),
+            test_cases(*)
+          )
+        `)
+        .eq('code', code.trim().toUpperCase())
+        .single();
 
-    const questions = assessment.questions?.map(question => {
+      if (error || !assessmentData) {
+        setLoading(false);
+        return false;
+      }
+
+      // Transform the data to match the expected format
+      const transformedAssessment: AssessmentType = {
+        ...assessmentData,
+        questions: [
+          ...(assessmentData.mcq_questions?.map((q: any) => ({
+            ...q,
+            type: 'mcq' as const,
+            options: q.mcq_options,
+          })) || []),
+          ...(assessmentData.coding_questions?.map((q: any) => ({
+            ...q,
+            type: 'code' as const,
+            solutionTemplate: q.coding_languages?.reduce((acc: any, lang: any) => {
+              acc[lang.coding_lang] = lang.solution_template;
+              return acc;
+            }, {}) || {},
+            examples: q.coding_examples || [],
+            testCases: q.test_cases || [],
+          })) || []),
+        ].sort((a, b) => a.order_index - b.order_index),
+      };
+
+      setAssessment(transformedAssessment);
+      setLoading(false);
+      return true;
+    } catch (error) {
+      console.error('Error loading assessment:', error);
+      setLoading(false);
+      return false;
+    }
+  };
+
+  const startAssessment = (assessmentParam?: AssessmentType) => {
+    const currentAssessment = assessmentParam || assessment;
+    if (!currentAssessment) return;
+    
+    const mcqCount = currentAssessment.questions?.filter(q => q.type === 'mcq').length || 0;
+    const codingCount = currentAssessment.questions?.filter(q => q.type === 'code').length || 0;
+    const durationMinutes = currentAssessment.duration_minutes;
+    const startTime = currentAssessment.start_time;
+    
+    // Set initial time remaining
+    setTimeRemaining(durationMinutes * 60);
+
+    const questions = currentAssessment.questions?.map(question => {
       if (question.type === 'mcq') {
         return {
           ...question,
@@ -97,7 +169,7 @@ export const AssessmentProvider: React.FC<{ children: ReactNode }> = ({ children
     }) || [];
 
     setAssessment({
-      ...assessment,
+      ...currentAssessment,
       mcqCount,
       codingCount,
       durationMinutes,
@@ -160,7 +232,9 @@ export const AssessmentProvider: React.FC<{ children: ReactNode }> = ({ children
           currentMarks = marks;
         }
       }
-      const diff = currentMarks - (assessment?.questions.find(q => q.id === questionId)?.marksObtained || 0);
+      const existingQuestion = assessment?.questions.find(q => q.id === questionId);
+      const existingMarks = existingQuestion && 'marksObtained' in existingQuestion ? existingQuestion.marksObtained || 0 : 0;
+      const diff = currentMarks - existingMarks;
       return prevTotal + diff;
     });
 
@@ -327,6 +401,11 @@ export const AssessmentProvider: React.FC<{ children: ReactNode }> = ({ children
     totalPossibleMarks,
     fullscreenWarnings,
     addFullscreenWarning,
+    loadAssessment,
+    assessmentCode,
+    loading,
+    timeRemaining,
+    setTimeRemaining,
   };
 
   return (
