@@ -7,21 +7,13 @@ import { Timer } from '@/components/Timer';
 import { Separator } from '@/components/ui/separator';
 import { ClipboardList, Clock, Code, Camera } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { isBrowserAllowed } from '@/utils/browserDetection';
-import BrowserRestriction from '@/components/BrowserRestriction';
 
 const InstructionsPage = () => {
   const { assessment, assessmentCode, loading, startAssessment } = useAssessment();
   const navigate = useNavigate();
   const [countdownEnded, setCountdownEnded] = useState(false);
-  const [browserAllowed, setBrowserAllowed] = useState(true);
   const { toast } = useToast();
   
-  // Check browser compatibility on component mount
-  useEffect(() => {
-    const allowed = isBrowserAllowed();
-    setBrowserAllowed(allowed);
-  }, []);
 
   useEffect(() => {
     if (!loading && !assessment && assessmentCode) {
@@ -48,6 +40,16 @@ const InstructionsPage = () => {
   }
   
   const handleStartAssessment = () => {
+    // Check if assessment has ended
+    if (assessment?.endTime && new Date() > new Date(assessment.endTime)) {
+      toast({
+        title: "Assessment Expired",
+        description: "This assessment has already ended and cannot be started.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Check if proctoring is required based on the is_ai_proctored flag
     if (assessment?.isAiProctored) {
       // If AI proctoring is enabled, navigate to camera verification
@@ -63,10 +65,6 @@ const InstructionsPage = () => {
     setCountdownEnded(true);
   };
 
-  // Show browser restriction if browser is not allowed
-  if (!browserAllowed) {
-    return <BrowserRestriction onForceAccess={() => setBrowserAllowed(true)} showForceAccess={true} />;
-  }
   
   return (
     <div className="min-h-screen bg-gray-50 py-12">
@@ -127,9 +125,9 @@ const InstructionsPage = () => {
             <CardTitle className="text-lg">Important Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <p>• You must stay in fullscreen mode during the entire assessment (mobile and desktop).</p>
-            <p>• Exiting fullscreen mode or switching tabs/apps 3 times will automatically terminate your assessment.</p>
-            <p>• Only Google Chrome browser is allowed for this assessment.</p>
+            <p>• Tab switching and app switching detection is active on all devices.</p>
+            <p>• Switching tabs/apps 3 times will automatically terminate your assessment.</p>
+            <p>• All browsers are supported with robust anti-cheating measures.</p>
             <p>• The assessment will start automatically when the countdown reaches zero.</p>
             <p>• You can navigate between questions using the navigation panel.</p>
             <p>• Your answers are auto-saved as you progress.</p>
@@ -156,13 +154,17 @@ const InstructionsPage = () => {
           <CardFooter className="flex justify-center pb-6">
             <Button 
               onClick={handleStartAssessment}
-              disabled={!countdownEnded}
+              disabled={!countdownEnded || (assessment?.endTime && new Date() > new Date(assessment.endTime))}
               size="lg"
               className={`bg-astra-red hover:bg-red-600 text-white transition-all ${
-                countdownEnded ? 'animate-pulse' : 'opacity-50'
+                countdownEnded && (!assessment?.endTime || new Date() <= new Date(assessment.endTime)) ? 'animate-pulse' : 'opacity-50'
               }`}
             >
-              {countdownEnded ? (assessment?.isAiProctored ? 'Proceed to Camera Setup' : 'Start Assessment') : 'Please Wait...'}
+              {assessment?.endTime && new Date() > new Date(assessment.endTime) 
+                ? 'Assessment Expired' 
+                : countdownEnded 
+                  ? (assessment?.isAiProctored ? 'Proceed to Camera Setup' : 'Start Assessment') 
+                  : 'Please Wait...'}
             </Button>
           </CardFooter>
         </Card>

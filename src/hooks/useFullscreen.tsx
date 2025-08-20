@@ -7,87 +7,16 @@ import { useToast } from '@/hooks/use-toast';
 
 export const MAX_WARNINGS = 2;
 
-export const useFullscreen = () => {
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showExitWarning, setShowExitWarning] = useState(false);
+export const useTabSwitching = () => {
   const [tabSwitchWarning, setTabSwitchWarning] = useState(false);
   const { fullscreenWarnings, addFullscreenWarning, endAssessment, assessment } = useAssessment();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const fullscreenExitHandledRef = useRef<boolean>(false);
   const lastVisibilityState = useRef<boolean>(true);
   const visibilityViolations = useRef<number>(0);
 
-  const checkFullscreen = useCallback(() => {
-    const isDocumentFullscreen =
-      document.fullscreenElement ||
-      (document as any).webkitFullscreenElement ||
-      (document as any).mozFullScreenElement ||
-      (document as any).msFullscreenElement;
-    
-    // Additional mobile fullscreen detection
-    const isMobileFullscreen = window.innerHeight === window.screen.height ||
-      window.innerWidth === window.screen.width ||
-      (window.navigator as any).standalone === true; // iOS Safari
-    
-    return !!isDocumentFullscreen || (isMobileFullscreen && /Mobi|Android/i.test(navigator.userAgent));
-  }, []);
 
-  const enterFullscreen = useCallback(async () => {
-    try {
-      const docElm = document.documentElement;
-      
-      // Try different fullscreen methods for better mobile compatibility
-      if (docElm.requestFullscreen) {
-        await docElm.requestFullscreen();
-      } else if ((docElm as any).webkitRequestFullscreen) {
-        await (docElm as any).webkitRequestFullscreen();
-      } else if ((docElm as any).mozRequestFullScreen) {
-        await (docElm as any).mozRequestFullScreen();
-      } else if ((docElm as any).msRequestFullscreen) {
-        await (docElm as any).msRequestFullscreen();
-      }
-      
-      // Additional mobile-specific fullscreen handling
-      if (window.screen?.orientation && 'lock' in window.screen.orientation) {
-        try {
-          await (window.screen.orientation as any).lock('portrait-primary');
-        } catch (orientationError) {
-          console.log('Orientation lock not supported or failed:', orientationError);
-        }
-      }
-      
-      setIsFullscreen(true);
-      setShowExitWarning(false);
-      fullscreenExitHandledRef.current = false;
-    } catch (error) {
-      console.error('Failed to enter fullscreen mode:', error);
-      toast({
-        title: "Fullscreen Required",
-        description: "Please enable fullscreen mode to continue with the assessment.",
-        variant: "destructive",
-      });
-    }
-  }, [toast]);
-
-  const exitFullscreen = useCallback(() => {
-    try {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if ((document as any).webkitExitFullscreen) {
-        (document as any).webkitExitFullscreen();
-      } else if ((document as any).mozCancelFullScreen) {
-        (document as any).mozCancelFullScreen();
-      } else if ((document as any).msExitFullscreen) {
-        (document as any).msExitFullscreen();
-      }
-      setIsFullscreen(false);
-    } catch (error) {
-      console.error('Failed to exit fullscreen mode:', error);
-    }
-  }, []);
-
-  const recordFullscreenViolation = useCallback(async (violationType: 'fullscreen' | 'visibility') => {
+  const recordTabSwitchViolation = useCallback(async () => {
     if (!assessment) return;
 
     try {
@@ -104,26 +33,19 @@ export const useFullscreen = () => {
       }
 
       const submission = submissions[0];
-      
-      // Calculate total violations for termination decision
-      const totalViolations = violationType === 'fullscreen' 
-        ? (fullscreenWarnings + 1) 
-        : (visibilityViolations.current);
-        
-      const isTerminated = totalViolations >= MAX_WARNINGS;
+      const newViolationCount = visibilityViolations.current;
+      const isTerminated = newViolationCount >= MAX_WARNINGS;
       
       const { error: updateError } = await supabase
         .from('submissions')
         .update({
-          fullscreen_violations: violationType === 'fullscreen' 
-            ? (submission.fullscreen_violations || 0) + 1 
-            : submission.fullscreen_violations,
+          fullscreen_violations: (submission.fullscreen_violations || 0) + 1,
           is_terminated: isTerminated
         })
         .eq('id', submission.id);
 
       if (updateError) {
-        console.error('Error updating submission with violation:', updateError);
+        console.error('Error updating submission with tab switch violation:', updateError);
       }
 
       // Update the results table if this violation leads to termination
@@ -131,7 +53,7 @@ export const useFullscreen = () => {
         const { error: resultError } = await supabase
           .from('results')
           .update({ 
-            isTerminated: true,
+            is_cheated: true,
             completed_at: new Date().toISOString()
           })
           .eq('assessment_id', assessment.id)
@@ -142,48 +64,10 @@ export const useFullscreen = () => {
         }
       }
     } catch (error) {
-      console.error('Error recording violation:', error);
+      console.error('Error recording tab switch violation:', error);
     }
-  }, [assessment, fullscreenWarnings]);
+  }, [assessment]);
 
-  const handleFullscreenChange = useCallback(() => {
-    const fullscreenStatus = checkFullscreen();
-    
-    if (!fullscreenStatus) {
-      if (!fullscreenExitHandledRef.current) {
-        fullscreenExitHandledRef.current = true;
-        setShowExitWarning(true);
-        addFullscreenWarning();
-        recordFullscreenViolation('fullscreen');
-        
-        toast({
-          title: "Warning",
-          description: "Please return to fullscreen mode immediately. This is violation " + (fullscreenWarnings + 1) + "/" + MAX_WARNINGS,
-          variant: "destructive",
-        });
-        
-        if (fullscreenWarnings + 1 >= MAX_WARNINGS) {
-          endAssessment();
-          navigate('/summary');
-        }
-      }
-    } else {
-      fullscreenExitHandledRef.current = false;
-      setShowExitWarning(false);
-      toast({
-        title: "Fullscreen Mode",
-        description: "You have returned to fullscreen mode.",
-      });
-    }
-  }, [
-    checkFullscreen,
-    fullscreenWarnings,
-    recordFullscreenViolation,
-    endAssessment,
-    navigate,
-    addFullscreenWarning,
-    toast
-  ]);
 
   // Handle visibility change (tab switching, window switching)
   const handleVisibilityChange = useCallback(() => {
@@ -197,7 +81,7 @@ export const useFullscreen = () => {
       visibilityViolations.current += 1;
       setTabSwitchWarning(true);
       
-      recordFullscreenViolation('visibility');
+      recordTabSwitchViolation();
       
       toast({
         title: "Warning",
@@ -222,29 +106,8 @@ export const useFullscreen = () => {
     
     // Update last state
     lastVisibilityState.current = isVisible;
-  }, [assessment, recordFullscreenViolation, toast, navigate, endAssessment]);
+  }, [assessment, recordTabSwitchViolation, toast, navigate, endAssessment]);
 
-  useEffect(() => {
-    const handler = () => handleFullscreenChange();
-
-    document.addEventListener('fullscreenchange', handler);
-    document.addEventListener('webkitfullscreenchange', handler);
-    document.addEventListener('mozfullscreenchange', handler);
-    document.addEventListener('MSFullscreenChange', handler);
-    
-    // Mobile-specific event listeners
-    window.addEventListener('orientationchange', handler);
-    window.addEventListener('resize', handler);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handler);
-      document.removeEventListener('webkitfullscreenchange', handler);
-      document.removeEventListener('mozfullscreenchange', handler);
-      document.removeEventListener('MSFullscreenChange', handler);
-      window.removeEventListener('orientationchange', handler);
-      window.removeEventListener('resize', handler);
-    };
-  }, [handleFullscreenChange]);
 
   // Set up visibility change detection
   useEffect(() => {
@@ -261,13 +124,8 @@ export const useFullscreen = () => {
   }, [endAssessment, navigate]);
 
   return {
-    isFullscreen,
-    enterFullscreen,
-    exitFullscreen,
-    fullscreenWarnings,
-    visibilityViolations: visibilityViolations.current,
-    showExitWarning,
     tabSwitchWarning,
+    visibilityViolations: visibilityViolations.current,
     terminateAssessment,
   };
 };

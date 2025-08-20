@@ -82,11 +82,19 @@ const SummaryPage = () => {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            <div className="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-lg">
-              <p className="text-lg font-medium text-center text-gray-700">
-                Your assessment has been submitted and results have been stored.  
-                Thank you for your participation.
-              </p>
+            <div className="grid md:grid-cols-3 gap-6 mb-6">
+              <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg">
+                <div className={`text-4xl font-bold ${color}`}>{grade}</div>
+                <div className="text-sm text-gray-500 mt-1">Grade</div>
+              </div>
+              <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-4xl font-bold text-astra-red">{percentage}%</div>
+                <div className="text-sm text-gray-500 mt-1">Score</div>
+              </div>
+              <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-4xl font-bold">{totalMarksObtained}/{totalPossibleMarks}</div>
+                <div className="text-sm text-gray-500 mt-1">Marks</div>
+              </div>
             </div>
           </CardContent>
         </Card>
