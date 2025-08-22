@@ -723,12 +723,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             duration: 1000,
           });
           return false;
-        }
-        
-        toast({
-          title: "Assessment Completed",
-          description: `Your results have been saved. You scored ${totalMarksObtained}/${totalPossibleMarks} (${percentage}%).`,
-          duration: 1000,
         });
         
         return true;
