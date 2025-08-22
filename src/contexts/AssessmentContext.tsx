@@ -723,7 +723,7 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             duration: 1000,
           });
           return false;
-        });
+        };
         
         return true;
       }
