@@ -370,7 +370,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           (!passed ? `Expected Output: "${expectedOutput}"\nYour Output: "${actualOutput}"\n` : '');
         setOutput(prev => `${prev}\n${testResultOutput}`);
       } else {
-        setOutput(prev => `${prev}\nHidden test case ${index + 1}/${testCases.length} (${testMarks} marks): ${passed ? 'Passed' : 'Failed'}\n`);
+        setOutput(prev => `${prev}\nHidden test case ${index + 1}/${testCases.length} : ${passed ? 'Passed' : 'Failed'}\n`);
       }
       
       return processTestCase(index + 1, testCases, updatedResults, updatedTotalMarks);
