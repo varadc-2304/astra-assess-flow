@@ -208,7 +208,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     
     try {
       const { data: testCases, error: testCasesError } = await supabase
-        .from('test_cases')
+        .from('test_cases_bank')
         .select('*')
         .eq('coding_question_id', question.id)
         .eq('is_hidden', false)
@@ -286,7 +286,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const fetchTestCases = async (questionId: string): Promise<TestCase[]> => {
     try {
       const { data: testCases, error } = await supabase
-        .from('test_cases')
+        .from('test_cases_bank')
         .select('*')
         .eq('coding_question_id', questionId)
         .order('order_index', { ascending: true });
