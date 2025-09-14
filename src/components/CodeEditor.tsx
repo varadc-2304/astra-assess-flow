@@ -366,7 +366,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       setTestResults(updatedResults);
       
       if (!isHidden) {
-        const testResultOutput = `Test case ${index + 1}/${testCases.length} (${testMarks} marks): ${passed ? 'Passed' : 'Failed'}\n` + 
+        const testResultOutput = `Test case ${index + 1}/${testCases.length}: ${passed ? 'Passed' : 'Failed'}\n` + 
           (!passed ? `Expected Output: "${expectedOutput}"\nYour Output: "${actualOutput}"\n` : '');
         setOutput(prev => `${prev}\n${testResultOutput}`);
       } else {
@@ -519,7 +519,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           
           toast({
             title: "Submission Successful",
-            description: `Your solution was evaluated. You scored ${totalMarksEarned}/${totalPossibleMarks} marks.`,
+            description: `Your solution was evaluated.`,
             variant: allPassed ? "default" : "default",
           });
           
