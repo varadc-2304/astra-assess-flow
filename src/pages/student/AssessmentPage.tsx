@@ -58,6 +58,7 @@ const AssessmentPage = () => {
   } = useAssessment();
 
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [showNavigationWarning, setShowNavigationWarning] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
   const [isEndingAssessment, setIsEndingAssessment] = useState(false);
   const [testCaseStatus, setTestCaseStatus] = useState<TestCaseStatus>({});
@@ -169,6 +170,43 @@ const AssessmentPage = () => {
       startRecording();
     }
   }, [isAiProctoringEnabled, assessmentStarted, submissionId, user?.id, isRecording, startRecording]);
+
+  // Handle browser back button and close tab warning
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = 'Leaving this page will save and end your assessment. This action cannot be undone.';
+      return e.returnValue;
+    };
+
+    const handlePopState = (e: PopStateEvent) => {
+      e.preventDefault();
+      setShowNavigationWarning(true);
+      // Push the current state back to prevent immediate navigation
+      window.history.pushState(null, '', window.location.pathname);
+    };
+
+    // Add initial history state
+    window.history.pushState(null, '', window.location.pathname);
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  const handleNavigationWarningResume = () => {
+    setShowNavigationWarning(false);
+  };
+
+  const handleNavigationWarningEnd = async () => {
+    setShowNavigationWarning(false);
+    setIsEndingAssessment(true);
+    await handleEndAssessment();
+  };
 
   const handleTestResultUpdate = (questionId: string, passedTests: number, totalTests: number) => {
     setTestCaseStatus(prev => ({
@@ -782,6 +820,45 @@ const AssessmentPage = () => {
             >
               <CheckCircle className="h-4 w-4 mr-2" />
               Continue Assessment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Navigation Warning Dialog - Back Button / Close Tab */}
+      <AlertDialog open={showNavigationWarning} onOpenChange={setShowNavigationWarning}>
+        <AlertDialogContent className="dark:bg-gray-800 dark:border-gray-700">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              Leave Assessment?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p className="text-gray-700 dark:text-gray-300">
+                Leaving this page will save and end your assessment. This action cannot be undone.
+              </p>
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                <div className="flex items-start space-x-2">
+                  <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm text-red-700 dark:text-red-300">
+                    Once you end the assessment, you will not be able to attempt it again.
+                  </span>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={handleNavigationWarningResume}
+              className="dark:bg-gray-700 dark:hover:bg-gray-600"
+            >
+              Resume Assessment
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleNavigationWarningEnd}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              End Assessment
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

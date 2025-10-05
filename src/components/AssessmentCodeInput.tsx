@@ -15,7 +15,7 @@ const AssessmentCodeInput = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-  const { loadAssessment } = useAssessment();
+  const { setAssessmentCode } = useAssessment();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,15 +96,13 @@ const AssessmentCodeInput = () => {
         return;
       }
 
-      // Load the assessment and navigate to instructions
-      const success = await loadAssessment(code);
-      if (success) {
-        toast({
-          title: "Assessment Loaded",
-          description: "The assessment has been loaded successfully.",
-        });
-        navigate('/instructions');
-      }
+      // Store the assessment code and navigate to instructions
+      setAssessmentCode(code.trim().toUpperCase());
+      toast({
+        title: "Assessment Verified",
+        description: "Redirecting to assessment instructions...",
+      });
+      navigate('/instructions');
 
     } catch (error) {
       console.error('Error verifying assessment code:', error);
