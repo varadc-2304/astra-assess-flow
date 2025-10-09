@@ -208,7 +208,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     
     try {
       const { data: testCases, error: testCasesError } = await supabase
-        .from('test_cases_bank')
+        .from('test_cases')
         .select('*')
         .eq('coding_question_bank_id', question.id)
         .eq('is_hidden', false)
