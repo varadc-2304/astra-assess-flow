@@ -298,7 +298,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       // Map test_cases_bank to TestCase format
       return (testCases || []).map(tc => ({
         ...tc,
-        coding_question_id: tc.coding_question_bank_id
+        coding_question_id: tc.coding_question_id
       })) as TestCase[];
     } catch (error) {
       console.error('Error fetching test cases:', error);
