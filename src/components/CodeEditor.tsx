@@ -210,7 +210,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       const { data: testCases, error: testCasesError } = await supabase
         .from('test_cases')
         .select('*')
-        .eq('coding_question_bank_id', question.id)
+        .eq('coding_question_id', question.id)
         .eq('is_hidden', false)
         .order('order_index', { ascending: true });
         
@@ -288,7 +288,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       const { data: testCases, error } = await supabase
         .from('test_cases')
         .select('*')
-        .eq('coding_question_bank_id', questionId)
+        .eq('coding_question_id', questionId)
         .order('order_index', { ascending: true });
         
       if (error) {
