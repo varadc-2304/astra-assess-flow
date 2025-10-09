@@ -286,7 +286,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
   const fetchTestCases = async (questionId: string): Promise<TestCase[]> => {
     try {
       const { data: testCases, error } = await supabase
-        .from('test_cases_bank')
+        .from('test_cases')
         .select('*')
         .eq('coding_question_bank_id', questionId)
         .order('order_index', { ascending: true });
