@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Judge0 API configuration
-const JUDGE0_API_URL = 'https://judge0.mitwpu.ikshvaku-innovations.in/';
+const JUDGE0_API_URL = 'https://judge0.mitwpu.ikshvaku-innovations.in';
 
 // Language IDs in Judge0
 export const LANGUAGE_IDS = {
