@@ -283,27 +283,19 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     }
   };
 
-  const fetchTestCases = async (questionId: string): Promise<TestCase[]> => {
-    try {
-      const { data: testCases, error } = await supabase
-        .from('test_cases')
-        .select('*')
-        .eq('coding_question_id', questionId)
-        .order('order_index', { ascending: true });
-        
-      if (error) {
-        throw error;
-      }
-      
-      // Map test_cases_bank to TestCase format
-      return (testCases || []).map(tc => ({
-        ...tc,
-        coding_question_id: tc.coding_question_id
-      })) as TestCase[];
-    } catch (error) {
-      console.error('Error fetching test cases:', error);
-      return [];
-    }
+  const getTestCases = (): TestCase[] => {
+    // Use test cases from the question object which are already loaded
+    // from the correct tables (bank tables for dynamic, normal tables for static)
+    return question.testCases.map(tc => ({
+      id: tc.id,
+      coding_question_id: question.id,
+      input: tc.input,
+      output: tc.output,
+      marks: tc.marks || 0,
+      is_hidden: tc.is_hidden || false,
+      order_index: 0,
+      created_at: new Date().toISOString()
+    })) as TestCase[];
   };
 
   const processTestCase = async (
@@ -411,8 +403,8 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     setTestResults([]);
     
     try {
-      const testCases = await fetchTestCases(question.id);
-      console.log('Fetched test cases:', testCases);
+      const testCases = getTestCases();
+      console.log('Using test cases from question:', testCases);
       
       if (testCases.length === 0) {
         throw new Error('No test cases found for this question');
