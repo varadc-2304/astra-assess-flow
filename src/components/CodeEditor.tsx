@@ -83,8 +83,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           onCodeChange(newLanguage, templateCode);
         }
       } catch (err) {
-        console.error('Error in template fetch:', err);
-        // Fallback to template if there's an error
+        // Error in template fetch
         const templateCode = question.solutionTemplate[newLanguage] || '';
         setCurrentCode(templateCode);
         onCodeChange(newLanguage, templateCode);
@@ -128,8 +127,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       setCurrentCode(templateCode);
       onCodeChange(language, templateCode);
     } catch (err) {
-      console.error('Error in template fetch:', err);
-      // Fallback to template if there's an error
+      // Error in template fetch
       const templateCode = question.solutionTemplate[language] || '';
       setCurrentCode(templateCode);
       onCodeChange(language, templateCode);
@@ -154,7 +152,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
             .eq('language', selectedLanguage);
 
           if (error) {
-            console.error('Error checking existing code snippet:', error);
             return;
           }
 
@@ -180,7 +177,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
               });
           }
         } catch (err) {
-          console.error('Error saving code snippet:', err);
+          // Error saving code snippet
         }
       }
     }
@@ -269,7 +266,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       });
       
     } catch (error) {
-      console.error('Error running code:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setOutput(`Error: ${errorMessage}`);
       
@@ -371,7 +367,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
       
       return processTestCase(index + 1, testCases, updatedResults, updatedTotalMarks);
     } catch (error) {
-      console.error(`Error processing test case ${index + 1}:`, error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setOutput(prev => `${prev}\nError processing test case ${index + 1}: ${errorMessage}\n`);
       
@@ -404,7 +399,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
     
     try {
       const testCases = getTestCases();
-      console.log('Using test cases from question:', testCases);
       
       if (testCases.length === 0) {
         throw new Error('No test cases found for this question');
@@ -453,7 +447,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
               .single();
 
             if (submissionError || !newSubmission) {
-              console.error('Error creating submission:', submissionError);
               throw new Error('No submission result returned');
             }
 
@@ -499,7 +492,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
               .eq('id', existingSubmission[0].id);
               
             if (updateError) {
-              console.error('Error updating question submission:', updateError);
               throw updateError;
             }
           } else {
@@ -508,7 +500,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
               .insert(questionSubmissionData);
 
             if (insertError) {
-              console.error('Error storing question submission:', insertError);
               throw insertError;
             }
           }
@@ -520,7 +511,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
           });
           
         } catch (dbError) {
-          console.error('Error storing results:', dbError);
           toast({
             title: "Warning",
             description: "Your solution was evaluated but there was an error saving your submission.",
@@ -535,7 +525,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({ question, onCodeChange, onMarks
         });
       }
     } catch (error) {
-      console.error('Error submitting code:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setOutput(`Error: ${errorMessage}`);
       

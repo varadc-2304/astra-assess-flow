@@ -148,14 +148,12 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
   // Initialize the camera when component mounts
   useEffect(() => {
     if (!autoInitRef.current) {
-      console.log("Initializing camera...");
       reinitialize();
       autoInitRef.current = true;
     }
     
     // Cleanup function that will run when component unmounts
     return () => {
-      console.log("Stopping camera detection...");
       stopDetection();
     };
   }, [reinitialize, stopDetection]);
@@ -256,7 +254,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         .single();
       
       if (fetchError) {
-        console.error("Error fetching submission:", fetchError);
         return;
       }
       
@@ -280,7 +277,6 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
               ? parsedViolations.map(item => String(item))
               : [];
           } catch (e) {
-            console.error("Error parsing face_violations:", e);
             currentViolations = [];
           }
         }
@@ -298,10 +294,10 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         .eq('id', submissionId);
       
       if (updateError) {
-        console.error("Error updating face violations:", updateError);
+        // Error updating face violations
       }
     } catch (err) {
-      console.error("Error updating face violations:", err);
+      // Error updating face violations
     }
   };
 
@@ -317,10 +313,10 @@ export const ProctoringCamera: React.FC<ProctoringCameraProps> = ({
         .eq('id', submissionId);
       
       if (updateError) {
-        console.error("Error marking submission as terminated:", updateError);
+        // Error marking submission as terminated
       }
     } catch (err) {
-      console.error("Error marking submission as terminated:", err);
+      // Error marking submission as terminated
     }
   };
 

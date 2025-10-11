@@ -75,7 +75,6 @@ const AssessmentCodeInput = () => {
         .eq('assessment_id', assessmentData.id);
 
       if (resultsError) {
-        console.error('Error checking previous attempts:', resultsError);
         toast({
           title: "Error",
           description: "Failed to verify your previous attempts. Please try again.",
@@ -105,7 +104,6 @@ const AssessmentCodeInput = () => {
       navigate('/instructions');
 
     } catch (error) {
-      console.error('Error verifying assessment code:', error);
       toast({
         title: "Error",
         description: "An error occurred while verifying the assessment code.",

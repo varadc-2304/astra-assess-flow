@@ -102,7 +102,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
           .select('id, name, email, role, year, department, division, batch, password, created_at, prn');
         
         if (usersError) {
-          console.error('Error fetching user details:', usersError);
+          // Error fetching user details
         }
         
         const userMap: Record<string, UserData> = {};
@@ -199,7 +199,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ filters, flagged, topPerfor
         
         setStudents(transformedData);
       } catch (error) {
-        console.error('Error fetching results:', error);
         toast({
           title: "Error",
           description: "Failed to load student results",

@@ -23,12 +23,10 @@ export const useAssessmentRecording = ({
 
   const startRecording = useCallback(async () => {
     if (!submissionId || !userId) {
-      console.log('Cannot start recording: missing submissionId or userId');
       return;
     }
 
     try {
-      console.log('Starting camera recording for assessment:', assessmentId);
       
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480 },
@@ -49,12 +47,10 @@ export const useAssessmentRecording = ({
       };
 
       mediaRecorder.onstart = () => {
-        console.log('Recording started');
         setIsRecording(true);
       };
 
       mediaRecorder.onstop = () => {
-        console.log('Recording stopped');
         setIsRecording(false);
         uploadRecording();
       };
@@ -63,7 +59,6 @@ export const useAssessmentRecording = ({
       mediaRecorder.start(1000); // Collect data every second
 
     } catch (error) {
-      console.error('Error starting recording:', error);
       toast({
         title: "Recording Error",
         description: "Failed to start camera recording. Please check your camera permissions.",
@@ -73,7 +68,6 @@ export const useAssessmentRecording = ({
   }, [assessmentId, submissionId, userId, toast]);
 
   const stopRecording = useCallback(() => {
-    console.log('Stopping recording...');
     
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
@@ -87,14 +81,12 @@ export const useAssessmentRecording = ({
 
   const uploadRecording = useCallback(async () => {
     if (chunksRef.current.length === 0 || !submissionId || !userId) {
-      console.log('No recording data to upload or missing IDs');
       return;
     }
 
     setIsUploading(true);
     
     try {
-      console.log('Uploading recording with', chunksRef.current.length, 'chunks');
       
       const recordingBlob = new Blob(chunksRef.current, { type: 'video/webm' });
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -118,7 +110,6 @@ export const useAssessmentRecording = ({
         .getPublicUrl(fileName);
 
       const recordingUrl = urlData.publicUrl;
-      console.log('Recording uploaded successfully:', recordingUrl);
 
       // Update submission with recording URL
       const { error: updateError } = await supabase
@@ -136,7 +127,6 @@ export const useAssessmentRecording = ({
       });
 
     } catch (error) {
-      console.error('Error uploading recording:', error);
       toast({
         title: "Upload Error",
         description: "Failed to save recording. Please contact support if this persists.",

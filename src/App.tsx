@@ -105,15 +105,7 @@ function App() {
   
   useEffect(() => {
     // Run database migrations on app load
-    runMigrations().then(success => {
-      if (success) {
-        console.log('Database migrations completed successfully');
-      } else {
-        console.error('Database migrations failed - face_violations column may not be properly set up');
-      }
-    }).catch(error => {
-      console.error('Error running migrations:', error);
-    });
+    runMigrations();
   }, []);
   
   return (

@@ -165,7 +165,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
       if (faceapi.nets.tinyFaceDetector.isLoaded && 
           faceapi.nets.faceLandmark68Net.isLoaded && 
           faceapi.nets.faceExpressionNet.isLoaded) {
-        console.log('Face-API models already loaded');
         setIsModelLoaded(true);
         return true;
       }
@@ -177,11 +176,9 @@ export function useProctoring(options: ProctoringOptions = {}) {
         faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
       ]);
       
-      console.log('Face-API models loaded successfully');
       setIsModelLoaded(true);
       return true;
     } catch (error) {
-      console.error('Error loading face-api.js models:', error);
       toast({
         title: 'Error',
         description: 'Failed to load face detection models. Please refresh and try again.',
@@ -236,7 +233,6 @@ export function useProctoring(options: ProctoringOptions = {}) {
       
       return true;
     } catch (error) {
-      console.error('Error accessing camera:', error);
       toast({
         title: 'Camera Permission Denied',
         description: 'Please allow camera access for proctoring.',

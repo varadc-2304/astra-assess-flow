@@ -119,7 +119,7 @@ const AssessmentPage = () => {
             setSubmissionId(submissions[0].id);
           }
         } catch (error) {
-          console.error('Error fetching submission record:', error);
+          // Error fetching submission record
         }
       }
     };
@@ -152,10 +152,10 @@ const AssessmentPage = () => {
             });
             
           if (error) {
-            console.error('Error creating submission record:', error);
+            // Error creating submission record
           }
         } catch (error) {
-          console.error('Error creating submission record:', error);
+          // Error creating submission record
         }
       }
     };
@@ -166,7 +166,6 @@ const AssessmentPage = () => {
   // Start recording when assessment begins with AI proctoring
   useEffect(() => {
     if (isAiProctoringEnabled && assessmentStarted && submissionId && user?.id && !isRecording) {
-      console.log('Starting recording for AI-proctored assessment');
       startRecording();
     }
   }, [isAiProctoringEnabled, assessmentStarted, submissionId, user?.id, isRecording, startRecording]);
@@ -296,7 +295,6 @@ const AssessmentPage = () => {
     try {
       // Stop recording if it's active
       if (isRecording) {
-        console.log('Stopping recording before ending assessment');
         stopRecording();
       }
 
@@ -309,7 +307,7 @@ const AssessmentPage = () => {
         .limit(1);
       
       if (submissionError || !submissions || submissions.length === 0) {
-        console.error('Error finding submission to update:', submissionError);
+        // Error finding submission to update
       } else {
         const { error: updateError } = await supabase
           .from('submissions')
@@ -319,7 +317,7 @@ const AssessmentPage = () => {
           .eq('id', submissions[0].id);
         
         if (updateError) {
-          console.error('Error updating submission completion status:', updateError);
+          // Error updating submission completion status
         }
       }
       
@@ -334,7 +332,7 @@ const AssessmentPage = () => {
         .eq('user_id', user?.id || '');
       
       if (resultError) {
-        console.error('Error updating contest name in results:', resultError);
+        // Error updating contest name in results
       }
       
       toast({
@@ -344,7 +342,6 @@ const AssessmentPage = () => {
       
       navigate('/summary');
     } catch (error) {
-      console.error('Error ending assessment:', error);
       toast({
         title: "Error",
         description: "There was an error submitting your assessment. Please try again.",

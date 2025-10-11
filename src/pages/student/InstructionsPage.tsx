@@ -20,9 +20,8 @@ const InstructionsPage = () => {
 
   // Load assessment metadata when component mounts
   useEffect(() => {
-    const loadMetadata = async () => {
+  const loadMetadata = async () => {
       if (!assessmentCode) {
-        console.log("No assessment code available, redirecting to dashboard");
         navigate('/student');
         return;
       }
@@ -46,7 +45,6 @@ const InstructionsPage = () => {
 
         setAssessmentMetadata(assessmentData);
       } catch (error) {
-        console.error('Error loading assessment metadata:', error);
         toast({
           title: "Error",
           description: "An error occurred while loading assessment details.",
@@ -105,7 +103,6 @@ const InstructionsPage = () => {
         navigate('/assessment');
       }
     } catch (error) {
-      console.error('Error loading assessment:', error);
       toast({
         title: "Error",
         description: "An error occurred while loading the assessment.",

@@ -113,7 +113,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
 
   const generateDynamicQuestions = async (assessmentData: DbAssessment): Promise<Question[]> => {
-    console.log('Generating dynamic questions for assessment:', assessmentData.id);
     
     try {
       // Fetch assessment constraints
@@ -123,25 +122,19 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         .eq('assessment_id', assessmentData.id);
         
       if (constraintsError) {
-        console.error('Error fetching assessment constraints:', constraintsError);
         throw new Error(`Failed to fetch assessment constraints: ${constraintsError.message}`);
       }
       
       if (!constraints || constraints.length === 0) {
-        console.log('No constraints found for dynamic assessment');
         return [];
       }
-      
-      console.log('Found constraints:', constraints);
       
       const questions: Question[] = [];
       
       // Process MCQ constraints
       const mcqConstraints = constraints.filter(c => c.question_type === 'mcq');
-      console.log('MCQ constraints:', mcqConstraints);
       
       for (const constraint of mcqConstraints) {
-        console.log(`Processing MCQ constraint for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}, questions: ${constraint.number_of_questions}`);
         
         // Get all available serial numbers for this topic and difficulty
         const { data: serialData, error: serialError } = await supabase
@@ -152,20 +145,16 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           .not('serial', 'is', null);
           
         if (serialError) {
-          console.error('Error fetching MCQ serial numbers:', serialError);
           continue;
         }
         
         if (!serialData || serialData.length === 0) {
-          console.log(`No MCQ questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
           continue;
         }
         
         const availableSerials = serialData.map(item => item.serial).filter(serial => serial !== null);
-        console.log(`Available MCQ serials for ${constraint.topic} (${constraint.difficulty}):`, availableSerials);
         
         if (availableSerials.length === 0) {
-          console.log(`No valid serial numbers found for MCQ topic: ${constraint.topic}`);
           continue;
         }
         
@@ -182,8 +171,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         
-        console.log(`Selected random MCQ serials for ${constraint.topic}:`, randomSerials);
-        
         // Fetch questions using the random serial numbers
         const { data: mcqQuestions, error: mcqError } = await supabase
           .from('mcq_question_bank')
@@ -193,19 +180,14 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           .in('serial', randomSerials);
           
         if (mcqError) {
-          console.error('Error fetching MCQ questions from bank:', mcqError);
           continue;
         }
         
-        console.log(`Fetched ${mcqQuestions?.length || 0} MCQ questions for topic ${constraint.topic}`);
-        
         if (!mcqQuestions || mcqQuestions.length === 0) {
-          console.log(`No MCQ questions retrieved for topic: ${constraint.topic}`);
           continue;
         }
         
         for (const mcqQuestion of mcqQuestions) {
-          console.log(`Processing MCQ Question ${mcqQuestion.id} (${mcqQuestion.title})`);
         
           // Fetch options for each MCQ question
           const { data: options, error: optionsError } = await supabase
@@ -215,12 +197,10 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .order('order_index', { ascending: true });
         
           if (optionsError) {
-            console.error(`Error fetching options for MCQ ${mcqQuestion.id}:`, optionsError);
             continue;
           }
 
           if (!options || options.length === 0) {
-            console.warn(`No options found for MCQ question ${mcqQuestion.id}, skipping`);
             continue;
           }
         
@@ -241,17 +221,14 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             marks: mcqQuestion.marks
           };
         
-          console.log(`Final MCQ Question ${mcqQuestion.id} created with ${question.options.length} options`);
           questions.push(question);
         }
       }
       
       // Process Coding constraints
       const codingConstraints = constraints.filter(c => c.question_type === 'coding');
-      console.log('Coding constraints:', codingConstraints);
       
       for (const constraint of codingConstraints) {
-        console.log(`Processing coding constraint for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}, questions: ${constraint.number_of_questions}`);
         
         // Get all available serial numbers for this topic and difficulty
         const { data: serialData, error: serialError } = await supabase
@@ -262,20 +239,16 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           .not('serial', 'is', null);
           
         if (serialError) {
-          console.error('Error fetching coding serial numbers:', serialError);
           continue;
         }
         
         if (!serialData || serialData.length === 0) {
-          console.log(`No coding questions found for topic: ${constraint.topic}, difficulty: ${constraint.difficulty}`);
           continue;
         }
         
         const availableSerials = serialData.map(item => item.serial).filter(serial => serial !== null);
-        console.log(`Available coding serials for ${constraint.topic} (${constraint.difficulty}):`, availableSerials);
         
         if (availableSerials.length === 0) {
-          console.log(`No valid serial numbers found for coding topic: ${constraint.topic}`);
           continue;
         }
         
@@ -292,8 +265,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         
-        console.log(`Selected random coding serials for ${constraint.topic}:`, randomSerials);
-        
         // Fetch coding questions using the random serial numbers
         const { data: codingQuestions, error: codingError } = await supabase
           .from('coding_question_bank')
@@ -303,19 +274,14 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           .in('serial', randomSerials);
           
         if (codingError) {
-          console.error('Error fetching coding questions from bank:', codingError);
           continue;
         }
         
-        console.log(`Fetched ${codingQuestions?.length || 0} coding questions for topic ${constraint.topic}`);
-        
         if (!codingQuestions || codingQuestions.length === 0) {
-          console.log(`No coding questions retrieved for topic: ${constraint.topic}`);
           continue;
         }
         
         for (const codingQuestion of codingQuestions) {
-          console.log(`Processing Coding Question ${codingQuestion.id} (${codingQuestion.title})`);
           
           // Fetch coding languages for this question
           const { data: languagesData, error: languagesError } = await supabase
@@ -324,11 +290,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .eq('coding_question_bank_id', codingQuestion.id);
 
           if (languagesError) {
-            console.error(`Error fetching languages for coding question ${codingQuestion.id}:`, languagesError);
             continue;
           }
-          
-          console.log(`Found ${languagesData?.length || 0} languages for coding question ${codingQuestion.id}`);
           
           // Fetch coding examples for this question
           const { data: examplesData, error: examplesError } = await supabase
@@ -338,11 +301,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .order('order_index', { ascending: true });
 
           if (examplesError) {
-            console.error(`Error fetching examples for coding question ${codingQuestion.id}:`, examplesError);
             continue;
           }
-
-          console.log(`Found ${examplesData?.length || 0} examples for coding question ${codingQuestion.id}`);
 
           // Fetch test cases for this question
           const { data: testCasesData, error: testCasesError } = await supabase
@@ -352,11 +312,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .order('order_index', { ascending: true });
 
           if (testCasesError) {
-            console.error(`Error fetching test cases for coding question ${codingQuestion.id}:`, testCasesError);
             continue;
           }
-
-          console.log(`Found ${testCasesData?.length || 0} test cases for coding question ${codingQuestion.id}`);
 
           // Create solution template object
           const solutionTemplate: Record<string, string> = {};
@@ -396,19 +353,15 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             marks: testCaseMarks,
           };
 
-          console.log(`Final Coding Question ${codingQuestion.id} created with ${question.testCases.length} test cases and ${testCaseMarks} total marks`);
           questions.push(question);
         }
       }
       
-      console.log(`Generated ${questions.length} dynamic questions total`);
       // Randomize the order of questions
       const shuffledQuestions = shuffleArray(questions);
-      console.log('Questions order randomized for dynamic assessment');
       return shuffledQuestions;
       
     } catch (error) {
-      console.error('Error generating dynamic questions:', error);
       throw error;
     }
   };
@@ -419,7 +372,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     
     try {
       const normalizedCode = code.trim().toUpperCase();
-      console.log('Fetching assessment with normalized code:', normalizedCode);
       
       const { data: assessmentsData, error: assessmentError } = await supabase
         .from('assessments')
@@ -427,19 +379,14 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         .eq('code', normalizedCode);
         
       if (assessmentError) {
-        console.error('Error fetching assessment:', assessmentError);
         throw new Error(`Error fetching assessment data: ${assessmentError.message}`);
       }
       
-      console.log('Assessment query response:', assessmentsData);
-      
       if (!assessmentsData || assessmentsData.length === 0) {
-        console.error(`No assessment found with code: ${normalizedCode}`);
         throw new Error(`Invalid assessment code or assessment not found: ${normalizedCode}`);
       }
       
       const assessmentData = assessmentsData[0];
-      console.log('Selected assessment data:', assessmentData);
       
       // Set the dynamic assessment flag
       setIsDynamicAssessment(assessmentData.is_dynamic || false);
@@ -449,11 +396,9 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       
       // Check if assessment is dynamic
       if (assessmentData.is_dynamic) {
-        console.log('Assessment is dynamic, generating questions from constraints');
         questions = await generateDynamicQuestions(assessmentData);
         totalPossibleMarks = questions.reduce((sum, q) => sum + (q.marks || 0), 0);
       } else {
-        console.log('Assessment is static, loading predefined questions');
         
         // Fetch MCQ Questions with proper selection to include id field
         const { data: mcqQuestionsData, error: mcqQuestionsError } = await supabase
@@ -463,12 +408,9 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           .order('order_index', { ascending: true });
           
         if (mcqQuestionsError) {
-          console.error('Failed to load MCQ questions:', mcqQuestionsError);
           throw new Error(`Failed to load MCQ questions: ${mcqQuestionsError.message}`);
         }
 
-        console.log('MCQ Questions data:', mcqQuestionsData);
-        
         // Fetch Coding Questions
         const { data: codingQuestionsData, error: codingQuestionsError } = await supabase
           .from('coding_questions')
@@ -477,11 +419,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           .order('order_index', { ascending: true });
           
         if (codingQuestionsError) {
-          console.error('Failed to load coding questions:', codingQuestionsError);
           throw new Error(`Failed to load coding questions: ${codingQuestionsError.message}`);
         }
-        
-        console.log(`Found ${mcqQuestionsData?.length || 0} MCQ questions and ${codingQuestionsData?.length || 0} coding questions`);
         
         // Process MCQ Questions
         for (const mcqQuestion of mcqQuestionsData || []) {
@@ -494,12 +433,8 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .order('order_index', { ascending: true });
             
           if (optionsError) {
-            console.error('Failed to load options for question', mcqQuestion.id, optionsError);
             continue;
           }
-          
-          console.log(`Found ${optionsData?.length || 0} options for MCQ question ID:`, mcqQuestion.id);
-          console.log('MCQ options data:', optionsData);
           
           // Randomize the order of options for static assessment too
           const shuffledOptions = shuffleArray(optionsData?.map(option => ({
@@ -530,7 +465,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .eq('coding_question_id', codingQuestion.id);
 
           if (languagesError) {
-            console.error('Failed to load languages for coding question', codingQuestion.id, languagesError);
             continue;
           }
           
@@ -542,7 +476,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .order('order_index', { ascending: true });
 
           if (examplesError) {
-            console.error('Failed to load examples for coding question', codingQuestion.id, examplesError);
             continue;
           }
 
@@ -554,7 +487,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
             .order('order_index', { ascending: true });
 
           if (testCasesError) {
-            console.error('Failed to load test cases for coding question', codingQuestion.id, testCasesError);
             continue;
           }
 
@@ -602,16 +534,12 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         }
       }
       
-      console.log(`Total questions processed: ${questions.length}`);
-      console.log(`Total possible marks: ${totalPossibleMarks}`);
-      
       if (questions.length === 0) {
         throw new Error('No questions found for this assessment. Please contact your administrator.');
       }
       
       // Randomize the order of questions for static assessments too
       const shuffledQuestions = shuffleArray(questions);
-      console.log('Questions order randomized for static assessment');
       
       const loadedAssessment: Assessment = {
         id: assessmentData.id,
@@ -627,7 +555,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         isAiProctored: assessmentData.is_ai_proctored !== undefined ? assessmentData.is_ai_proctored : true
       };
       
-      console.log('Setting assessment:', loadedAssessment);
       setAssessment(loadedAssessment);
       setTotalPossibleMarks(totalPossibleMarks);
       setTimeRemaining(loadedAssessment.durationMinutes * 60);
@@ -644,7 +571,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       
       return true;
     } catch (error) {
-      console.error('Error loading assessment:', error);
       setError(error instanceof Error ? error.message : 'Failed to load assessment');
       toast({
         title: "Error",
@@ -669,9 +595,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         setAssessmentEnded(true);
         setAssessmentStarted(false);
         
-        console.log('Assessment ended successfully');
-        console.log(`Total marks obtained: ${totalMarksObtained}/${totalPossibleMarks}`);
-        
         // Always create a new submission for each assessment attempt
         const { data: newSubmission, error: newSubmissionError } = await supabase
           .from('submissions')
@@ -686,7 +609,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           .single();
             
         if (newSubmissionError || !newSubmission) {
-          console.error('Error creating submission:', newSubmissionError);
           toast({
             title: "Error",
             description: "There was an error creating your submission.",
@@ -715,7 +637,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
           });
           
         if (resultError) {
-          console.error('Error storing results:', resultError);
           toast({
             title: "Warning",
             description: "There was an error saving your results.",
@@ -729,7 +650,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
       }
       return false;
     } catch (error) {
-      console.error('Error ending assessment:', error);
       toast({
         title: "Error",
         description: "There was an error finalizing your assessment. Your answers may not have been saved.",
@@ -744,7 +664,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
     if (!assessment || !user) return;
     
     try {
-      console.log(`Answering MCQ question ${questionId} with option ${optionId}`);
       
       // Always create a new submission for the current session if not already created
       const { data: submissions, error: submissionError } = await supabase
@@ -757,7 +676,6 @@ export const AssessmentProvider = ({ children }: { children: ReactNode }) => {
         .limit(1);
         
       if (submissionError) {
-        console.error('Error finding submission:', submissionError);
         throw submissionError;
       }
       

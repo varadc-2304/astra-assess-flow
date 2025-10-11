@@ -41,13 +41,11 @@ const CameraVerificationPage = () => {
           .limit(1);
         
         if (fetchError) {
-          console.error('Error checking existing submissions:', fetchError);
           throw fetchError;
         }
         
         // If there's an active submission, use that
         if (existingSubmissions && existingSubmissions.length > 0) {
-          console.log('Using existing submission:', existingSubmissions[0]);
           return existingSubmissions[0];
         }
         
@@ -65,11 +63,9 @@ const CameraVerificationPage = () => {
           .single();
           
         if (error) {
-          console.error('Error creating new submission:', error);
           throw error;
         }
         
-        console.log('Created new submission:', data);
         return data;
       } finally {
         setIsCreatingSubmission(false);
@@ -79,12 +75,10 @@ const CameraVerificationPage = () => {
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
     onSuccess: (data) => {
       if (data) {
-        console.log('Submission created/found successfully:', data.id);
         setSubmissionId(data.id);
       }
     },
     onError: (error) => {
-      console.error('Error creating submission after retries:', error);
       toast({
         title: "Error",
         description: "Failed to create submission record. Please try refreshing the page.",
@@ -96,14 +90,12 @@ const CameraVerificationPage = () => {
   useEffect(() => {
     // Check if assessment requires AI proctoring, if not, redirect to assessment page
     if (!loading && assessment && !assessment.isAiProctored) {
-      console.log("Assessment doesn't require AI proctoring, redirecting to assessment page");
       startAssessment();
       navigate('/assessment');
       return;
     }
     
     if (!loading && !assessment && assessmentCode) {
-      console.log("No assessment data available, redirecting to dashboard");
       toast({
         title: "Error",
         description: "Assessment data is not available. Please try again.",
@@ -115,7 +107,6 @@ const CameraVerificationPage = () => {
     
     // Only create submission when needed, don't initialize camera yet
     if (user && assessment && !submissionId && !isCreatingSubmission) {
-      console.log("Creating submission for assessment", assessment.id);
       createSubmissionMutation.mutate();
     }
   }, [assessment, assessmentCode, loading, navigate, toast, user, createSubmissionMutation, submissionId, isCreatingSubmission, startAssessment]);
