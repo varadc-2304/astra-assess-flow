@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import { useProctoringWarnings } from '@/hooks/useProctoringWarnings';
 import { useAssessmentRecording } from '@/hooks/useAssessmentRecording';
 import { useMobileAntiCheating } from '@/hooks/useMobileAntiCheating';
+import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 
 function isMCQQuestion(question: any): question is MCQQuestionType {
   return question.type === 'mcq';
@@ -583,8 +584,8 @@ const AssessmentPage = () => {
                   )}
                   
                   <ScrollArea className="h-[calc(100vh-280px)] pr-3">
-                    <div className="prose dark:prose-invert max-w-none mb-4">
-                      <p className="text-gray-700 dark:text-gray-200 whitespace-pre-line">{currentQuestion.description}</p>
+                    <div className="mb-4">
+                      <MarkdownRenderer content={currentQuestion.description} />
                     </div>
                     
                     {isCodeQuestion(currentQuestion) && currentQuestion.examples.length > 0 && (

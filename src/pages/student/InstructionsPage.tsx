@@ -5,9 +5,10 @@ import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/componen
 import { useAssessment } from '@/contexts/AssessmentContext';
 import { Timer } from '@/components/Timer';
 import { Separator } from '@/components/ui/separator';
-import { ClipboardList, Clock, Code, Camera, Loader2 } from 'lucide-react';
+import { ClipboardList, Clock, Code, Camera, Loader2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 
 const InstructionsPage = () => {
   const { assessmentCode, loading, loadAssessment, startAssessment } = useAssessment();
@@ -143,32 +144,46 @@ const InstructionsPage = () => {
       )}
 
       <div className="max-w-3xl mx-auto px-4">
-        <Card className="mb-6 shadow-lg border-0">
-          <CardHeader>
-            <CardTitle className="text-xl">Assessment Details</CardTitle>
+        <Card className="mb-6 shadow-lg border-0 bg-card/50 backdrop-blur">
+          <CardHeader className="border-b bg-gradient-to-r from-primary/5 to-primary/10">
+            <CardTitle className="text-xl flex items-center gap-2">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              Assessment Details
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             <div>
-              <h3 className="text-lg font-medium">Instructions</h3>
-              <p className="text-gray-600 mt-1">{assessmentMetadata?.instructions || 'No instructions provided.'}</p>
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <div className="h-1 w-8 bg-primary rounded" />
+                Instructions
+              </h3>
+              <div className="bg-muted/30 p-4 rounded-lg border border-border">
+                <MarkdownRenderer 
+                  content={assessmentMetadata?.instructions || 'No instructions provided.'} 
+                />
+              </div>
             </div>
             
-            <Separator />
+            <Separator className="my-4" />
             
             <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-astra-red" />
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
+                <div className="p-2 rounded-full bg-primary/10">
+                  <Clock className="h-5 w-5 text-primary" />
+                </div>
                 <div>
-                  <p className="text-sm text-gray-500">Duration</p>
-                  <p className="font-semibold">{assessmentMetadata?.duration_minutes} minutes</p>
+                  <p className="text-xs text-muted-foreground font-medium">Duration</p>
+                  <p className="font-semibold text-foreground">{assessmentMetadata?.duration_minutes} minutes</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Camera className="h-5 w-5 text-astra-red" />
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
+                <div className="p-2 rounded-full bg-primary/10">
+                  <Camera className="h-5 w-5 text-primary" />
+                </div>
                 <div>
-                  <p className="text-sm text-gray-500">Proctoring</p>
-                  <p className="font-semibold">
+                  <p className="text-xs text-muted-foreground font-medium">Proctoring</p>
+                  <p className="font-semibold text-foreground">
                     {assessmentMetadata?.is_ai_proctored ? "Camera Required" : "Self Proctored"}
                   </p>
                 </div>
@@ -177,43 +192,77 @@ const InstructionsPage = () => {
           </CardContent>
         </Card>
         
-        <Card className="mb-6 shadow-lg border-0">
-          <CardHeader>
-            <CardTitle className="text-lg">Important Information</CardTitle>
+        <Card className="mb-6 shadow-lg border-0 bg-card/50 backdrop-blur">
+          <CardHeader className="border-b bg-gradient-to-r from-amber-500/5 to-orange-500/5">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <div className="p-1.5 rounded-full bg-amber-500/10">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+              </div>
+              Important Information
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>• Tab switching and app switching detection is active on all devices.</p>
-            <p>• Switching tabs/apps 3 times will automatically terminate your assessment.</p>
-            <p>• All browsers are supported with robust anti-cheating measures.</p>
-            <p>• The assessment will start when you click the button below.</p>
-            <p>• You can navigate between questions using the navigation panel.</p>
-            <p>• Your answers are auto-saved as you progress.</p>
-            <p>• The assessment will automatically submit when the time expires.</p>
-            {assessmentMetadata?.is_ai_proctored && (
-              <p>• Camera proctoring will be active throughout the entire assessment.</p>
-            )}
+          <CardContent className="space-y-2 text-sm pt-6">
+            <div className="space-y-2.5">
+              <p className="flex items-start gap-2">
+                <span className="text-primary mt-0.5">•</span>
+                <span>Tab switching and app switching detection is active on all devices.</span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="text-primary mt-0.5">•</span>
+                <span className="font-semibold text-destructive">Switching tabs/apps 3 times will automatically terminate your assessment.</span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="text-primary mt-0.5">•</span>
+                <span>All browsers are supported with robust anti-cheating measures.</span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="text-primary mt-0.5">•</span>
+                <span>The assessment will start when you click the button below.</span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="text-primary mt-0.5">•</span>
+                <span>You can navigate between questions using the navigation panel.</span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="text-primary mt-0.5">•</span>
+                <span>Your answers are auto-saved as you progress.</span>
+              </p>
+              <p className="flex items-start gap-2">
+                <span className="text-primary mt-0.5">•</span>
+                <span>The assessment will automatically submit when the time expires.</span>
+              </p>
+              {assessmentMetadata?.is_ai_proctored && (
+                <p className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
+                  <span className="text-primary mt-0.5">•</span>
+                  <span className="font-medium">Camera proctoring will be active throughout the entire assessment.</span>
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
         
-        <Card className="text-center shadow-lg border-0">
-          <CardContent className="pt-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-medium">Assessment starts in</h3>
-              <div className="flex justify-center my-4">
-                <Timer 
-                  variant="countdown"
-                  targetTime={assessmentMetadata?.start_time || ''}
-                  onCountdownEnd={handleCountdownEnd}
-                />
+        <Card className="text-center shadow-lg border-0 bg-gradient-to-br from-card to-card/50 backdrop-blur">
+          <CardContent className="pt-8 pb-6">
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-2 flex items-center justify-center gap-2">
+                <Clock className="h-5 w-5 text-primary" />
+                Assessment starts in
+              </h3>
+              <div className="flex justify-center my-6">
+                <div className="bg-gradient-to-br from-primary/10 to-primary/5 p-6 rounded-xl border border-primary/20">
+                  <Timer 
+                    variant="countdown"
+                    targetTime={assessmentMetadata?.start_time || ''}
+                    onCountdownEnd={handleCountdownEnd}
+                  />
+                </div>
               </div>
             </div>
-          </CardContent>
-          <CardFooter className="flex justify-center pb-6">
             <Button 
               onClick={handleStartAssessment}
               disabled={!countdownEnded || (assessmentMetadata?.end_time && new Date() > new Date(assessmentMetadata.end_time)) || isLoadingQuestions}
               size="lg"
-              className={`bg-astra-red hover:bg-red-600 text-white transition-all ${
+              className={`bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white transition-all shadow-lg ${
                 countdownEnded && (!assessmentMetadata?.end_time || new Date() <= new Date(assessmentMetadata.end_time)) && !isLoadingQuestions ? 'animate-pulse' : 'opacity-50'
               }`}
             >
@@ -223,7 +272,7 @@ const InstructionsPage = () => {
                   ? (assessmentMetadata?.is_ai_proctored ? 'Proceed to Camera Setup' : 'Start Assessment') 
                   : 'Please Wait...'}
             </Button>
-          </CardFooter>
+          </CardContent>
         </Card>
       </div>
     </div>

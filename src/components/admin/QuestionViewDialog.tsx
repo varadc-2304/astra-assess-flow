@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { MCQQuestion, CodingQuestion, MCQOption, CodingLanguage, CodingExample, TestCase } from '@/types/database';
+import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 
 interface QuestionViewDialogProps {
   questionId: string | null;
@@ -113,8 +114,8 @@ const QuestionViewDialog: React.FC<QuestionViewDialogProps> = ({
               <CardTitle>{question.title}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="whitespace-pre-wrap">{question.description}</p>
-              <div className="mt-2">
+              <MarkdownRenderer content={question.description} />
+              <div className="mt-4">
                 <Badge>Marks: {question.marks}</Badge>
               </div>
             </CardContent>

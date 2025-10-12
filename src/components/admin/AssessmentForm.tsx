@@ -238,7 +238,7 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({ assessmentId }) => {
                     name="instructions"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Instructions</FormLabel>
+                        <FormLabel>Instructions <span className="text-xs text-muted-foreground">(Markdown supported)</span></FormLabel>
                         <FormControl>
                           <Textarea 
                             placeholder="Enter detailed instructions for students taking this assessment..." 
@@ -246,6 +246,9 @@ const AssessmentForm: React.FC<AssessmentFormProps> = ({ assessmentId }) => {
                             {...field} 
                           />
                         </FormControl>
+                        <FormDescription>
+                          Supports **bold**, *italic*, lists, links, code blocks, etc.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
