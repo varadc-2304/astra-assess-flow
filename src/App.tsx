@@ -30,7 +30,7 @@ const queryClient = new QueryClient({
     }
   }
 });
-
+// This is a comment ***
 // Protected route component for student routes only
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
